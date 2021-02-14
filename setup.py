@@ -21,7 +21,7 @@ CLASSIFIERS = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
 ]
-INSTALL_REQUIRES = ["jax"]
+INSTALL_REQUIRES = ["jax", "jaxlib"]
 EXTRA_REQUIRE = {"test": ["pytest>=3.6"]}
 
 # END PROJECT SPECIFIC
