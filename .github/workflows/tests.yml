@@ -50,7 +50,7 @@ jobs:
         run: python -m pytest --cov tinygp -v tests
       - name: Coveralls
         uses: AndreMiras/coveralls-python-action@v20201129
-
+     
   deploy:
     needs: [tests]
     name: Build the distribution
