@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    "metric",
-    "diagonal_metric",
-    "dense_metric",
-    "cholesky_metric",
     "Sum",
     "Product",
     "Constant",
@@ -19,36 +15,12 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from typing import Callable, Union
-
-from functools import partial
+from typing import Union
 
 import jax
 import jax.numpy as jnp
-from jax.scipy import linalg
 
-from .functional import compose
-
-
-Metric = Callable[[jnp.ndarray], jnp.ndarray]
-
-
-def metric(r: jnp.ndarray) -> jnp.ndarray:
-    return jnp.sum(jnp.square(r))
-
-
-def diagonal_metric(ell: jnp.ndarray) -> Metric:
-    return partial(jnp.multiply, 1.0 / ell)
-
-
-def dense_metric(cov: jnp.ndarray, *, lower: bool = True) -> Metric:
-    chol = linalg.cholesky(cov, lower=lower)
-    return cholesky_metric(chol, lower=lower)
-
-
-def cholesky_metric(chol: jnp.ndarray, *, lower: bool = True) -> Metric:
-    solve = partial(linalg.solve_triangular, chol, lower=lower)
-    return compose(metric, solve)
+from .metrics import Metric, diagonal_metric
 
 
 class Kernel:
@@ -181,4 +153,4 @@ class RationalQuadratic(MetricKernel):
         super().__init__(metric)
 
     def evaluate_radial(self, r2: jnp.ndarray) -> jnp.ndarray:
-        return (1.0 - 0.5 * r2 / self.alpha) ** self.alpha
+        return (1.0 + 0.5 * r2 / self.alpha) ** -self.alpha

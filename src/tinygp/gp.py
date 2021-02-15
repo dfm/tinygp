@@ -2,14 +2,14 @@
 
 __all__ = ["GaussianProcess"]
 
-from typing import Union, Optional
+from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
 from .kernels import Kernel
-from .mean import Mean, zero_mean, constant_mean
+from .means import Mean, constant_mean, zero_mean
 
 LOG2PI = jnp.log(2 * jnp.pi)
 
