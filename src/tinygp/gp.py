@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ["GaussianProcess", "zero_mean", "constant_mean"]
+__all__ = ["GaussianProcess"]
 
-from typing import Union, Optional, Callable
+from typing import Union, Optional
 
 import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
 from .kernels import Kernel
+from .mean import Mean, zero_mean, constant_mean
 
 LOG2PI = jnp.log(2 * jnp.pi)
-
-Mean = Callable[[jnp.ndarray], jnp.ndarray]
 
 
 class GaussianProcess:
@@ -106,19 +105,6 @@ class GaussianProcess:
 
         cov = self.kernel.evaluate(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
-
-
-def zero_mean(X: jnp.ndarray) -> jnp.ndarray:
-    return jnp.zeros(X.shape[0])
-
-
-def constant_mean(value: jnp.ndarray) -> Mean:
-    _value = value
-
-    def mean(X: jnp.ndarray) -> jnp.ndarray:
-        return jnp.full(X.shape[0], _value)
-
-    return mean
 
 
 def _pad_input(X: jnp.ndarray) -> jnp.ndarray:

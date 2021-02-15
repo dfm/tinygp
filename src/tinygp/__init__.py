@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ["__version__", "kernels", "GaussianProcess"]
+__all__ = ["__version__", "kernels", "means", "GaussianProcess"]
 
 from .tinygp_version import version as __version__
-from . import kernels
+from . import kernels, means
 from .gp import GaussianProcess
 
 __author__ = "Dan Foreman-Mackey"
