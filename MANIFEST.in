@@ -1,0 +1,4 @@
+
+exclude .*
+prune .github
+prune docs
