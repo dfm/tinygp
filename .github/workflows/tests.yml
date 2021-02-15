@@ -52,6 +52,7 @@ jobs:
         uses: AndreMiras/coveralls-python-action@v20201129
 
   deploy:
+    needs: [tests]
     name: Build the distribution
     runs-on: ubuntu-latest
     steps:
@@ -70,19 +71,9 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           path: dist
-
-  # upload_pypi:
-  #   needs: [tests, build_wheels, build_sdist]
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'release' && github.event.action == 'published'
-  #   steps:
-  #     - uses: actions/download-artifact@v2
-  #       with:
-  #         name: artifact
-  #         path: dist
-
-  #     - uses: pypa/gh-action-pypi-publish@v1.4.2
-  #       with:
-  #         user: __token__
-  #         password: ${{ secrets.pypi_password }}
-  #         # To test: repository_url: https://test.pypi.org/legacy/
+      - uses: pypa/gh-action-pypi-publish@v1.4.2
+        if: github.event_name == 'release' && github.event.action == 'published'
+        with:
+          user: __token__
+          password: ${{ secrets.pypi_password }}
+          # To test: repository_url: https://test.pypi.org/legacy/
