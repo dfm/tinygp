@@ -8,12 +8,11 @@ __all__ = [
     "cholesky_metric",
 ]
 
+from functools import partial, reduce
 from typing import Callable
-from functools import reduce, partial
 
 import jax.numpy as jnp
 from jax.scipy import linalg
-
 
 Metric = Callable[[jnp.ndarray], jnp.ndarray]
 

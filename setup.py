@@ -22,7 +22,8 @@ CLASSIFIERS = [
     "Programming Language :: Python :: 3",
 ]
 INSTALL_REQUIRES = ["numpy", "jax", "jaxlib"]
-EXTRA_REQUIRE = {"test": ["pytest>=3.6"]}
+EXTRA_REQUIRE = {"test": ["pytest>=3.6", "george"]}
+EXTRA_REQUIRE["coverage"] = EXTRA_REQUIRE["test"] + ["pytest-cov"]
 
 # END PROJECT SPECIFIC
 
@@ -69,4 +70,5 @@ if __name__ == "__main__":
         extras_require=EXTRA_REQUIRE,
         classifiers=CLASSIFIERS,
         zip_safe=True,
+        options={"bdist_wheel": {"universal": "1"}},
     )

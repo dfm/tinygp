@@ -1,0 +1,90 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types:
+      - published
+jobs:
+  tests:
+    name: "py${{ matrix.python-version }} / ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Clone the repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install .[test]
+      - name: Run tests
+        run: python -m pytest -v tests
+
+  coverage:
+    name: "Run tests with coverage"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e .[coverage]
+      - name: Run tests
+        run: python -m pytest --cov tinygp -v tests
+      - name: Coveralls
+        uses: AndreMiras/coveralls-python-action@v20201129
+
+  deploy:
+    name: Build the distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: "3.9"
+      - name: Build
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U build
+          python -m build .
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist/*.tar.gz
+
+  # upload_pypi:
+  #   needs: [tests, build_wheels, build_sdist]
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'release' && github.event.action == 'published'
+  #   steps:
+  #     - uses: actions/download-artifact@v2
+  #       with:
+  #         name: artifact
+  #         path: dist
+
+  #     - uses: pypa/gh-action-pypi-publish@v1.4.2
+  #       with:
+  #         user: __token__
+  #         password: ${{ secrets.pypi_password }}
+  #         # To test: repository_url: https://test.pypi.org/legacy/
