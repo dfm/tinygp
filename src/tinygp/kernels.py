@@ -15,12 +15,14 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from typing import Union
+from typing import Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
 from .metrics import Metric, diagonal_metric
+
+Axis = Union[int, Tuple[int], jnp.ndarray]
 
 
 class Kernel:
@@ -82,26 +84,49 @@ class Constant(Kernel):
         return self.value
 
 
-class DotProduct(Kernel):
+class SubspaceKernel(Kernel):
+    def __init__(self, *, axis: Axis = None):
+        self.axis = axis
+
+    def evaluate_subspace(
+        self, X1: jnp.ndarray, X2: jnp.ndarray
+    ) -> jnp.ndarray:
+        raise NotImplementedError()
+
     def __call__(self, X1: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
+        if self.axis is None:
+            return self.evaluate_subspace(X1, X2)
+        return self.evaluate_subspace(X1[self.axis], X2[self.axis])
+
+
+class DotProduct(SubspaceKernel):
+    def evaluate_subspace(
+        self, X1: jnp.ndarray, X2: jnp.ndarray
+    ) -> jnp.ndarray:
         return X1 @ X2
 
 
-class Polynomial(Kernel):
-    def __init__(self, *, order: int, sigma: jnp.ndarray):
-        self.order = int(order)
+class Polynomial(SubspaceKernel):
+    def __init__(self, *, order: int, sigma: jnp.ndarray, axis: Axis = None):
+        self.order = float(order)
         self.sigma2 = jnp.asarray(sigma) ** 2
+        super().__init__(axis=axis)
 
-    def __call__(self, X1: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
+    def evaluate_subspace(
+        self, X1: jnp.ndarray, X2: jnp.ndarray
+    ) -> jnp.ndarray:
         return (X1 @ X2 + self.sigma2) ** self.order
 
 
-class Linear(Kernel):
-    def __init__(self, *, order: int, sigma: jnp.ndarray):
-        self.order = int(order)
+class Linear(SubspaceKernel):
+    def __init__(self, *, order: int, sigma: jnp.ndarray, axis: Axis = None):
+        self.order = float(order)
         self.sigma2 = jnp.asarray(sigma) ** 2
+        super().__init__(axis=axis)
 
-    def __call__(self, X1: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
+    def evaluate_subspace(
+        self, X1: jnp.ndarray, X2: jnp.ndarray
+    ) -> jnp.ndarray:
         return (X1 @ X2 / self.sigma2) ** self.order
 
 

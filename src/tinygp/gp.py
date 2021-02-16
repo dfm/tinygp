@@ -26,7 +26,9 @@ class GaussianProcess:
     ):
         # Format input
         self.X = _pad_input(X)
-        self.diag = jnp.asarray(diag)
+        assert self.X.ndim == 2
+        self.size = self.X.shape[0]
+        self.diag = jnp.broadcast_to(diag, (self.size,))
 
         # Parse the mean function
         if callable(mean):
@@ -51,7 +53,7 @@ class GaussianProcess:
         )
 
     def condition(self, y: jnp.ndarray) -> jnp.ndarray:
-        self.y = jnp.asarray(y)
+        self.y = jnp.broadcast_to(y, (self.size,))
         self.resid = self.y - self.mean(self.X)
         self.alpha = linalg.solve_triangular(
             self.chol, self.resid, lower=self.lower
@@ -71,18 +73,22 @@ class GaussianProcess:
 
         # Compute the conditional
         if X_test is None:
-            X_test = self.X
-            K_testT = linalg.solve_triangular(
-                self.chol, self.K0, lower=self.lower
-            )
-            delta = (
-                linalg.solve_triangular(self.chol, self.diag, lower=self.lower)
-                * self.alpha
+            delta = self.diag * linalg.solve_triangular(
+                self.chol, self.alpha, lower=self.lower, trans=1
             )
             if include_mean:
                 mu = self.y - delta
             else:
                 mu = self.resid - delta
+
+            if not (return_var or return_cov):
+                return mu
+
+            X_test = self.X
+            K_testT = linalg.solve_triangular(
+                self.chol, self.K0, lower=self.lower
+            )
+
         else:
             X_test = _pad_input(X_test)
             K_testT = linalg.solve_triangular(
@@ -94,8 +100,8 @@ class GaussianProcess:
             if include_mean:
                 mu += self.mean(X_test)
 
-        if not (return_var or return_cov):
-            return mu
+            if not (return_var or return_cov):
+                return mu
 
         if return_var:
             var = self.kernel.evaluate_diag(X_test) - jnp.sum(
