@@ -1,0 +1,20 @@
+title: tinygp Documentation
+author: Dan Foreman-Mackey
+copyright: "2021"
+
+repository:
+  url: https://github.com/dfm/tinygp
+  path_to_book: docs
+  branch: main
+
+html:
+  use_issues_button: true
+  use_repository_button: true
+
+bibtex_bibfiles:
+  - references.bib
+
+launch_buttons:
+  notebook_interface: classic
+  binderhub_url: https://mybinder.org
+  colab_url: https://colab.research.google.com
