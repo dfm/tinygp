@@ -163,10 +163,12 @@ def compare_gps(random, tiny_kernel, george_kernel):
     np.testing.assert_allclose(
         tiny_gp.predict(return_var=True)[1],
         george_gp.predict(y, x, return_var=True, return_cov=False)[1],
+        rtol=1e-5,
     )
     np.testing.assert_allclose(
         tiny_gp.predict(t, return_var=True)[1],
         george_gp.predict(y, t, return_var=True, return_cov=False)[1],
+        rtol=1e-5,
     )
 
     # Covariance
