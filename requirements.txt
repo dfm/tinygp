@@ -1,3 +1,5 @@
+jax==0.2.8
+jaxlib==0.1.59
 jupyter-book==0.10.0
 matplotlib==3.3.4
 statsmodels==0.12.2
