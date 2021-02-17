@@ -1,6 +1,7 @@
 title: "tinygp"
 author: Dan Foreman-Mackey
 copyright: "2021"
+logo: "zap.svg"
 
 repository:
   url: https://github.com/dfm/tinygp
