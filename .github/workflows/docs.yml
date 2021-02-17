@@ -1,0 +1,30 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install .[docs]
+      - name: Build the docs
+        run: jupyter-book build docs
+      - name: Push to GitHub pages
+        uses: peaceiris/actions-gh-pages@v3.6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/_build/html
+        env:
+          JUPYTER_CONFIG_DIR: ${{ github.workspace }}/docs/tutorials
