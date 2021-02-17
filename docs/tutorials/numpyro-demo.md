@@ -21,10 +21,10 @@ np.random.seed(42)
 
 t = np.sort(
     np.append(
-        np.random.uniform(0, 3.8, 57),
-        np.random.uniform(5.5, 10, 68),
+        np.random.uniform(0, 3.8, 28),
+        np.random.uniform(5.5, 10, 18),
     )
-)  # The input coordinates must be sorted
+)
 yerr = np.random.uniform(0.08, 0.22, len(t))
 y = (
     0.2 * (t - 5)
@@ -32,7 +32,7 @@ y = (
     + yerr * np.random.randn(len(t))
 )
 
-true_t = np.linspace(0, 10, 500)
+true_t = np.linspace(0, 10, 100)
 true_y = 0.2 * (true_t - 5) + np.sin(3 * true_t + 0.1 * (true_t - 5) ** 2)
 
 plt.plot(true_t, true_y, "k", lw=1.5, alpha=0.3)
@@ -45,13 +45,11 @@ _ = plt.title("simulated data")
 ```
 
 ```{code-cell} ipython3
-import numpyro
-numpyro.set_host_device_count(2)
-
 from jax.config import config
 config.update("jax_enable_x64", True)
 
 from jax import random
+import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS
 
