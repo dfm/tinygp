@@ -1,4 +1,4 @@
-# tinygp
+# Introduction
 
 **The tiniest of Gaussian Process libraries.**
 
