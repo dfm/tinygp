@@ -1,4 +1,3 @@
-jupytext==1.10.2
 jupyter-book==0.10.0
 matplotlib==3.3.4
 statsmodels==0.12.2
