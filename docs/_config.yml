@@ -21,3 +21,8 @@ launch_buttons:
 
 execute:
   timeout: -1
+
+sphinx:
+  config:
+    html_theme_options:
+      search_bar_text: "Search…"
