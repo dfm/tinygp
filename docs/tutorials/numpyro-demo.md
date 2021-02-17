@@ -1,5 +1,6 @@
 ---
 jupytext:
+  formats: ipynb,md:myst
   text_representation:
     extension: .md
     format_name: myst
@@ -46,6 +47,7 @@ _ = plt.title("simulated data")
 
 ```{code-cell} ipython3
 from jax.config import config
+
 config.update("jax_enable_x64", True)
 
 from jax import random
@@ -57,6 +59,7 @@ from tinygp import kernels, GaussianProcess
 
 
 prior_sigma = 5.0
+
 
 def numpyro_model(t, yerr, y=None):
     mean = numpyro.sample("mean", dist.Normal(0.0, prior_sigma))
@@ -108,8 +111,11 @@ _ = plt.title("posterior inference")
 
 ```{code-cell} ipython3
 import arviz as az
+
 data = az.from_numpyro(mcmc)
-az.summary(data, var_names=[v for v in data.posterior.data_vars if v != "pred"])
+az.summary(
+    data, var_names=[v for v in data.posterior.data_vars if v != "pred"]
+)
 ```
 
 ```{code-cell} ipython3
