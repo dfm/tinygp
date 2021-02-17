@@ -7,6 +7,9 @@ repository:
   path_to_book: docs
   branch: main
 
+execute:
+  timeout: -1
+
 html:
   use_issues_button: true
   use_repository_button: true

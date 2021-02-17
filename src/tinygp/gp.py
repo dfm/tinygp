@@ -38,6 +38,8 @@ class GaussianProcess:
                 self.mean = zero_mean
             else:
                 self.mean = constant_mean(jnp.asarray(mean))
+        self.mean_value = self.mean(self.X)
+        assert self.mean_value.ndim == 1
 
         # Evaluate the covariance matrix and factorize the matrix
         self.kernel = kernel
@@ -54,9 +56,8 @@ class GaussianProcess:
 
     def condition(self, y: jnp.ndarray) -> jnp.ndarray:
         self.y = jnp.broadcast_to(y, (self.size,))
-        self.resid = self.y - self.mean(self.X)
         self.alpha = linalg.solve_triangular(
-            self.chol, self.resid, lower=self.lower
+            self.chol, self.y - self.mean_value, lower=self.lower
         )
         return -0.5 * jnp.sum(jnp.square(self.alpha)) - self.norm
 
@@ -76,10 +77,9 @@ class GaussianProcess:
             delta = self.diag * linalg.solve_triangular(
                 self.chol, self.alpha, lower=self.lower, trans=1
             )
-            if include_mean:
-                mu = self.y - delta
-            else:
-                mu = self.resid - delta
+            mu = self.y - delta
+            if not include_mean:
+                mu -= self.mean_value
 
             if not (return_var or return_cov):
                 return mu
@@ -111,6 +111,18 @@ class GaussianProcess:
 
         cov = self.kernel.evaluate(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
+
+    def to_numpyro(self):
+        from numpyro import distributions
+
+        if self.lower:
+            scale_tril = self.chol
+        else:
+            scale_tril = self.chol.T
+
+        return distributions.MultivariateNormal(
+            loc=self.mean_value, scale_tril=scale_tril
+        )
 
 
 def _pad_input(X: jnp.ndarray) -> jnp.ndarray:

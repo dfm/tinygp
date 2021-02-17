@@ -47,6 +47,20 @@ def kernel(request):
     }[request.param]
 
 
+@pytest.fixture(scope="module", params=["Cosine", "ExpSineSquared"])
+def periodic_kernel(request):
+    return {
+        "Cosine": (
+            kernels.Cosine(2.3),
+            george.kernels.CosineKernel(log_period=np.log(2.3)),
+        ),
+        "ExpSineSquared": (
+            kernels.ExpSineSquared(2.3, gamma=1.3),
+            george.kernels.ExpSine2Kernel(gamma=1.3, log_period=np.log(2.3)),
+        ),
+    }[request.param]
+
+
 @pytest.fixture(
     scope="module",
     params=["unit", "diagonal1", "diagonal2", "cholesky", "dense"],
@@ -187,7 +201,14 @@ def compare_gps(random, tiny_kernel, george_kernel):
 def test_kernel_value(random, kernel):
     tiny_kernel, george_kernel = kernel
     compare_kernel_value(random, tiny_kernel, george_kernel)
+    tiny_kernel *= 0.3
+    george_kernel *= 0.3
+    compare_kernel_value(random, tiny_kernel, george_kernel)
 
+
+def test_periodic_kernel_value(random, periodic_kernel):
+    tiny_kernel, george_kernel = periodic_kernel
+    compare_kernel_value(random, tiny_kernel, george_kernel)
     tiny_kernel *= 0.3
     george_kernel *= 0.3
     compare_kernel_value(random, tiny_kernel, george_kernel)
@@ -207,15 +228,8 @@ def test_metric(metric):
 def test_metric_kernel_value(random, metric_kernel):
     tiny_kernel, george_kernel = metric_kernel
     compare_kernel_value(random, tiny_kernel, george_kernel)
-
     tiny_kernel *= 0.3
     george_kernel *= 0.3
-    compare_kernel_value(random, tiny_kernel, george_kernel)
-
-
-def test_cosine_kernel_value(random):
-    tiny_kernel = kernels.Cosine(2.3)
-    george_kernel = george.kernels.CosineKernel(log_period=np.log(2.3))
     compare_kernel_value(random, tiny_kernel, george_kernel)
 
 
@@ -224,12 +238,11 @@ def test_gp(random, kernel):
     compare_gps(random, tiny_kernel, george_kernel)
 
 
-def test_metric_gp(random, metric_kernel):
-    tiny_kernel, george_kernel = metric_kernel
+def test_periodic_gp(random, periodic_kernel):
+    tiny_kernel, george_kernel = periodic_kernel
     compare_gps(random, tiny_kernel, george_kernel)
 
 
-def test_cosine_gp(random):
-    tiny_kernel = kernels.Cosine(2.3)
-    george_kernel = george.kernels.CosineKernel(log_period=np.log(2.3))
+def test_metric_gp(random, metric_kernel):
+    tiny_kernel, george_kernel = metric_kernel
     compare_gps(random, tiny_kernel, george_kernel)

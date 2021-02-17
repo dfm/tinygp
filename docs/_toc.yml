@@ -1,2 +1,10 @@
 - file: intro
-- file: bibliography
+
+- part: Tutorials
+  chapters:
+    - file: tutorials/quickstart
+    - file: tutorials/numpyro-demo
+
+- part: End matter
+  chapters:
+    - file: bibliography

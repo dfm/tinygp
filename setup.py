@@ -22,7 +22,17 @@ CLASSIFIERS = [
     "Programming Language :: Python :: 3",
 ]
 INSTALL_REQUIRES = ["numpy", "jax", "jaxlib"]
-EXTRA_REQUIRE = {"test": ["pytest>=3.6", "george"]}
+EXTRA_REQUIRE = {
+    "test": ["pytest>=3.6", "george"],
+    "docs": [
+        "statsmodels",
+        "jupytext>=1.6.0",
+        "jupyter-book",
+        "matplotlib",
+        "numpyro",
+        "arviz",
+    ],
+}
 EXTRA_REQUIRE["coverage"] = EXTRA_REQUIRE["test"] + ["pytest-cov"]
 
 # END PROJECT SPECIFIC

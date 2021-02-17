@@ -141,7 +141,8 @@ class MetricKernel(Kernel):
         raise NotImplementedError()
 
     def __call__(self, X1: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
-        return self.evaluate_radial(self.metric(X1 - X2))
+        r2 = self.metric(X1 - X2)
+        return self.evaluate_radial(jnp.where(jnp.isclose(r2, 0.0), 0.0, r2))
 
 
 class Exp(MetricKernel):
@@ -170,6 +171,17 @@ class Matern52(MetricKernel):
 class Cosine(MetricKernel):
     def evaluate_radial(self, r2: jnp.ndarray) -> jnp.ndarray:
         return jnp.cos(2 * jnp.pi * jnp.sqrt(r2))
+
+
+class ExpSineSquared(MetricKernel):
+    def __init__(self, metric: Metric, *, gamma: jnp.ndarray):
+        self.gamma = jnp.asarray(gamma)
+        super().__init__(metric)
+
+    def evaluate_radial(self, r2: jnp.ndarray) -> jnp.ndarray:
+        return jnp.exp(
+            -self.gamma * jnp.square(jnp.sin(jnp.pi * jnp.sqrt(r2)))
+        )
 
 
 class RationalQuadratic(MetricKernel):
