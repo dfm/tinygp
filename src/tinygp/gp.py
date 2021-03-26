@@ -11,8 +11,6 @@ from jax.scipy import linalg
 from .kernels import Kernel
 from .means import Mean, constant_mean, zero_mean
 
-LOG2PI = jnp.log(2 * jnp.pi)
-
 
 class GaussianProcess:
     def __init__(
@@ -49,10 +47,8 @@ class GaussianProcess:
         )
         self.lower = lower
         self.chol = linalg.cholesky(self.K, lower=self.lower)
-        self.norm = (
-            jnp.sum(jnp.log(jnp.diag(self.chol)))
-            + 0.5 * self.X.shape[0] * LOG2PI
-        )
+        self.norm = jnp.sum(jnp.log(jnp.diag(self.chol)))
+        self.norm += 0.5 * self.X.shape[0] * jnp.log(2 * jnp.pi)
 
     def condition(self, y: jnp.ndarray) -> jnp.ndarray:
         self.y = jnp.broadcast_to(y, (self.size,))
