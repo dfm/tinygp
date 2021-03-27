@@ -3,6 +3,6 @@
 ```{toctree}
 :maxdepth: 2
 
-tutorials/quickstart
-tutorials/numpyro-demo
+tutorials/quickstart.ipynb
+tutorials/numpyro-demo.ipynb
 ```

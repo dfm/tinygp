@@ -9,6 +9,10 @@ extensions = [
     "myst_nb",
 ]
 master_doc = "index"
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".ipynb": "myst-nb",
+}
 
 # General information about the project.
 project = u"tinygp"
@@ -31,6 +35,7 @@ html_theme_options = {
     "launch_buttons": {
         "binderhub_url": "https://mybinder.org",
         "notebook_interface": "jupyterlab",
+        "colab_url": "https://colab.research.google.com/",
     },
     "use_edit_page_button": True,
     "use_issues_button": True,
