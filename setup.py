@@ -25,7 +25,9 @@ INSTALL_REQUIRES = ["numpy", "jax", "jaxlib"]
 EXTRA_REQUIRE = {
     "test": ["pytest>=3.6", "george"],
     "docs": [
-        "jupyter-book",
+        "sphinx",
+        "sphinx-book-theme",
+        "myst-nb",
         "matplotlib",
         "statsmodels",
         "numpyro",

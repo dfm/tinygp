@@ -85,7 +85,7 @@ def numpyro_model(t, yerr, y=None):
 
 
 nuts_kernel = NUTS(numpyro_model, dense_mass=True, target_accept_prob=0.9)
-mcmc = MCMC(nuts_kernel, num_warmup=1000, num_samples=1000, num_chains=2)
+mcmc = MCMC(nuts_kernel, num_warmup=1000, num_samples=1000, num_chains=2, progress_bar=False)
 rng_key = random.PRNGKey(34923)
 ```
 
