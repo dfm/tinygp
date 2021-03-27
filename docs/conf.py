@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import corner
+import tinygp
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -18,8 +18,8 @@ source_suffix = {
 project = u"tinygp"
 copyright = u"2021 Dan Foreman-Mackey"
 
-version = corner.__version__
-release = corner.__version__
+version = tinygp.__version__
+release = tinygp.__version__
 
 exclude_patterns = ["_build"]
 html_theme = "sphinx_book_theme"
