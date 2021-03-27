@@ -32,6 +32,7 @@ EXTRA_REQUIRE = {
         "statsmodels",
         "numpyro",
         "arviz",
+        "corner",
     ],
 }
 EXTRA_REQUIRE["coverage"] = EXTRA_REQUIRE["test"] + ["pytest-cov"]
