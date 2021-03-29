@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 __all__ = ["zero_mean", "constant_mean"]
 
 from typing import Callable

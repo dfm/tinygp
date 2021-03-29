@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 __all__ = [
     "compose",
     "unit_metric",
@@ -19,7 +21,7 @@ from .types import JAXArray
 Metric = Callable[[JAXArray], JAXArray]
 
 
-def compose(*functions):
+def compose(*functions: Metric):
     return reduce(lambda f, g: lambda *args: f(g(*args)), functions)
 
 

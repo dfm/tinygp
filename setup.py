@@ -25,7 +25,7 @@ INSTALL_REQUIRES = ["jax", "jaxlib"]
 EXTRA_REQUIRE = {
     "test": ["pytest>=3.6", "george"],
     "docs": [
-        "sphinx",
+        "sphinx>=3.3",
         "sphinx-book-theme",
         "myst-nb",
         "matplotlib",

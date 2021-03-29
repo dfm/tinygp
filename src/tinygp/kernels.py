@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 __all__ = [
     "Sum",
     "Product",
@@ -167,7 +169,7 @@ class Cosine(MetricKernel):
 
 
 class ExpSineSquared(MetricKernel):
-    def __init__(self, metric: Metric, *, gamma: JAXArray):
+    def __init__(self, metric: Union[Metric, JAXArray], *, gamma: JAXArray):
         self.gamma = jnp.asarray(gamma)
         super().__init__(metric)
 
@@ -178,7 +180,7 @@ class ExpSineSquared(MetricKernel):
 
 
 class RationalQuadratic(MetricKernel):
-    def __init__(self, metric: Metric, *, alpha: JAXArray):
+    def __init__(self, metric: Union[Metric, JAXArray], *, alpha: JAXArray):
         self.alpha = jnp.asarray(alpha)
         super().__init__(metric)
 
