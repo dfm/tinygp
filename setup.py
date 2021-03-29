@@ -21,7 +21,7 @@ CLASSIFIERS = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
 ]
-INSTALL_REQUIRES = ["numpy", "jax", "jaxlib"]
+INSTALL_REQUIRES = ["jax", "jaxlib"]
 EXTRA_REQUIRE = {
     "test": ["pytest>=3.6", "george"],
     "docs": [
@@ -76,10 +76,11 @@ if __name__ == "__main__":
         long_description_content_type="text/markdown",
         packages=PACKAGES,
         package_dir={"": "src"},
+        package_data={"tinygp": ["py.typed"]},
         include_package_data=True,
+        python_requires=">=3.6",
         install_requires=INSTALL_REQUIRES,
         extras_require=EXTRA_REQUIRE,
         classifiers=CLASSIFIERS,
         zip_safe=True,
-        options={"bdist_wheel": {"universal": "1"}},
     )

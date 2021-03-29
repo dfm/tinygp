@@ -15,8 +15,8 @@ source_suffix = {
 }
 
 # General information about the project.
-project = u"tinygp"
-copyright = u"2021 Dan Foreman-Mackey"
+project = "tinygp"
+copyright = "2021 Dan Foreman-Mackey"
 
 version = tinygp.__version__
 release = tinygp.__version__

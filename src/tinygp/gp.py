@@ -10,16 +10,17 @@ from jax.scipy import linalg
 
 from .kernels import Kernel
 from .means import Mean, constant_mean, zero_mean
+from .types import JAXArray
 
 
 class GaussianProcess:
     def __init__(
         self,
         kernel: Kernel,
-        X: jnp.ndarray,
+        X: JAXArray,
         *,
-        diag: Union[jnp.ndarray, float] = 0.0,
-        mean: Optional[Union[Mean, jnp.ndarray]] = None,
+        diag: Union[JAXArray, float] = 0.0,
+        mean: Optional[Union[Mean, JAXArray]] = None,
         lower: bool = True,
     ):
         # Format input
@@ -59,7 +60,7 @@ class GaussianProcess:
 
     def predict(
         self,
-        X_test: jnp.ndarray = None,
+        X_test: JAXArray = None,
         *,
         include_mean: bool = True,
         return_var: bool = False,
@@ -121,7 +122,7 @@ class GaussianProcess:
         )
 
 
-def _pad_input(X: jnp.ndarray) -> jnp.ndarray:
+def _pad_input(X: JAXArray) -> JAXArray:
     X = jnp.atleast_1d(X)
     if X.ndim == 1:
         X = X[:, None]

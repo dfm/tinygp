@@ -6,17 +6,19 @@ from typing import Callable
 
 import jax.numpy as jnp
 
-Mean = Callable[[jnp.ndarray], jnp.ndarray]
+from .types import JAXArray
+
+Mean = Callable[[JAXArray], JAXArray]
 
 
-def zero_mean(X: jnp.ndarray) -> jnp.ndarray:
+def zero_mean(X: JAXArray) -> JAXArray:
     return jnp.zeros(X.shape[0])
 
 
-def constant_mean(value: jnp.ndarray) -> Mean:
+def constant_mean(value: JAXArray) -> Mean:
     _value = value
 
-    def mean(X: jnp.ndarray) -> jnp.ndarray:
+    def mean(X: JAXArray) -> JAXArray:
         return jnp.full(X.shape[0], _value)
 
     return mean

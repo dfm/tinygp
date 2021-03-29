@@ -1,9 +1,16 @@
 # Installation
 
+`tinygp` is built on top of [JAX](https://github.com/google/jax) so that's the
+primary dependency that you'll need. All of the methods below will install any
+required dependencies, but if you want to take advantage of your GPU, that might
+take a little more setup. `tinygp` doesn't have any GPU-specific code, so it
+should be enough to just [follow the installation instructions for CUDA support
+in the JAX README](https://github.com/google/jax/#installation).
+
 ## Using pip
 
 The easiest way to install the most recent stable version of `tinygp` is
-with [pip](http://www.pip-installer.org/):
+with [pip](https://pip.pypa.io):
 
 ```bash
 python -m pip install tinygp
@@ -28,6 +35,3 @@ source directory, run:
 python -m pip install ".[test]"
 python -m pytest -v tests
 ```
-
-This might take a few minutes but you shouldn't get any errors if all went
-as planned.
