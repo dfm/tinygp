@@ -1,1 +1,3 @@
 *_version.py
+.coverage
+.tox

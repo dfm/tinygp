@@ -159,40 +159,40 @@ def compare_gps(random, tiny_kernel, george_kernel):
 
     # Filtering
     np.testing.assert_allclose(
-        tiny_gp.predict(),
+        tiny_gp.predict(y),
         george_gp.predict(y, x, return_var=False, return_cov=False),
     )
 
     # Filtering with explicit value
     np.testing.assert_allclose(
-        tiny_gp.predict(x),
+        tiny_gp.predict(y, x),
         george_gp.predict(y, x, return_var=False, return_cov=False),
     )
     np.testing.assert_allclose(
-        tiny_gp.predict(t),
+        tiny_gp.predict(y, t),
         george_gp.predict(y, t, return_var=False, return_cov=False),
     )
 
     # Variance
     np.testing.assert_allclose(
-        tiny_gp.predict(return_var=True)[1],
+        tiny_gp.predict(y, return_var=True)[1],
         george_gp.predict(y, x, return_var=True, return_cov=False)[1],
         rtol=1e-5,
     )
     np.testing.assert_allclose(
-        tiny_gp.predict(t, return_var=True)[1],
+        tiny_gp.predict(y, t, return_var=True)[1],
         george_gp.predict(y, t, return_var=True, return_cov=False)[1],
         rtol=1e-5,
     )
 
     # Covariance
     np.testing.assert_allclose(
-        tiny_gp.predict(return_cov=True)[1],
+        tiny_gp.predict(y, return_cov=True)[1],
         george_gp.predict(y, x, return_var=False, return_cov=True)[1],
         rtol=1e-5,
     )
     np.testing.assert_allclose(
-        tiny_gp.predict(t, return_cov=True)[1],
+        tiny_gp.predict(y, t, return_cov=True)[1],
         george_gp.predict(y, t, return_var=False, return_cov=True)[1],
         rtol=1e-5,
     )
