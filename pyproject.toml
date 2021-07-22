@@ -15,3 +15,18 @@ multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
+
+[tool.coverage.run]
+parallel = true
+branch = true
+source = ["tinygp"]
+omit = [
+    "docs/*",
+    "tests/*",
+]
+
+[tool.coverage.paths]
+source = ["src", "*/site-packages"]
+
+[tool.coverage.report]
+show_missing = true
