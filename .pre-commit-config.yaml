@@ -15,11 +15,11 @@ repos:
     rev: "21.7b0"
     hooks:
       - id: black
-  - repo: https://github.com/dfm/black_nbconvert
-    rev: "v0.3.0"
-    hooks:
-      - id: black_nbconvert
   - repo: https://github.com/kynan/nbstripout
     rev: "0.5.0"
     hooks:
       - id: nbstripout
+  - repo: https://github.com/dfm/black_nbconvert
+    rev: "v0.3.0"
+    hooks:
+      - id: black_nbconvert
