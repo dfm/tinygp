@@ -53,30 +53,35 @@ class GaussianProcess:
         self.norm = jnp.sum(jnp.log(jnp.diag(self.chol)))
         self.norm += 0.5 * self.X.shape[0] * jnp.log(2 * jnp.pi)
 
-    def condition(self, y: jnp.ndarray) -> jnp.ndarray:
-        self.y = jnp.broadcast_to(y, (self.size,))
-        self.alpha = linalg.solve_triangular(
-            self.chol, self.y - self.mean_value, lower=self.lower
+    def condition(self, y: JAXArray) -> JAXArray:
+        y = jnp.broadcast_to(y, (self.size,))
+        return -0.5 * jnp.sum(jnp.square(self._get_alpha(y))) - self.norm
+
+    def _get_alpha(self, y: JAXArray) -> JAXArray:
+        return linalg.solve_triangular(
+            self.chol,
+            y - self.mean_value,
+            lower=self.lower,
         )
-        return -0.5 * jnp.sum(jnp.square(self.alpha)) - self.norm
 
     def predict(
         self,
-        X_test: JAXArray = None,
+        y: JAXArray,
+        X_test: Optional[JAXArray] = None,
         *,
         include_mean: bool = True,
         return_var: bool = False,
         return_cov: bool = False,
     ):
-        if not hasattr(self, "y"):
-            raise RuntimeError("'condition' must be called first")
+        y = jnp.broadcast_to(y, (self.size,))
+        alpha = self._get_alpha(y)
 
         # Compute the conditional
         if X_test is None:
             delta = self.diag * linalg.solve_triangular(
-                self.chol, self.alpha, lower=self.lower, trans=1
+                self.chol, alpha, lower=self.lower, trans=1
             )
-            mu = self.y - delta
+            mu = y - delta
             if not include_mean:
                 mu -= self.mean_value
 
@@ -95,7 +100,7 @@ class GaussianProcess:
                 self.kernel.evaluate(self.X, X_test),
                 lower=self.lower,
             )
-            mu = K_testT.T @ self.alpha
+            mu = K_testT.T @ alpha
             if include_mean:
                 mu += self.mean(X_test)
 
@@ -111,17 +116,25 @@ class GaussianProcess:
         cov = self.kernel.evaluate(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
 
-    def to_numpyro(self):
-        from numpyro import distributions
+    def numpyro_marginal(self):
+        from numpyro.distributions import MultivariateNormal
 
         if self.lower:
             scale_tril = self.chol
         else:
             scale_tril = self.chol.T
 
-        return distributions.MultivariateNormal(
-            loc=self.mean_value, scale_tril=scale_tril
+        return MultivariateNormal(loc=self.mean_value, scale_tril=scale_tril)
+
+    def numpyro_conditional(
+        self, y: JAXArray, X_test: Optional[JAXArray] = None
+    ):
+        from numpyro.distributions import MultivariateNormal
+
+        mu, cov = self.predict(
+            y, X_test, include_mean=True, return_var=False, return_cov=True
         )
+        return MultivariateNormal(loc=mu, covariance_matrix=cov)
 
 
 def _pad_input(X: JAXArray) -> JAXArray:
