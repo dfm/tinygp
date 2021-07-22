@@ -5,4 +5,5 @@
 
 tutorials/quickstart.ipynb
 tutorials/numpyro-demo.ipynb
+tutorials/flax-deep.ipynb
 ```
