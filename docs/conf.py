@@ -44,6 +44,7 @@ html_theme_options = {
 }
 html_baseurl = "https://tinygp.readthedocs.io/en/latest/"
 jupyter_execute_notebooks = "auto"
+execution_excludepatterns = ["tutorials/george.ipynb"]
 execution_timeout = -1
 
 
