@@ -8,6 +8,8 @@ extensions = [
     "sphinx.ext.napoleon",
     "myst_nb",
 ]
+
+myst_enable_extensions = ["dollarmath", "colon_fence"]
 master_doc = "index"
 source_suffix = {
     ".rst": "restructuredtext",
