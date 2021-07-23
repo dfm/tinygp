@@ -17,12 +17,13 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from typing import Tuple, Union
+from functools import partial
+from typing import Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
-from .metrics import Metric, diagonal_metric
+from .metrics import Metric, diagonal_metric, unit_metric
 from .types import JAXArray
 
 Axis = Union[int, Tuple[int], JAXArray]
@@ -36,9 +37,10 @@ class Kernel:
         return jax.vmap(self)(X, X)
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jax.vmap(lambda _X1: jax.vmap(lambda _X2: self(_X1, _X2))(X2))(
-            X1
-        )
+        def apply_fn(_X1: JAXArray) -> JAXArray:
+            return jax.vmap(partial(self, _X1))(X2)
+
+        return jax.vmap(apply_fn)(X1)
 
     def __add__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
         if isinstance(other, Kernel):
@@ -88,7 +90,7 @@ class Constant(Kernel):
 
 
 class SubspaceKernel(Kernel):
-    def __init__(self, *, axis: Axis = None):
+    def __init__(self, *, axis: Optional[Axis] = None):
         self.axis = axis
 
     def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -106,7 +108,9 @@ class DotProduct(SubspaceKernel):
 
 
 class Polynomial(SubspaceKernel):
-    def __init__(self, *, order: int, sigma: JAXArray, axis: Axis = None):
+    def __init__(
+        self, *, order: int, sigma: JAXArray, axis: Optional[Axis] = None
+    ):
         self.order = float(order)
         self.sigma2 = jnp.asarray(sigma) ** 2
         super().__init__(axis=axis)
@@ -116,7 +120,9 @@ class Polynomial(SubspaceKernel):
 
 
 class Linear(SubspaceKernel):
-    def __init__(self, *, order: int, sigma: JAXArray, axis: Axis = None):
+    def __init__(
+        self, *, order: int, sigma: JAXArray, axis: Optional[Axis] = None
+    ):
         self.order = float(order)
         self.sigma2 = jnp.asarray(sigma) ** 2
         super().__init__(axis=axis)
@@ -126,11 +132,13 @@ class Linear(SubspaceKernel):
 
 
 class MetricKernel(Kernel):
-    def __init__(self, metric: Union[Metric, JAXArray]):
-        if callable(metric):
-            self.metric = metric
+    def __init__(self, metric: Optional[Union[Metric, JAXArray]] = None):
+        if metric is None:
+            self.metric = unit_metric
+        elif callable(metric):
+            self.metric = metric  # type: ignore
         else:
-            self.metric = diagonal_metric(metric)
+            self.metric = diagonal_metric(metric)  # type: ignore
 
     def evaluate_radial(self, r2: JAXArray) -> JAXArray:
         raise NotImplementedError()

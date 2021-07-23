@@ -4,7 +4,7 @@ from __future__ import annotations
 
 __all__ = ["GaussianProcess"]
 
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -13,6 +13,11 @@ from jax.scipy import linalg
 from .kernels import Kernel
 from .means import Mean, constant_mean, zero_mean
 from .types import JAXArray
+
+try:
+    from numpyro.distributions import MultivariateNormal
+except ImportError:
+    MultivariateNormal = None
 
 
 class GaussianProcess:
@@ -72,7 +77,7 @@ class GaussianProcess:
         include_mean: bool = True,
         return_var: bool = False,
         return_cov: bool = False,
-    ):
+    ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
         y = jnp.broadcast_to(y, (self.size,))
         alpha = self._get_alpha(y)
 
@@ -116,8 +121,9 @@ class GaussianProcess:
         cov = self.kernel.evaluate(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
 
-    def numpyro_marginal(self):
-        from numpyro.distributions import MultivariateNormal
+    def numpyro_marginal(self) -> MultivariateNormal:
+        if MultivariateNormal is None:
+            raise ImportError("numpyro must be installed")
 
         if self.lower:
             scale_tril = self.chol
@@ -128,8 +134,9 @@ class GaussianProcess:
 
     def numpyro_conditional(
         self, y: JAXArray, X_test: Optional[JAXArray] = None
-    ):
-        from numpyro.distributions import MultivariateNormal
+    ) -> MultivariateNormal:
+        if MultivariateNormal is None:
+            raise ImportError("numpyro must be installed")
 
         mu, cov = self.predict(
             y, X_test, include_mean=True, return_var=False, return_cov=True
