@@ -36,7 +36,12 @@ class Kernel:
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         return jax.vmap(self.evaluate)(X, X)
 
-    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __call__(
+        self, X1: JAXArray, X2: Optional[JAXArray] = None
+    ) -> JAXArray:
+        if X2 is None:
+            return self.evaluate_diag(X1)
+
         def apply_fn(_X1: JAXArray) -> JAXArray:
             return jax.vmap(partial(self.evaluate, _X1))(X2)
 

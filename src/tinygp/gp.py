@@ -55,12 +55,7 @@ class GaussianProcess:
 
     def condition(self, y: JAXArray) -> JAXArray:
         y = jnp.broadcast_to(y, (self.size,))
-        return -0.5 * jnp.sum(jnp.square(self._get_alpha(y))) - self.norm
-
-    def _get_alpha(self, y: JAXArray) -> JAXArray:
-        return linalg.solve_triangular(
-            self.scale_tril, y - self.loc, lower=True
-        )
+        return self._condition(self._get_alpha(y))
 
     def predict(
         self,
@@ -73,6 +68,53 @@ class GaussianProcess:
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
         y = jnp.broadcast_to(y, (self.size,))
         alpha = self._get_alpha(y)
+        return self._predict(
+            y,
+            alpha,
+            X_test=X_test,
+            include_mean=include_mean,
+            return_var=return_var,
+            return_cov=return_cov,
+        )
+
+    def condition_and_predict(
+        self,
+        y: JAXArray,
+        X_test: Optional[JAXArray] = None,
+        *,
+        include_mean: bool = True,
+        return_var: bool = False,
+        return_cov: bool = False,
+    ) -> Tuple[JAXArray, Union[JAXArray, Tuple[JAXArray, JAXArray]]]:
+        y = jnp.broadcast_to(y, (self.size,))
+        alpha = self._get_alpha(y)
+        return self._condition(alpha), self._predict(
+            y,
+            alpha,
+            X_test=X_test,
+            include_mean=include_mean,
+            return_var=return_var,
+            return_cov=return_cov,
+        )
+
+    def _condition(self, alpha: JAXArray) -> JAXArray:
+        return -0.5 * jnp.sum(jnp.square(alpha)) - self.norm
+
+    def _get_alpha(self, y: JAXArray) -> JAXArray:
+        return linalg.solve_triangular(
+            self.scale_tril, y - self.loc, lower=True
+        )
+
+    def _predict(
+        self,
+        y: JAXArray,
+        alpha: JAXArray,
+        X_test: Optional[JAXArray] = None,
+        *,
+        include_mean: bool = True,
+        return_var: bool = False,
+        return_cov: bool = False,
+    ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
 
         # Compute the conditional
         if X_test is None:
