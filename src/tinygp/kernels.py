@@ -30,15 +30,15 @@ Axis = Union[int, Tuple[int], JAXArray]
 
 
 class Kernel:
-    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         raise NotImplementedError()
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
-        return jax.vmap(self)(X, X)
+        return jax.vmap(self.evaluate)(X, X)
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         def apply_fn(_X1: JAXArray) -> JAXArray:
-            return jax.vmap(partial(self, _X1))(X2)
+            return jax.vmap(partial(self.evaluate, _X1))(X2)
 
         return jax.vmap(apply_fn)(X1)
 
@@ -68,8 +68,8 @@ class Sum(Kernel):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
 
-    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.kernel1(X1, X2) + self.kernel2(X1, X2)
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.kernel1.evaluate(X1, X2) + self.kernel2.evaluate(X1, X2)
 
 
 class Product(Kernel):
@@ -77,15 +77,15 @@ class Product(Kernel):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
 
-    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.kernel1(X1, X2) * self.kernel2(X1, X2)
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.kernel1.evaluate(X1, X2) * self.kernel2.evaluate(X1, X2)
 
 
 class Constant(Kernel):
     def __init__(self, value: JAXArray):
         self.value = jnp.asarray(value)
 
-    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.value
 
 
@@ -96,7 +96,7 @@ class SubspaceKernel(Kernel):
     def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         raise NotImplementedError()
 
-    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         if self.axis is None:
             return self.evaluate_subspace(X1, X2)
         return self.evaluate_subspace(X1[self.axis], X2[self.axis])
@@ -143,7 +143,7 @@ class MetricKernel(Kernel):
     def evaluate_radial(self, r2: JAXArray) -> JAXArray:
         raise NotImplementedError()
 
-    def __call__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r2 = self.metric(X1 - X2)
         return self.evaluate_radial(jnp.where(jnp.isclose(r2, 0.0), 0.0, r2))
 

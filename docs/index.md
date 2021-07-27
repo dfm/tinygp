@@ -28,6 +28,7 @@ head on over to the [GitHub issues page](https://github.com/dfm/tinygp/issues).
 ```{toctree}
 :maxdepth: 2
 
+motivation
 install
 tutorials
 api

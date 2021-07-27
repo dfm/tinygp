@@ -14,11 +14,6 @@ from .kernels import Kernel
 from .means import Mean, constant_mean, zero_mean
 from .types import JAXArray
 
-try:
-    from numpyro.distributions import MultivariateNormal
-except ImportError:
-    MultivariateNormal = None
-
 
 class GaussianProcess:
     def __init__(
@@ -28,7 +23,6 @@ class GaussianProcess:
         *,
         diag: Union[JAXArray, float] = 0.0,
         mean: Optional[Union[Mean, JAXArray]] = None,
-        lower: bool = True,
     ):
         # Format input
         self.X = _pad_input(X)
@@ -38,24 +32,25 @@ class GaussianProcess:
 
         # Parse the mean function
         if callable(mean):
-            self.mean = mean
+            self.mean_function = mean
         else:
             if mean is None:
-                self.mean = zero_mean
+                self.mean_function = zero_mean
             else:
-                self.mean = constant_mean(jnp.asarray(mean))
-        self.mean_value = self.mean(self.X)
-        assert self.mean_value.ndim == 1
+                self.mean_function = constant_mean(jnp.asarray(mean))
+        self.loc = self.mean = self.mean_function(self.X)
+        assert self.mean.ndim == 1
 
         # Evaluate the covariance matrix and factorize the matrix
         self.kernel = kernel
-        self.K0 = self.kernel.evaluate(X, X)
-        self.K = jax.ops.index_add(
-            self.K0, jnp.diag_indices(self.X.shape[0]), self.diag
+        self.base_covariance_matrix = self.kernel(X, X)
+        self.covariance_matrix = jax.ops.index_add(
+            self.base_covariance_matrix,
+            jnp.diag_indices(self.X.shape[0]),
+            self.diag,
         )
-        self.lower = lower
-        self.chol = linalg.cholesky(self.K, lower=self.lower)
-        self.norm = jnp.sum(jnp.log(jnp.diag(self.chol)))
+        self.scale_tril = linalg.cholesky(self.covariance_matrix, lower=True)
+        self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
         self.norm += 0.5 * self.X.shape[0] * jnp.log(2 * jnp.pi)
 
     def condition(self, y: JAXArray) -> JAXArray:
@@ -64,9 +59,7 @@ class GaussianProcess:
 
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return linalg.solve_triangular(
-            self.chol,
-            y - self.mean_value,
-            lower=self.lower,
+            self.scale_tril, y - self.loc, lower=True
         )
 
     def predict(
@@ -84,30 +77,30 @@ class GaussianProcess:
         # Compute the conditional
         if X_test is None:
             delta = self.diag * linalg.solve_triangular(
-                self.chol, alpha, lower=self.lower, trans=1
+                self.scale_tril, alpha, lower=True, trans=1
             )
             mu = y - delta
             if not include_mean:
-                mu -= self.mean_value
+                mu -= self.loc
 
             if not (return_var or return_cov):
                 return mu
 
             X_test = self.X
             K_testT = linalg.solve_triangular(
-                self.chol, self.K0, lower=self.lower
+                self.scale_tril, self.base_covariance_matrix, lower=True
             )
 
         else:
             X_test = _pad_input(X_test)
             K_testT = linalg.solve_triangular(
-                self.chol,
-                self.kernel.evaluate(self.X, X_test),
-                lower=self.lower,
+                self.scale_tril,
+                self.kernel(self.X, X_test),
+                lower=True,
             )
             mu = K_testT.T @ alpha
             if include_mean:
-                mu += self.mean(X_test)
+                mu += self.mean_function(X_test)
 
             if not (return_var or return_cov):
                 return mu
@@ -118,30 +111,8 @@ class GaussianProcess:
             )
             return mu, var
 
-        cov = self.kernel.evaluate(X_test, X_test) - K_testT.T @ K_testT
+        cov = self.kernel(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
-
-    def numpyro_marginal(self) -> MultivariateNormal:
-        if MultivariateNormal is None:
-            raise ImportError("numpyro must be installed")
-
-        if self.lower:
-            scale_tril = self.chol
-        else:
-            scale_tril = self.chol.T
-
-        return MultivariateNormal(loc=self.mean_value, scale_tril=scale_tril)
-
-    def numpyro_conditional(
-        self, y: JAXArray, X_test: Optional[JAXArray] = None
-    ) -> MultivariateNormal:
-        if MultivariateNormal is None:
-            raise ImportError("numpyro must be installed")
-
-        mu, cov = self.predict(
-            y, X_test, include_mean=True, return_var=False, return_cov=True
-        )
-        return MultivariateNormal(loc=mu, covariance_matrix=cov)
 
 
 def _pad_input(X: JAXArray) -> JAXArray:

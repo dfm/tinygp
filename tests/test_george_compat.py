@@ -129,15 +129,15 @@ def compare_kernel_value(random, tiny_kernel, george_kernel):
     x1 = np.sort(random.uniform(0, 10, (50, george_kernel.ndim)))
     x2 = np.sort(random.uniform(0, 10, (45, george_kernel.ndim)))
     np.testing.assert_allclose(
-        tiny_kernel.evaluate(x1, x2),
+        tiny_kernel(x1, x2),
         george_kernel.get_value(x1, x2),
     )
     np.testing.assert_allclose(
-        tiny_kernel.evaluate(x1, x1),
+        tiny_kernel(x1, x1),
         george_kernel.get_value(x1),
     )
     np.testing.assert_allclose(
-        tiny_kernel.evaluate_diag(x1),
+        tiny_kernel(x1),
         george_kernel.get_value(x1, diag=True),
     )
 
