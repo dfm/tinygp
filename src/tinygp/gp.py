@@ -16,6 +16,20 @@ from .types import JAXArray
 
 
 class GaussianProcess:
+    """An interface for designing a Gaussian Process regression model
+
+    Args:
+        kernel (Kernel): The kernel function
+        X (JAXArray): The input coordinates. This can be any PyTree that is
+            compatible with ``kernel`` where the zeroth dimension is ``N_data``,
+            the size of the data set.
+        diag (JAXArray, optional): The value to add to the diagonal of the
+            covariance matrix, often used to capture measurement uncertainty.
+            This should be a scalar or have the shape ``(N_data,)``.
+        mean: (Mean, optional): A callable or constant mean function that will
+            be evaluated with the ``X`` as input: ``mean(X)``
+    """
+
     def __init__(
         self,
         kernel: Kernel,
@@ -24,11 +38,8 @@ class GaussianProcess:
         diag: Union[JAXArray, float] = 0.0,
         mean: Optional[Union[Mean, JAXArray]] = None,
     ):
-        # Format input
-        self.X = _pad_input(X)
-        assert self.X.ndim == 2
-        self.size = self.X.shape[0]
-        self.diag = jnp.broadcast_to(diag, (self.size,))
+        self.X = X
+        self.diag = diag
 
         # Parse the mean function
         if callable(mean):
@@ -44,17 +55,19 @@ class GaussianProcess:
         # Evaluate the covariance matrix and factorize the matrix
         self.kernel = kernel
         self.base_covariance_matrix = self.kernel(X, X)
-        self.covariance_matrix = jax.ops.index_add(
-            self.base_covariance_matrix,
-            jnp.diag_indices(self.X.shape[0]),
-            self.diag,
-        )
+        self.covariance_matrix = self.base_covariance_matrix.at[
+            jnp.diag_indices(self.X.shape[0])
+        ].add(self.diag)
         self.scale_tril = linalg.cholesky(self.covariance_matrix, lower=True)
         self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
         self.norm += 0.5 * self.X.shape[0] * jnp.log(2 * jnp.pi)
 
     def condition(self, y: JAXArray) -> JAXArray:
-        y = jnp.broadcast_to(y, (self.size,))
+        """Condition the process on observed data
+
+        Args:
+            y (JAXArray):
+        """
         return self._condition(self._get_alpha(y))
 
     def predict(
@@ -66,7 +79,6 @@ class GaussianProcess:
         return_var: bool = False,
         return_cov: bool = False,
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
-        y = jnp.broadcast_to(y, (self.size,))
         alpha = self._get_alpha(y)
         return self._predict(
             y,
@@ -86,7 +98,6 @@ class GaussianProcess:
         return_var: bool = False,
         return_cov: bool = False,
     ) -> Tuple[JAXArray, Union[JAXArray, Tuple[JAXArray, JAXArray]]]:
-        y = jnp.broadcast_to(y, (self.size,))
         alpha = self._get_alpha(y)
         return self._condition(alpha), self._predict(
             y,
@@ -115,7 +126,6 @@ class GaussianProcess:
         return_var: bool = False,
         return_cov: bool = False,
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
-
         # Compute the conditional
         if X_test is None:
             delta = self.diag * linalg.solve_triangular(
@@ -134,7 +144,6 @@ class GaussianProcess:
             )
 
         else:
-            X_test = _pad_input(X_test)
             K_testT = linalg.solve_triangular(
                 self.scale_tril,
                 self.kernel(self.X, X_test),
@@ -148,17 +157,8 @@ class GaussianProcess:
                 return mu
 
         if return_var:
-            var = self.kernel.evaluate_diag(X_test) - jnp.sum(
-                jnp.square(K_testT), axis=0
-            )
+            var = self.kernel(X_test) - jnp.sum(jnp.square(K_testT), axis=0)
             return mu, var
 
         cov = self.kernel(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
-
-
-def _pad_input(X: JAXArray) -> JAXArray:
-    X = jnp.atleast_1d(X)
-    if X.ndim == 1:
-        X = X[:, None]
-    return X

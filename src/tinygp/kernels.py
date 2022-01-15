@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import annotations
+from ast import Call
 
 __all__ = [
     "Sum",
@@ -17,8 +18,7 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from functools import partial
-from typing import Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -33,19 +33,14 @@ class Kernel:
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         raise NotImplementedError()
 
-    def evaluate_diag(self, X: JAXArray) -> JAXArray:
-        return jax.vmap(self.evaluate)(X, X)
-
     def __call__(
         self, X1: JAXArray, X2: Optional[JAXArray] = None
     ) -> JAXArray:
         if X2 is None:
-            return self.evaluate_diag(X1)
-
-        def apply_fn(_X1: JAXArray) -> JAXArray:
-            return jax.vmap(partial(self.evaluate, _X1))(X2)
-
-        return jax.vmap(apply_fn)(X1)
+            return jax.vmap(self.evaluate, in_axes=(0, 0))(X1, X1)
+        return jax.vmap(
+            jax.vmap(self.evaluate, in_axes=(None, 0)), in_axes=(0, None)
+        )(X1, X2)
 
     def __add__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
         if isinstance(other, Kernel):
@@ -66,6 +61,14 @@ class Kernel:
         if isinstance(other, Kernel):
             return Product(other, self)
         return Product(Constant(other), self)
+
+
+class Custom(Kernel):
+    def __init__(self, function: Callable[[JAXArray, JAXArray], JAXArray]):
+        self.function = function
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.function(X1, X2)
 
 
 class Sum(Kernel):
@@ -107,6 +110,20 @@ class SubspaceKernel(Kernel):
         return self.evaluate_subspace(X1[self.axis], X2[self.axis])
 
 
+class CustomSubspace(SubspaceKernel):
+    def __init__(
+        self,
+        function: Callable[[JAXArray, JAXArray], JAXArray],
+        *,
+        axis: Optional[Axis] = None,
+    ):
+        self.function = function
+        super().__init__(axis=axis)
+
+    def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.function(X1, X2)
+
+
 class DotProduct(SubspaceKernel):
     def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return X1 @ X2
@@ -114,10 +131,10 @@ class DotProduct(SubspaceKernel):
 
 class Polynomial(SubspaceKernel):
     def __init__(
-        self, *, order: int, sigma: JAXArray, axis: Optional[Axis] = None
+        self, *, order: JAXArray, sigma: JAXArray, axis: Optional[Axis] = None
     ):
-        self.order = float(order)
-        self.sigma2 = jnp.asarray(sigma) ** 2
+        self.order = order
+        self.sigma2 = jnp.square(sigma)
         super().__init__(axis=axis)
 
     def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -126,10 +143,10 @@ class Polynomial(SubspaceKernel):
 
 class Linear(SubspaceKernel):
     def __init__(
-        self, *, order: int, sigma: JAXArray, axis: Optional[Axis] = None
+        self, *, order: JAXArray, sigma: JAXArray, axis: Optional[Axis] = None
     ):
-        self.order = float(order)
-        self.sigma2 = jnp.asarray(sigma) ** 2
+        self.order = order
+        self.sigma2 = jnp.square(sigma)
         super().__init__(axis=axis)
 
     def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -137,7 +154,10 @@ class Linear(SubspaceKernel):
 
 
 class MetricKernel(Kernel):
-    def __init__(self, metric: Optional[Union[Metric, JAXArray]] = None):
+    def __init__(
+        self,
+        metric: Optional[Union[Metric, JAXArray]] = None,
+    ):
         if metric is None:
             self.metric = unit_metric
         elif callable(metric):
@@ -151,6 +171,20 @@ class MetricKernel(Kernel):
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r2 = self.metric(X1 - X2)
         return self.evaluate_radial(jnp.where(jnp.isclose(r2, 0.0), 0.0, r2))
+
+
+class CustomMetric(MetricKernel):
+    def __init__(
+        self,
+        function: Callable[[JAXArray], JAXArray],
+        *,
+        metric: Optional[Union[Metric, JAXArray]] = None,
+    ):
+        self.function = function
+        super().__init__(metric=metric)
+
+    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
+        return self.function(r2)
 
 
 class Exp(MetricKernel):
