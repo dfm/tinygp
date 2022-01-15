@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from ast import Call
-
 __all__ = [
     "Sum",
     "Product",
@@ -99,66 +97,23 @@ class Constant(Kernel):
 
 
 class SubspaceKernel(Kernel):
-    def __init__(self, *, axis: Optional[Axis] = None):
+    def __init__(self, kernel: Kernel, axis: Optional[Axis] = None):
+        self.kernel = kernel
         self.axis = axis
-
-    def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        raise NotImplementedError()
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         if self.axis is None:
-            return self.evaluate_subspace(X1, X2)
-        return self.evaluate_subspace(X1[self.axis], X2[self.axis])
-
-
-class CustomSubspace(SubspaceKernel):
-    def __init__(
-        self,
-        function: Callable[[JAXArray, JAXArray], JAXArray],
-        *,
-        axis: Optional[Axis] = None,
-    ):
-        self.function = function
-        super().__init__(axis=axis)
-
-    def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.function(X1, X2)
-
-
-class DotProduct(SubspaceKernel):
-    def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return X1 @ X2
-
-
-class Polynomial(SubspaceKernel):
-    def __init__(
-        self, *, order: JAXArray, sigma: JAXArray, axis: Optional[Axis] = None
-    ):
-        self.order = order
-        self.sigma2 = jnp.square(sigma)
-        super().__init__(axis=axis)
-
-    def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return (X1 @ X2 + self.sigma2) ** self.order
-
-
-class Linear(SubspaceKernel):
-    def __init__(
-        self, *, order: JAXArray, sigma: JAXArray, axis: Optional[Axis] = None
-    ):
-        self.order = order
-        self.sigma2 = jnp.square(sigma)
-        super().__init__(axis=axis)
-
-    def evaluate_subspace(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return (X1 @ X2 / self.sigma2) ** self.order
+            return self.kernel.evaluate(X1, X2)
+        return self.kernel.evaluate(X1[self.axis], X2[self.axis])
 
 
 class MetricKernel(Kernel):
     def __init__(
         self,
+        kernel: Kernel,
         metric: Optional[Union[Metric, JAXArray]] = None,
     ):
+        self.kernel = kernel
         if metric is None:
             self.metric = unit_metric
         elif callable(metric):
@@ -166,71 +121,91 @@ class MetricKernel(Kernel):
         else:
             self.metric = diagonal_metric(metric)  # type: ignore
 
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        raise NotImplementedError()
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.kernel.evaluate(self.metric(X1), self.metric(X2))
+
+
+class DotProduct(Kernel):
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return X1 @ X2
+
+
+class Polynomial(Kernel):
+    def __init__(self, *, order: JAXArray, sigma: JAXArray):
+        self.order = order
+        self.sigma2 = jnp.square(sigma)
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r2 = self.metric(X1 - X2)
-        return self.evaluate_radial(jnp.where(jnp.isclose(r2, 0.0), 0.0, r2))
+        return (X1 @ X2 + self.sigma2) ** self.order
 
 
-class CustomMetric(MetricKernel):
-    def __init__(
-        self,
-        function: Callable[[JAXArray], JAXArray],
-        *,
-        metric: Optional[Union[Metric, JAXArray]] = None,
-    ):
-        self.function = function
-        super().__init__(metric=metric)
+class Linear(Kernel):
+    def __init__(self, *, order: JAXArray, sigma: JAXArray):
+        self.order = order
+        self.sigma2 = jnp.square(sigma)
 
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        return self.function(r2)
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return (X1 @ X2 / self.sigma2) ** self.order
 
 
-class Exp(MetricKernel):
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        return jnp.exp(-jnp.sqrt(r2))
+class Exp(Kernel):
+    def __init__(self, scale: JAXArray = jnp.ones(())):
+        self.scale = scale
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return jnp.exp(-jnp.sum(jnp.abs((X1 - X2) / self.scale)))
 
 
-class ExpSquared(MetricKernel):
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        return jnp.exp(-0.5 * r2)
+class ExpSquared(Kernel):
+    def __init__(self, scale: JAXArray = jnp.ones(())):
+        self.scale = scale
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return jnp.exp(-0.5 * jnp.sum(jnp.square((X1 - X2) / self.scale)))
 
 
-class Matern32(MetricKernel):
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        arg = jnp.sqrt(3.0 * r2)
+class Matern32(Kernel):
+    def __init__(self, scale: JAXArray = jnp.ones(())):
+        self.scale = scale
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        arg = jnp.sqrt(3.0 * jnp.sum(jnp.abs((X1 - X2) / self.scale)))
         return (1.0 + arg) * jnp.exp(-arg)
 
 
-class Matern52(MetricKernel):
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        arg1 = 5.0 * r2
-        arg2 = jnp.sqrt(arg1)
+class Matern52(Kernel):
+    def __init__(self, scale: JAXArray = jnp.ones(())):
+        self.scale = scale
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        r = jnp.sum(jnp.abs((X1 - X2) / self.scale))
+        arg1 = 5.0 * r ** 2
+        arg2 = jnp.sqrt(5.0) * r
         return (1.0 + arg2 + arg1 / 3.0) * jnp.exp(-arg2)
 
 
-class Cosine(MetricKernel):
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        return jnp.cos(2 * jnp.pi * jnp.sqrt(r2))
+class Cosine(Kernel):
+    def __init__(self, *, period: JAXArray):
+        self.period = period
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return jnp.cos(2 * jnp.pi * jnp.abs((X1 - X2) / self.period))
 
 
-class ExpSineSquared(MetricKernel):
-    def __init__(self, metric: Union[Metric, JAXArray], *, gamma: JAXArray):
-        self.gamma = jnp.asarray(gamma)
-        super().__init__(metric)
+class ExpSineSquared(Kernel):
+    def __init__(self, *, period: JAXArray, gamma: JAXArray):
+        self.period = period
+        self.gamma = gamma
 
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
-        return jnp.exp(
-            -self.gamma * jnp.square(jnp.sin(jnp.pi * jnp.sqrt(r2)))
-        )
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        x = jnp.abs((X1 - X2) / self.period)
+        return jnp.exp(-self.gamma * jnp.square(jnp.sin(jnp.pi * x)))
 
 
-class RationalQuadratic(MetricKernel):
-    def __init__(self, metric: Union[Metric, JAXArray], *, alpha: JAXArray):
-        self.alpha = jnp.asarray(alpha)
-        super().__init__(metric)
+class RationalQuadratic(Kernel):
+    def __init__(self, alpha: JAXArray):
+        self.alpha = alpha
 
-    def evaluate_radial(self, r2: JAXArray) -> JAXArray:
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        r2 = jnp.sum(jnp.square(X1 - X2))
         return (1.0 + 0.5 * r2 / self.alpha) ** -self.alpha

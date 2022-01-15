@@ -57,9 +57,11 @@ class GaussianProcess:
         self.kernel = kernel
         self.base_covariance_matrix = self.kernel(X, X)
         n_data = self.base_covariance_matrix.shape[0]
-        self.covariance_matrix = self.base_covariance_matrix.at[
+        self.covariance_matrix = self.base_covariance_matrix.at[  # type: ignore
             jnp.diag_indices(n_data)
-        ].add(self.diag)
+        ].add(
+            self.diag
+        )
         self.scale_tril = linalg.cholesky(self.covariance_matrix, lower=True)
         self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
         self.norm += 0.5 * n_data * jnp.log(2 * jnp.pi)

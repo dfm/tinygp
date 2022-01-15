@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
+from functools import partial
+
 import numpy as np
 import pytest
-from jax.config import config
 
-from tinygp import GaussianProcess, kernels, metrics
+from tinygp import GaussianProcess, kernels
 
 george = pytest.importorskip("george")
-
-config.update("jax_enable_x64", True)
 
 
 @pytest.fixture
@@ -52,43 +51,12 @@ def kernel(request):
 def periodic_kernel(request):
     return {
         "Cosine": (
-            kernels.Cosine(2.3),
+            kernels.Cosine(period=2.3),
             george.kernels.CosineKernel(log_period=np.log(2.3)),
         ),
         "ExpSineSquared": (
-            kernels.ExpSineSquared(2.3, gamma=1.3),
+            kernels.ExpSineSquared(period=2.3, gamma=1.3),
             george.kernels.ExpSine2Kernel(gamma=1.3, log_period=np.log(2.3)),
-        ),
-    }[request.param]
-
-
-@pytest.fixture(
-    scope="module",
-    params=["unit", "diagonal1", "diagonal2", "cholesky", "dense"],
-)
-def metric(request):
-    random = np.random.default_rng(5968)
-    L = np.tril(random.standard_normal((5, 5)))
-    L[np.diag_indices_from(L)] = np.exp(
-        L[np.diag_indices_from(L)]
-    ) + random.uniform(1.5, 2.5, len(L))
-    return {
-        "unit": (metrics.unit_metric, dict(metric=1.0, ndim=2)),
-        "diagonal1": (
-            metrics.diagonal_metric(0.5),
-            dict(metric=0.5 ** 2, ndim=3),
-        ),
-        "diagonal2": (
-            metrics.diagonal_metric(np.array([0.5, 0.3])),
-            dict(metric=[0.5 ** 2, 0.3 ** 2], ndim=2),
-        ),
-        "cholesky": (
-            metrics.cholesky_metric(L, lower=True),
-            dict(metric=L @ L.T, ndim=len(L)),
-        ),
-        "dense": (
-            metrics.dense_metric(L @ L.T),
-            dict(metric=L @ L.T, ndim=len(L)),
         ),
     }[request.param]
 
@@ -99,25 +67,26 @@ def metric(request):
 )
 def metric_kernel(request, metric):
     tiny_metric, george_metric_args = metric
+    metric = partial(kernels.MetricKernel, metric=tiny_metric)
     return {
         "Exp": (
-            kernels.Exp(tiny_metric),
+            metric(kernels.Exp()),
             george.kernels.ExpKernel(**george_metric_args),
         ),
         "ExpSquared": (
-            kernels.ExpSquared(tiny_metric),
+            metric(kernels.ExpSquared()),
             george.kernels.ExpSquaredKernel(**george_metric_args),
         ),
         "Matern32": (
-            kernels.Matern32(tiny_metric),
+            metric(kernels.Matern32()),
             george.kernels.Matern32Kernel(**george_metric_args),
         ),
         "Matern52": (
-            kernels.Matern52(tiny_metric),
+            metric(kernels.Matern52()),
             george.kernels.Matern52Kernel(**george_metric_args),
         ),
         "RationalQuadratic": (
-            kernels.RationalQuadratic(tiny_metric, alpha=1.5),
+            metric(kernels.RationalQuadratic(alpha=1.5)),
             george.kernels.RationalQuadraticKernel(
                 log_alpha=np.log(1.5), **george_metric_args
             ),
@@ -221,8 +190,9 @@ def test_metric(metric):
     for n in range(george_metric.ndim):
         e = np.zeros(george_metric.ndim)
         e[n] = 1.0
+        r = tiny_metric(e)
         np.testing.assert_allclose(
-            tiny_metric(e), e.T @ np.linalg.solve(george_metric.to_matrix(), e)
+            r.T @ r, e.T @ np.linalg.solve(george_metric.to_matrix(), e)
         )
 
 

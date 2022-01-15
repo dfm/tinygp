@@ -14,7 +14,7 @@ Mean = Callable[[JAXArray], JAXArray]
 
 
 def zero_mean(X: JAXArray) -> JAXArray:
-    return 0.0
+    return jnp.zeros(())
 
 
 def constant_mean(value: JAXArray) -> Mean:

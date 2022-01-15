@@ -32,7 +32,8 @@ def unit_metric(r: JAXArray) -> JAXArray:
     Returns:
         JAXArray: The squared difference
     """
-    return jnp.sum(jnp.square(r))
+    return r
+    # return jnp.sum(jnp.square(r))
 
 
 def diagonal_metric(ell: JAXArray) -> Metric:
@@ -42,10 +43,10 @@ def diagonal_metric(ell: JAXArray) -> Metric:
         ell (JAXArray): The length scale for each dimension. If this is a
             scalar, the metric will be isotropic.
     """
-    return compose(unit_metric, partial(jnp.multiply, 1.0 / ell))
+    return partial(jnp.multiply, 1.0 / ell)
 
 
-def dense_metric(cov: JAXArray, *, lower: bool = True) -> Metric:
+def dense_metric(cov: JAXArray) -> Metric:
     """A full-rank general metric
 
     The units of the covariance parameter are length^2, unlike the other
@@ -69,8 +70,8 @@ def dense_metric(cov: JAXArray, *, lower: bool = True) -> Metric:
         lower (bool, optional): Should the lower triangular Cholesky factor be
             returned?
     """
-    chol = linalg.cholesky(cov, lower=lower)
-    return cholesky_metric(chol, lower=lower)
+    chol = linalg.cholesky(cov, lower=True)
+    return cholesky_metric(chol, lower=True)
 
 
 def cholesky_metric(chol: JAXArray, *, lower: bool = True) -> Metric:
@@ -94,10 +95,11 @@ def cholesky_metric(chol: JAXArray, *, lower: bool = True) -> Metric:
     Args:
         chol (JAXArray): The covariance matrix metric. This must be positive
             definite.
-        lower (bool, optional): Is ``chol`` lower triangular?
+        lower (bool, optional): Is ``chol`` lower triangular? This must be
+            ``True``, but is included as a sanity check.
     """
-    solve = partial(linalg.solve_triangular, chol, lower=lower)
-    return compose(unit_metric, solve)
+    assert lower
+    return partial(linalg.solve_triangular, chol, lower=lower)
 
 
 def compose(*functions: Metric) -> Metric:
