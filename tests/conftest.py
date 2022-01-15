@@ -3,7 +3,6 @@
 
 import numpy as np
 import pytest
-
 from jax.config import config
 
 from tinygp import metrics

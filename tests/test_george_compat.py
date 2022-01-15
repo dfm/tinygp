@@ -65,30 +65,31 @@ def periodic_kernel(request):
     scope="module",
     params=["Exp", "ExpSquared", "Matern32", "Matern52", "RationalQuadratic"],
 )
-def metric_kernel(request, metric):
-    tiny_metric, george_metric_args = metric
-    metric = partial(kernels.MetricKernel, metric=tiny_metric)
+def stationary_kernel(request):
+    # tiny_metric, george_metric_args = metric
+    # metric = partial(kernels.AffineTransform, metric=tiny_metric)
+    scale = 1.5
     return {
         "Exp": (
-            metric(kernels.Exp()),
-            george.kernels.ExpKernel(**george_metric_args),
+            kernels.Exp(scale),
+            george.kernels.ExpKernel(scale ** 2),
         ),
         "ExpSquared": (
-            metric(kernels.ExpSquared()),
-            george.kernels.ExpSquaredKernel(**george_metric_args),
+            kernels.ExpSquared(scale),
+            george.kernels.ExpSquaredKernel(scale ** 2),
         ),
         "Matern32": (
-            metric(kernels.Matern32()),
-            george.kernels.Matern32Kernel(**george_metric_args),
+            kernels.Matern32(scale),
+            george.kernels.Matern32Kernel(scale ** 2),
         ),
         "Matern52": (
-            metric(kernels.Matern52()),
-            george.kernels.Matern52Kernel(**george_metric_args),
+            kernels.Matern52(scale),
+            george.kernels.Matern52Kernel(scale ** 2),
         ),
         "RationalQuadratic": (
-            metric(kernels.RationalQuadratic(alpha=1.5)),
+            kernels.RationalQuadratic(alpha=1.5),
             george.kernels.RationalQuadraticKernel(
-                log_alpha=np.log(1.5), **george_metric_args
+                metric=1.0, log_alpha=np.log(1.5)
             ),
         ),
     }[request.param]
@@ -159,12 +160,12 @@ def compare_gps(random, tiny_kernel, george_kernel):
     np.testing.assert_allclose(
         tiny_gp.predict(y, return_cov=True)[1],
         george_gp.predict(y, x, return_var=False, return_cov=True)[1],
-        rtol=1e-5,
+        atol=1e-5,
     )
     np.testing.assert_allclose(
         tiny_gp.predict(y, t, return_cov=True)[1],
         george_gp.predict(y, t, return_var=False, return_cov=True)[1],
-        rtol=1e-5,
+        atol=1e-5,
     )
 
 
@@ -196,8 +197,8 @@ def test_metric(metric):
         )
 
 
-def test_metric_kernel_value(random, metric_kernel):
-    tiny_kernel, george_kernel = metric_kernel
+def test_metric_kernel_value(random, stationary_kernel):
+    tiny_kernel, george_kernel = stationary_kernel
     compare_kernel_value(random, tiny_kernel, george_kernel)
     tiny_kernel *= 0.3
     george_kernel *= 0.3
@@ -214,6 +215,6 @@ def test_periodic_gp(random, periodic_kernel):
     compare_gps(random, tiny_kernel, george_kernel)
 
 
-def test_metric_gp(random, metric_kernel):
-    tiny_kernel, george_kernel = metric_kernel
+def test_metric_gp(random, stationary_kernel):
+    tiny_kernel, george_kernel = stationary_kernel
     compare_gps(random, tiny_kernel, george_kernel)

@@ -27,13 +27,12 @@ def unit_metric(r: JAXArray) -> JAXArray:
     This corresponds to the trivial metric with a unit length scale.
 
     Args:
-        r (JAXArray): The radial difference vector
+        r (JAXArray): A coordinate vector
 
     Returns:
-        JAXArray: The squared difference
+        JAXArray: The transformed vector
     """
     return r
-    # return jnp.sum(jnp.square(r))
 
 
 def diagonal_metric(ell: JAXArray) -> Metric:
@@ -67,8 +66,6 @@ def dense_metric(cov: JAXArray) -> Metric:
     Args:
         cov (JAXArray): The covariance matrix metric. This must be positive
             definite.
-        lower (bool, optional): Should the lower triangular Cholesky factor be
-            returned?
     """
     chol = linalg.cholesky(cov, lower=True)
     return cholesky_metric(chol, lower=True)
