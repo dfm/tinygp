@@ -48,19 +48,21 @@ class GaussianProcess:
             if mean is None:
                 self.mean_function = zero_mean
             else:
-                self.mean_function = constant_mean(jnp.asarray(mean))
+                self.mean_function = constant_mean(mean)
+        self.mean_function = jax.vmap(self.mean_function)
         self.loc = self.mean = self.mean_function(self.X)
         assert self.mean.ndim == 1
 
         # Evaluate the covariance matrix and factorize the matrix
         self.kernel = kernel
         self.base_covariance_matrix = self.kernel(X, X)
+        n_data = self.base_covariance_matrix.shape[0]
         self.covariance_matrix = self.base_covariance_matrix.at[
-            jnp.diag_indices(self.X.shape[0])
+            jnp.diag_indices(n_data)
         ].add(self.diag)
         self.scale_tril = linalg.cholesky(self.covariance_matrix, lower=True)
         self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
-        self.norm += 0.5 * self.X.shape[0] * jnp.log(2 * jnp.pi)
+        self.norm += 0.5 * n_data * jnp.log(2 * jnp.pi)
 
     def condition(self, y: JAXArray) -> JAXArray:
         """Condition the process on observed data
