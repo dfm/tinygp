@@ -34,6 +34,8 @@ Kernels
 .. autoclass:: tinygp.kernels.RationalQuadratic
 
 
+.. _Metrics:
+
 Metrics
 -------
 

@@ -30,10 +30,13 @@ head on over to the [GitHub issues page](https://github.com/dfm/tinygp/issues).
 
 motivation
 install
-tutorials
+tutorials/quickstart
+tutorials/modeling
+tutorials/custom-kernels
+tutorials/george
 api
 contributing
-code_of_conduct
+code-of-conduct
 ```
 
 ## Authors & License

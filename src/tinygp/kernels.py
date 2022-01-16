@@ -105,15 +105,15 @@ class Custom(Kernel):
         return self.function(X1, X2)
 
 
-class AffineTransform(Kernel):
-    """Apply a linear transformation to the input coordinates of the kernel
+class Transform(Kernel):
+    """Apply a transformation to the input coordinates of the kernel
 
     For example
 
     .. code-block:: python
 
-        kernel = tinygp.kernels.AffineTransformation(
-            tinygp.kernels.Matern32() 4.5
+        kernel = tinygp.kernels.AffineTransform(
+            tinygp.kernels.Matern32(), 4.5
         )
 
     is equivalent to
@@ -122,10 +122,14 @@ class AffineTransform(Kernel):
 
         kernel = tinygp.kernels.Matern32(4.5)
 
-    but the former allows for more flexible treatment of multivariate inputs.
+    but the former allows for more flexible transforms, since the second
+    parameter can be any metric as described below in the :ref:`Metrics`
+    section.
 
     Args:
-        kernel (Kernel): The
+        kernel (Kernel): The reference kernel.
+        metric: (Metric): A callable object that accepts coordinates as inputs
+            and returns transformed coordinates.
     """
 
     def __init__(
@@ -242,7 +246,7 @@ class Matern52(Kernel):
 
 
 class Cosine(Kernel):
-    def __init__(self, *, period: JAXArray):
+    def __init__(self, period: JAXArray):
         self.period = period
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -251,7 +255,7 @@ class Cosine(Kernel):
 
 
 class ExpSineSquared(Kernel):
-    def __init__(self, *, period: JAXArray, gamma: JAXArray):
+    def __init__(self, period: JAXArray, gamma: JAXArray):
         self.period = period
         self.gamma = gamma
 
