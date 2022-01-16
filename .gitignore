@@ -2,4 +2,4 @@
 .coverage
 .tox
 .coverage*
-*.ipynb
+/*.ipynb
