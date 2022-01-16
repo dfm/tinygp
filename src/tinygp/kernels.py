@@ -5,8 +5,8 @@ from __future__ import annotations
 __all__ = [
     "Kernel",
     "Custom",
-    "AffineTransform",
-    "SubspaceTransform",
+    "Transform",
+    "Subspace",
     "Sum",
     "Product",
     "Constant",
@@ -112,7 +112,7 @@ class Transform(Kernel):
 
     .. code-block:: python
 
-        kernel = tinygp.kernels.AffineTransform(
+        kernel = tinygp.kernels.Transform(
             tinygp.kernels.Matern32(), 4.5
         )
 
@@ -149,7 +149,7 @@ class Transform(Kernel):
         return self.kernel.evaluate(self.metric(X1), self.metric(X2))
 
 
-class SubspaceTransform(Kernel):
+class Subspace(Kernel):
     def __init__(self, kernel: Kernel, axis: Optional[Axis] = None):
         self.kernel = kernel
         self.axis = axis

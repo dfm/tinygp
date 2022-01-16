@@ -14,8 +14,8 @@ Kernels
    :members:
 
 .. autoclass:: tinygp.kernels.Custom
-.. autoclass:: tinygp.kernels.AffineTransform
-.. autoclass:: tinygp.kernels.SubspaceTransform
+.. autoclass:: tinygp.kernels.Transform
+.. autoclass:: tinygp.kernels.Subspace
 
 .. autoclass:: tinygp.kernels.Sum
 .. autoclass:: tinygp.kernels.Product

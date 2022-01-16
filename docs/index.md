@@ -32,6 +32,7 @@ motivation
 install
 tutorials/quickstart
 tutorials/modeling
+tutorials/transforms
 tutorials/custom-kernels
 tutorials/george
 api
@@ -45,4 +46,4 @@ Copyright 2021, 2022 Simons Foundation, Inc.
 
 Built by [Dan Foreman-Mackey](https://github.com/dfm) and contributors (see [the
 contribution graph](https://github.com/dfm/tinygp/graphs/contributors) for the
-most up to date list). Licensed under the MIT license (see `LICENSE`).
+most up-to-date list). Licensed under the MIT license (see `LICENSE`).

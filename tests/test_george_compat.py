@@ -66,8 +66,6 @@ def periodic_kernel(request):
     params=["Exp", "ExpSquared", "Matern32", "Matern52", "RationalQuadratic"],
 )
 def stationary_kernel(request):
-    # tiny_metric, george_metric_args = metric
-    # metric = partial(kernels.AffineTransform, metric=tiny_metric)
     scale = 1.5
     return {
         "Exp": (
