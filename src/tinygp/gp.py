@@ -144,7 +144,6 @@ class GaussianProcess:
         return_var: bool,
         return_cov: bool,
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
-        # Compute the conditional
         if X_test is None:
             delta = self.diag * linalg.solve_triangular(
                 self.scale_tril, alpha, lower=True, trans=1

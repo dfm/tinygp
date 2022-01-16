@@ -22,7 +22,7 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
@@ -30,11 +30,34 @@ import jax.numpy as jnp
 from .metrics import Metric, diagonal_metric, unit_metric
 from .types import JAXArray
 
-Axis = Union[int, Tuple[int], JAXArray]
+Axis = Union[int, Sequence[int], JAXArray]
 
 
 class Kernel:
+    """The base class for all kernel implementations
+
+    This subclass provides default implementations to add and multiply kernels.
+    Subclasses should accept parameters in their ``__init__`` and then override
+    :func:`Kernel.evaluate` with custom behavior.
+    """
+
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        """Evaluate the kernel at a pair of input coordinates
+
+        This should be overridden be subclasses to return the kernel-specific
+        value. Two things to note:
+
+        1. Users should never directly call :func:`Kernel.evaluate`. Instead,
+           always "call" the kernel instance directly; for example, you can
+           evaluate the Matern-3/2 kernel using ``Matern32(1.5)(x1, x2)``, for
+           arrays of input coordinates ``x1`` and ``x2``.
+        2. When implementing a custom kernel, this method should treat ``X1``
+           and ``X2`` as single datapoints. In other words, these inputs will
+           typically either be scalars of have shape ``n_dim``, where ``n_dim``
+           is the number of input dimensions, rather than ``n_data`` or
+           ``(n_data, n_dim)``, and you should let the :class:`Kernel` ``vmap``
+           magic handle all the broadcasting for you.
+        """
         raise NotImplementedError()
 
     def __call__(
@@ -68,6 +91,13 @@ class Kernel:
 
 
 class Custom(Kernel):
+    """A custom kernel class implemented as a callable
+
+    Args:
+        function: A callable with a signature and behavior that matches
+        :func:`Kernel.evaluate`.
+    """
+
     def __init__(self, function: Callable[[JAXArray, JAXArray], JAXArray]):
         self.function = function
 
@@ -76,6 +106,28 @@ class Custom(Kernel):
 
 
 class AffineTransform(Kernel):
+    """Apply a linear transformation to the input coordinates of the kernel
+
+    For example
+
+    .. code-block:: python
+
+        kernel = tinygp.kernels.AffineTransformation(
+            tinygp.kernels.Matern32() 4.5
+        )
+
+    is equivalent to
+
+    .. code-block:: python
+
+        kernel = tinygp.kernels.Matern32(4.5)
+
+    but the former allows for more flexible treatment of multivariate inputs.
+
+    Args:
+        kernel (Kernel): The
+    """
+
     def __init__(
         self,
         kernel: Kernel,

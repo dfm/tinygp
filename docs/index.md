@@ -38,7 +38,7 @@ code_of_conduct
 
 ## Authors & License
 
-Copyright 2021 Dan Foreman-Mackey
+Copyright 2021, 2022 Simons Foundation, Inc.
 
 Built by [Dan Foreman-Mackey](https://github.com/dfm) and contributors (see [the
 contribution graph](https://github.com/dfm/tinygp/graphs/contributors) for the
