@@ -4,7 +4,8 @@ from __future__ import annotations
 
 __all__ = ["GaussianProcess"]
 
-from typing import Optional, Tuple, Union
+from functools import partial
+from typing import Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -56,15 +57,16 @@ class GaussianProcess:
         # Evaluate the covariance matrix and factorize the matrix
         self.kernel = kernel
         self.base_covariance_matrix = self.kernel(X, X)
-        n_data = self.base_covariance_matrix.shape[0]
+        self.dtype = self.base_covariance_matrix.dtype
+        self.num_data = self.base_covariance_matrix.shape[0]
         self.covariance_matrix = self.base_covariance_matrix.at[  # type: ignore
-            jnp.diag_indices(n_data)
+            jnp.diag_indices(self.num_data)
         ].add(
             self.diag
         )
         self.scale_tril = linalg.cholesky(self.covariance_matrix, lower=True)
         self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
-        self.norm += 0.5 * n_data * jnp.log(2 * jnp.pi)
+        self.norm += 0.5 * self.num_data * jnp.log(2 * jnp.pi)
 
     def condition(self, y: JAXArray) -> JAXArray:
         """Condition the process on observed data
@@ -85,12 +87,7 @@ class GaussianProcess:
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
         alpha = self._get_alpha(y)
         return self._predict(
-            y,
-            alpha,
-            X_test=X_test,
-            include_mean=include_mean,
-            return_var=return_var,
-            return_cov=return_cov,
+            y, alpha, X_test, include_mean, return_var, return_cov
         )
 
     def condition_and_predict(
@@ -104,12 +101,29 @@ class GaussianProcess:
     ) -> Tuple[JAXArray, Union[JAXArray, Tuple[JAXArray, JAXArray]]]:
         alpha = self._get_alpha(y)
         return self._condition(alpha), self._predict(
-            y,
-            alpha,
-            X_test=X_test,
-            include_mean=include_mean,
-            return_var=return_var,
-            return_cov=return_cov,
+            y, alpha, X_test, include_mean, return_var, return_cov
+        )
+
+    def sample(
+        self,
+        key: jax.random.KeyArray,
+        shape: Optional[Sequence[int]] = None,
+    ) -> JAXArray:
+        return self._sample(key, shape)
+
+    @partial(jax.jit, static_argnums=(0, 2))
+    def _sample(
+        self,
+        key: jax.random.KeyArray,
+        shape: Optional[Sequence[int]],
+    ) -> JAXArray:
+        if shape is None:
+            shape = (self.num_data,)
+        else:
+            shape = (self.num_data,) + tuple(shape)
+        normal_samples = jax.random.normal(key, shape=shape, dtype=self.dtype)
+        return self.mean + jnp.einsum(
+            "...ij,...j->...i", self.scale_tril, normal_samples
         )
 
     def _condition(self, alpha: JAXArray) -> JAXArray:
@@ -120,15 +134,15 @@ class GaussianProcess:
             self.scale_tril, y - self.loc, lower=True
         )
 
+    @partial(jax.jit, static_argnums=(0, 4, 5, 6))
     def _predict(
         self,
         y: JAXArray,
         alpha: JAXArray,
-        X_test: Optional[JAXArray] = None,
-        *,
-        include_mean: bool = True,
-        return_var: bool = False,
-        return_cov: bool = False,
+        X_test: Optional[JAXArray],
+        include_mean: bool,
+        return_var: bool,
+        return_cov: bool,
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
         # Compute the conditional
         if X_test is None:
