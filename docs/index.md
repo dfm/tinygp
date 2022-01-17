@@ -38,7 +38,7 @@ tutorials/george
 api
 contributing
 code-of-conduct
-[GitHub repository](https://github.com/dfm/tinygp)
+GitHub repository <https://github.com/dfm/tinygp>
 ```
 
 ## Authors & License
