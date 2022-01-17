@@ -108,27 +108,26 @@ class Custom(Kernel):
 class Transform(Kernel):
     """Apply a transformation to the input coordinates of the kernel
 
-    For example
+    By default, the second parameter will be parsed as a Euclidean ``Metric``,
+    for example, the following shows two equivalent ways of adding a length
+    scale to a :class:`Matern32` kernel:
 
     .. code-block:: python
 
-        kernel = tinygp.kernels.Transform(
-            tinygp.kernels.Matern32(), 4.5
-        )
+        >>> import numpy as np
+        >>> from tinygp import kernels
+        >>> kernel1 = kernels.Transform(kernels.Matern32(), 4.5)
+        >>> kernel2 = kernels.Matern32(4.5)
+        >>> np.testing.assert_allclose(
+        ...     kernel1.evaluate(0.5, 0.1), kernel2.evaluate(0.5, 0.1)
+        ... )
 
-    is equivalent to
-
-    .. code-block:: python
-
-        kernel = tinygp.kernels.Matern32(4.5)
-
-    but the former allows for more flexible transforms, since the second
-    parameter can be any metric as described below in the :ref:`Metrics`
-    section.
+    The former allows for more flexible transforms, since the second parameter
+    can be any metric as described below in the :ref:`Metrics` section.
 
     Args:
-        kernel (Kernel): The reference kernel.
-        metric: (Metric): A callable object that accepts coordinates as inputs
+        kernel (Kernel): The reference kernel. metric: (Metric): A callable
+        object that accepts coordinates as inputs
             and returns transformed coordinates.
     """
 
@@ -150,6 +149,12 @@ class Transform(Kernel):
 
 
 class Subspace(Kernel):
+    """A kernel transform that selects a subset of the input dimensions
+
+    For example:
+
+    """
+
     def __init__(self, kernel: Kernel, axis: Optional[Axis] = None):
         self.kernel = kernel
         self.axis = axis

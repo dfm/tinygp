@@ -1,11 +1,11 @@
 # Installation
 
-`tinygp` is built on top of [JAX](https://github.com/google/jax) so that's the
+`tinygp` is built on top of [`jax`](https://github.com/google/jax) so that's the
 primary dependency that you'll need. All of the methods below will install any
 required dependencies, but if you want to take advantage of your GPU, that might
 take a little more setup. `tinygp` doesn't have any GPU-specific code, so it
 should be enough to just [follow the installation instructions for CUDA support
-in the JAX README](https://github.com/google/jax/#installation).
+in the `jax` README](https://github.com/google/jax/#installation).
 
 ## Using pip
 

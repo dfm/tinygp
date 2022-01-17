@@ -72,7 +72,12 @@ class GaussianProcess:
         """Condition the process on observed data
 
         Args:
-            y (JAXArray):
+            y (JAXArray): The observed data. This should have the shape
+                ``(N_data,)``, where ``N_data`` was the zeroth axis of the ``X``
+                data provided when instantiating this object.
+
+        Returns:
+            The marginal likelihood of this model, evaluated at ``y``.
         """
         return self._condition(self._get_alpha(y))
 
@@ -85,6 +90,33 @@ class GaussianProcess:
         return_var: bool = False,
         return_cov: bool = False,
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
+        """Predict the GP model at new test points conditioned on observed data
+
+        Args:
+            y (JAXArray): The observed data. This should have the shape
+                ``(N_data,)``, where ``N_data`` was the zeroth axis of the ``X``
+                data provided when instantiating this object.
+            X_test (JAXArray, optional): The coordinates where the prediction
+                should be evaluated. This should have a data type compatible
+                with the ``X`` data provided when instantiating this object. If
+                it is not provided, ``X`` will be used by default, so the
+                predictions will be made.
+            include_mean (bool, optional): If ``True`` (default), the predicted
+                values will include the mean function evaluated at ``X_test``.
+            return_var (bool, optional): If ``True``, the variance of the
+                predicted values at ``X_test`` will be returned.
+            return_cov (bool, optional): If ``True``, the covariance of the
+                predicted values at ``X_test`` will be returned. If
+                ``return_var`` is ``True``, this flag will be ignored.
+
+        Returns:
+            The mean of the predictive model evaluated at ``X_test``, with shape
+            ``(N_test,)`` where ``N_test`` is the zeroth dimension of
+            ``X_test``. If either ``return_var`` or ``return_cov`` is ``True``,
+            the variance or covariance of the predicted process will also be
+            returned with shape ``(N_test,)`` or ``(N_test, N_test)``
+            respectively.
+        """
         alpha = self._get_alpha(y)
         return self._predict(
             y, alpha, X_test, include_mean, return_var, return_cov
@@ -99,6 +131,13 @@ class GaussianProcess:
         return_var: bool = False,
         return_cov: bool = False,
     ) -> Tuple[JAXArray, Union[JAXArray, Tuple[JAXArray, JAXArray]]]:
+        """Condition on observed data and return the predictive process
+
+        This combines :func:`GaussianProcess.condition` and
+        :func:`GaussianProcess.predict` into a single operation which will be
+        somewhat more efficient than calling them both separately. See those
+        docstrings for a description of all the arguments.
+        """
         alpha = self._get_alpha(y)
         return self._condition(alpha), self._predict(
             y, alpha, X_test, include_mean, return_var, return_cov
@@ -109,6 +148,18 @@ class GaussianProcess:
         key: jax.random.KeyArray,
         shape: Optional[Sequence[int]] = None,
     ) -> JAXArray:
+        """Generate samples from the prior process
+
+        Args:
+            key: A ``jax`` random number key array. shape (tuple, optional): The
+            number and shape of samples to
+                generate.
+
+        Returns:
+            The sampled realizations from the process with shape ``(N_data,) +
+            shape`` where ``N_data`` is the zeroth dimension of the ``X``
+            coordinates provided when instantiating this process.
+        """
         return self._sample(key, shape)
 
     @partial(jax.jit, static_argnums=(0, 2))
