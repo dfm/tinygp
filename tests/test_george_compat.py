@@ -177,18 +177,6 @@ def test_periodic_kernel_value(random, periodic_kernel):
     compare_kernel_value(random, tiny_kernel, george_kernel)
 
 
-def test_metric(metric):
-    tiny_metric, george_metric_args = metric
-    george_metric = george.metrics.Metric(**george_metric_args)
-    for n in range(george_metric.ndim):
-        e = np.zeros(george_metric.ndim)
-        e[n] = 1.0
-        r = tiny_metric(e)
-        np.testing.assert_allclose(
-            r.T @ r, e.T @ np.linalg.solve(george_metric.to_matrix(), e)
-        )
-
-
 def test_metric_kernel_value(random, stationary_kernel):
     tiny_kernel, george_kernel = stationary_kernel
     compare_kernel_value(random, tiny_kernel, george_kernel)

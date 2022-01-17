@@ -5,8 +5,6 @@ from __future__ import annotations
 __all__ = [
     "Kernel",
     "Custom",
-    "Transform",
-    "Subspace",
     "Sum",
     "Product",
     "Constant",
@@ -26,7 +24,6 @@ from typing import Callable, Optional, Sequence, Union
 import jax
 import jax.numpy as jnp
 
-from .metrics import Metric, diagonal_metric, unit_metric
 from .types import JAXArray
 
 Axis = Union[int, Sequence[int], JAXArray]
@@ -102,81 +99,6 @@ class Custom(Kernel):
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.function(X1, X2)
-
-
-class Transform(Kernel):
-    """Apply a transformation to the input coordinates of the kernel
-
-    By default, the second parameter will be parsed as a Euclidean ``Metric``,
-    for example, the following shows two equivalent ways of adding a length
-    scale to a :class:`Matern32` kernel:
-
-    .. code-block:: python
-
-        >>> import numpy as np
-        >>> from tinygp import kernels
-        >>> kernel1 = kernels.Transform(kernels.Matern32(), 4.5)
-        >>> kernel2 = kernels.Matern32(4.5)
-        >>> np.testing.assert_allclose(
-        ...     kernel1.evaluate(0.5, 0.1), kernel2.evaluate(0.5, 0.1)
-        ... )
-
-    The former allows for more flexible transforms, since the second parameter
-    can be any metric as described below in the :ref:`Metrics` section.
-
-    Args:
-        kernel (Kernel): The fundamental kernel.
-        metric: (Metric): A callable object that accepts coordinates as inputs
-            and returns transformed coordinates.
-    """
-
-    def __init__(
-        self,
-        kernel: Kernel,
-        metric: Optional[Union[Metric, JAXArray]] = None,
-    ):
-        self.kernel = kernel
-        if metric is None:
-            self.metric = unit_metric
-        elif callable(metric):
-            self.metric = metric  # type: ignore
-        else:
-            self.metric = diagonal_metric(metric)  # type: ignore
-
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.kernel.evaluate(self.metric(X1), self.metric(X2))
-
-
-class Subspace(Kernel):
-    """A kernel transform that selects a subset of the input dimensions
-
-    For example, the following kernel only depends on the coordinates in the
-    second dimension:
-
-    .. code-block:: python
-
-        >>> import numpy as np
-        >>> from tinygp import kernels
-        >>> kernel = kernels.Subspace(kernels.Matern32(), axis=1)
-        >>> np.testing.assert_allclose(
-        ...     kernel.evaluate(np.array([0.5, 0.1]), np.array([-0.4, 0.7])),
-        ...     kernel.evaluate(np.array([100.5, 0.1]), np.array([-70.4, 0.7])),
-        ... )
-
-    Args:
-        kernel (Kernel): The fundamental kernel.
-        axis: (Axis, optional): An integer or tuple of integers specifying the
-            axes to select.
-    """
-
-    def __init__(self, kernel: Kernel, axis: Optional[Axis] = None):
-        self.kernel = kernel
-        self.axis = axis
-
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        if self.axis is None:
-            return self.kernel.evaluate(X1, X2)
-        return self.kernel.evaluate(X1[self.axis], X2[self.axis])
 
 
 class Sum(Kernel):

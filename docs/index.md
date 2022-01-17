@@ -26,7 +26,7 @@ head on over to the [GitHub issues page](https://github.com/dfm/tinygp/issues).
 ## Table of contents
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 motivation
 install

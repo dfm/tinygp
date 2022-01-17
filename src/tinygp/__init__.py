@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ["__version__", "kernels", "means", "metrics", "GaussianProcess"]
+__all__ = ["__version__", "kernels", "means", "transforms", "GaussianProcess"]
 
-from . import kernels, means, metrics
+from . import kernels, means, transforms
 from .gp import GaussianProcess
 from .tinygp_version import version as __version__
 
