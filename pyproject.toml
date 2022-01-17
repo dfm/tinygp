@@ -20,10 +20,7 @@ use_parentheses = true
 parallel = true
 branch = true
 source = ["tinygp"]
-omit = [
-    "docs/*",
-    "tests/*",
-]
+omit = ["docs/*", "tests/*", "src/tinygp/tinygp_version.py"]
 
 [tool.coverage.paths]
 source = ["src", "*/site-packages"]

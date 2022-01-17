@@ -13,10 +13,11 @@
 </p>
 
 _tinygp_ is an extremely lightweight library for building Gaussian Process
-models in Python, built on top of [_jax_](https://github.com/google/jax). It
-is not (yet?) designed to provide all the shiniest algorithms for scalable
-computations, but I think it
-has a nice interface and it's pretty fast. Thanks to _jax_, _tinygp_
-supports things like GPU acceleration and automatic differentiation.
+models in Python, built on top of [_jax_](https://github.com/google/jax). It is
+not (yet?) designed to provide all the shiniest algorithms for scalable
+computations, but I think it has a nice interface, and it's pretty fast. Thanks
+to _jax_, _tinygp_ supports things like GPU acceleration and automatic
+differentiation.
 
-Check out the docs for more info: [tinygp.readthedocs.io](https://tinygp.readthedocs.io)
+Check out the docs for more info:
+[tinygp.readthedocs.io](https://tinygp.readthedocs.io)
