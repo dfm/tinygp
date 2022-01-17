@@ -12,7 +12,6 @@ __all__ = [
     "Constant",
     "DotProduct",
     "Polynomial",
-    "Linear",
     "Exp",
     "ExpSquared",
     "Matern32",
@@ -47,7 +46,7 @@ class Kernel:
         This should be overridden be subclasses to return the kernel-specific
         value. Two things to note:
 
-        1. Users should never directly call :func:`Kernel.evaluate`. Instead,
+        1. Users shouldn't generally call :func:`Kernel.evaluate`. Instead,
            always "call" the kernel instance directly; for example, you can
            evaluate the Matern-3/2 kernel using ``Matern32(1.5)(x1, x2)``, for
            arrays of input coordinates ``x1`` and ``x2``.
@@ -95,7 +94,7 @@ class Custom(Kernel):
 
     Args:
         function: A callable with a signature and behavior that matches
-        :func:`Kernel.evaluate`.
+            :func:`Kernel.evaluate`.
     """
 
     def __init__(self, function: Callable[[JAXArray, JAXArray], JAXArray]):
@@ -126,8 +125,8 @@ class Transform(Kernel):
     can be any metric as described below in the :ref:`Metrics` section.
 
     Args:
-        kernel (Kernel): The reference kernel. metric: (Metric): A callable
-        object that accepts coordinates as inputs
+        kernel (Kernel): The fundamental kernel.
+        metric: (Metric): A callable object that accepts coordinates as inputs
             and returns transformed coordinates.
     """
 
@@ -151,8 +150,23 @@ class Transform(Kernel):
 class Subspace(Kernel):
     """A kernel transform that selects a subset of the input dimensions
 
-    For example:
+    For example, the following kernel only depends on the coordinates in the
+    second dimension:
 
+    .. code-block:: python
+
+        >>> import numpy as np
+        >>> from tinygp import kernels
+        >>> kernel = kernels.Subspace(kernels.Matern32(), axis=1)
+        >>> np.testing.assert_allclose(
+        ...     kernel.evaluate(np.array([0.5, 0.1]), np.array([-0.4, 0.7])),
+        ...     kernel.evaluate(np.array([100.5, 0.1]), np.array([-70.4, 0.7])),
+        ... )
+
+    Args:
+        kernel (Kernel): The fundamental kernel.
+        axis: (Axis, optional): An integer or tuple of integers specifying the
+            axes to select.
     """
 
     def __init__(self, kernel: Kernel, axis: Optional[Axis] = None):
@@ -166,6 +180,8 @@ class Subspace(Kernel):
 
 
 class Sum(Kernel):
+    """A helper to represent the sum of two kernels"""
+
     def __init__(self, kernel1: Kernel, kernel2: Kernel):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
@@ -175,6 +191,8 @@ class Sum(Kernel):
 
 
 class Product(Kernel):
+    """A helper to represent the product of two kernels"""
+
     def __init__(self, kernel1: Kernel, kernel2: Kernel):
         self.kernel1 = kernel1
         self.kernel2 = kernel2
@@ -184,6 +202,18 @@ class Product(Kernel):
 
 
 class Constant(Kernel):
+    """This kernel returns the constant
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = c
+
+    where :math:`c` is a parameter.
+
+    Args:
+        c: The parameter :math:`c` in the above equation.
+    """
+
     def __init__(self, value: JAXArray):
         self.value = jnp.asarray(value)
 
@@ -192,29 +222,61 @@ class Constant(Kernel):
 
 
 class DotProduct(Kernel):
+    """The dot product kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = \mathbf{x}_i \cdot \mathbf{x}_j
+
+    with no parameters.
+    """
+
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return X1 @ X2
 
 
 class Polynomial(Kernel):
-    def __init__(self, *, order: JAXArray, sigma: JAXArray):
+    """A polynomial kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = [(\mathbf{x}_i / \ell) \cdot
+            (\mathbf{x}_j / \ell) + \sigma^2]^P
+
+    Args:
+        order: The power :math:`P`.
+        scale: The parameter :math:`\ell`.
+        sigma: The parameter :math:`\sigma`.
+    """
+
+    def __init__(self, *, order: JAXArray, scale: JAXArray, sigma: JAXArray):
         self.order = order
+        self.scale = scale
         self.sigma2 = jnp.square(sigma)
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return (X1 @ X2 + self.sigma2) ** self.order
-
-
-class Linear(Kernel):
-    def __init__(self, *, order: JAXArray, sigma: JAXArray):
-        self.order = order
-        self.sigma2 = jnp.square(sigma)
-
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return (X1 @ X2 / self.sigma2) ** self.order
+        return (
+            (X1 / self.scale) @ (X2 / self.scale) + self.sigma2
+        ) ** self.order
 
 
 class Exp(Kernel):
+    """The exponential kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = \exp(-r)
+
+    where
+
+    .. math::
+
+        r = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_1
+
+    Args:
+        scale: The parameter :math:`\ell`.
+    """
+
     def __init__(self, scale: JAXArray = jnp.ones(())):
         self.scale = scale
 
@@ -223,6 +285,22 @@ class Exp(Kernel):
 
 
 class ExpSquared(Kernel):
+    """The exponential squared or radial basis function kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = \exp(-r^2 / 2)
+
+    where
+
+    .. math::
+
+        r = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_2
+
+    Args:
+        scale: The parameter :math:`\ell`.
+    """
+
     def __init__(self, scale: JAXArray = jnp.ones(())):
         self.scale = scale
 
@@ -231,6 +309,22 @@ class ExpSquared(Kernel):
 
 
 class Matern32(Kernel):
+    """The Matern-3/2 kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = (1 + \sqrt{3}\,r)\,\exp(-\sqrt{3}\,r)
+
+    where
+
+    .. math::
+
+        r = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_1
+
+    Args:
+        scale: The parameter :math:`\ell`.
+    """
+
     def __init__(self, scale: JAXArray = jnp.ones(())):
         self.scale = scale
 
@@ -241,6 +335,23 @@ class Matern32(Kernel):
 
 
 class Matern52(Kernel):
+    """The Matern-5/2 kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = (1 + \sqrt{5}\,r +
+            5\,r^2/\sqrt{3})\,\exp(-\sqrt{5}\,r)
+
+    where
+
+    .. math::
+
+        r = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_1
+
+    Args:
+        scale: The parameter :math:`\ell`.
+    """
+
     def __init__(self, scale: JAXArray = jnp.ones(())):
         self.scale = scale
 
@@ -251,6 +362,22 @@ class Matern52(Kernel):
 
 
 class Cosine(Kernel):
+    """The cosine kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = \cos(2\,\pi\,r)
+
+    where
+
+    .. math::
+
+        r = ||(\mathbf{x}_i - \mathbf{x}_j) / P||_1
+
+    Args:
+        period: The parameter :math:`P`.
+    """
+
     def __init__(self, period: JAXArray):
         self.period = period
 
@@ -260,6 +387,23 @@ class Cosine(Kernel):
 
 
 class ExpSineSquared(Kernel):
+    """The exponential sine squared or quasiperiodic kernel
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = \exp(-\Gamma\,\sin^2 \pi r)
+
+    where
+
+    .. math::
+
+        r = ||(\mathbf{x}_i - \mathbf{x}_j) / P||_1
+
+    Args:
+        period: The parameter :math:`P`.
+        gamma: The parameter :math:`\Gamma`.
+    """
+
     def __init__(self, period: JAXArray, gamma: JAXArray):
         self.period = period
         self.gamma = gamma
@@ -270,6 +414,22 @@ class ExpSineSquared(Kernel):
 
 
 class RationalQuadratic(Kernel):
+    r"""The rational quadratic
+
+    .. math::
+
+        k(\mathbf{x}_i,\,\mathbf{x}_j) = (1 + r^2 / 2\,\alpha)^{-\alpha}
+
+    where
+
+    .. math::
+
+        r = ||\mathbf{x}_i - \mathbf{x}_j||_2
+
+    Args:
+        alpha: The parameter :math:`\alpha`.
+    """
+
     def __init__(self, alpha: JAXArray):
         self.alpha = alpha
 

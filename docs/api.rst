@@ -17,13 +17,9 @@ Kernels
 .. autoclass:: tinygp.kernels.Transform
 .. autoclass:: tinygp.kernels.Subspace
 
-.. autoclass:: tinygp.kernels.Sum
-.. autoclass:: tinygp.kernels.Product
 .. autoclass:: tinygp.kernels.Constant
-
 .. autoclass:: tinygp.kernels.DotProduct
 .. autoclass:: tinygp.kernels.Polynomial
-.. autoclass:: tinygp.kernels.Linear
 
 .. autoclass:: tinygp.kernels.Exp
 .. autoclass:: tinygp.kernels.ExpSquared
