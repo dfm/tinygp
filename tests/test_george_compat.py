@@ -18,7 +18,7 @@ def random():
 
 @pytest.fixture(
     scope="module",
-    params=["Constant", "DotProduct", "Polynomial", "Linear"],
+    params=["Constant", "DotProduct", "Polynomial"],
 )
 def kernel(request):
     return {
@@ -36,12 +36,6 @@ def kernel(request):
             kernels.Polynomial(order=2.5, sigma=1.3),
             george.kernels.PolynomialKernel(
                 order=2.5, log_sigma2=2 * np.log(1.3), ndim=1
-            ),
-        ),
-        "Linear": (
-            kernels.Linear(order=2.5, sigma=1.3),
-            george.kernels.LinearKernel(
-                order=2.5, log_gamma2=2.5 * 2 * np.log(1.3), ndim=1
             ),
         ),
     }[request.param]
