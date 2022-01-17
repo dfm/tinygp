@@ -249,7 +249,13 @@ class Polynomial(Kernel):
         sigma: The parameter :math:`\sigma`.
     """
 
-    def __init__(self, *, order: JAXArray, scale: JAXArray, sigma: JAXArray):
+    def __init__(
+        self,
+        *,
+        order: JAXArray,
+        scale: JAXArray = jnp.ones(()),
+        sigma: JAXArray = jnp.zeros(()),
+    ):
         self.order = order
         self.scale = scale
         self.sigma2 = jnp.square(sigma)
