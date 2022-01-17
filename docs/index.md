@@ -23,7 +23,7 @@ list of all [the built-in kernel functions](Kernels).
 head on over to the [GitHub issues page](https://github.com/dfm/tinygp/issues).
 ```
 
-## Documentation
+## Table of contents
 
 ```{toctree}
 :maxdepth: 2
@@ -42,7 +42,7 @@ code-of-conduct
 GitHub Repository <https://github.com/dfm/tinygp>
 ```
 
-## Authors & License
+## Authors & license
 
 Copyright 2021, 2022 Simons Foundation, Inc.
 
