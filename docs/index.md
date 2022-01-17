@@ -34,8 +34,8 @@ tutorials/quickstart
 tutorials/modeling
 tutorials/transforms
 tutorials/custom-kernels
-tutorials/george
 api
+tutorials/george
 contributing
 code-of-conduct
 ```
