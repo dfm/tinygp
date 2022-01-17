@@ -17,7 +17,7 @@ supports things like GPU acceleration and automatic differentiation.
 the [tutorials](tutorials).
 
 👉 For all the details, check out the [full API documentation](api), including a
-list of all the [built-in kernel functions](api#kernels).
+list of all [the built-in kernel functions](Kernels).
 
 👉 If you find bugs or otherwise have trouble getting `tinygp` to do what you want,
 head on over to the [GitHub issues page](https://github.com/dfm/tinygp/issues).
@@ -34,6 +34,7 @@ tutorials/quickstart
 tutorials/modeling
 tutorials/transforms
 tutorials/custom-kernels
+tutorials/mixture
 tutorials/george
 api
 contributing

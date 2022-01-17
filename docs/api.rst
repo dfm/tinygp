@@ -1,3 +1,5 @@
+.. _api:
+
 API
 ===
 
@@ -6,6 +8,8 @@ Computation engine
 
 .. autoclass:: tinygp.GaussianProcess
    :members:
+
+.. _Kernels:
 
 Kernels
 -------

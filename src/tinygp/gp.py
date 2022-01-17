@@ -86,6 +86,7 @@ class GaussianProcess:
         y: JAXArray,
         X_test: Optional[JAXArray] = None,
         *,
+        kernel: Optional[Kernel] = None,
         include_mean: bool = True,
         return_var: bool = False,
         return_cov: bool = False,
@@ -119,7 +120,7 @@ class GaussianProcess:
         """
         alpha = self._get_alpha(y)
         return self._predict(
-            y, alpha, X_test, include_mean, return_var, return_cov
+            y, alpha, X_test, kernel, include_mean, return_var, return_cov
         )
 
     def condition_and_predict(
@@ -127,6 +128,7 @@ class GaussianProcess:
         y: JAXArray,
         X_test: Optional[JAXArray] = None,
         *,
+        kernel: Optional[Kernel] = None,
         include_mean: bool = True,
         return_var: bool = False,
         return_cov: bool = False,
@@ -140,7 +142,7 @@ class GaussianProcess:
         """
         alpha = self._get_alpha(y)
         return self._condition(alpha), self._predict(
-            y, alpha, X_test, include_mean, return_var, return_cov
+            y, alpha, X_test, kernel, include_mean, return_var, return_cov
         )
 
     def sample(
@@ -185,17 +187,19 @@ class GaussianProcess:
             self.scale_tril, y - self.loc, lower=True
         )
 
-    @partial(jax.jit, static_argnums=(0, 4, 5, 6))
+    @partial(jax.jit, static_argnums=(0, 4, 5, 6, 7))
     def _predict(
         self,
         y: JAXArray,
         alpha: JAXArray,
         X_test: Optional[JAXArray],
+        kernel: Optional[Kernel],
         include_mean: bool,
         return_var: bool,
         return_cov: bool,
     ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
-        if X_test is None:
+        if X_test is None and kernel is None:
+            kernel = self.kernel
             delta = self.diag * linalg.solve_triangular(
                 self.scale_tril, alpha, lower=True, trans=1
             )
@@ -212,9 +216,14 @@ class GaussianProcess:
             )
 
         else:
+            if X_test is None:
+                X_test = self.X
+            if kernel is None:
+                kernel = self.kernel
+
             K_testT = linalg.solve_triangular(
                 self.scale_tril,
-                self.kernel(self.X, X_test),
+                kernel(self.X, X_test),
                 lower=True,
             )
             mu = K_testT.T @ alpha
@@ -225,8 +234,16 @@ class GaussianProcess:
                 return mu
 
         if return_var:
-            var = self.kernel(X_test) - jnp.sum(jnp.square(K_testT), axis=0)
+            var = kernel(X_test) - jnp.sum(jnp.square(K_testT), axis=0)
             return mu, var
 
-        cov = self.kernel(X_test, X_test) - K_testT.T @ K_testT
+        cov = kernel(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
+
+    def numpyro_dist(self, **kwargs):  # type: ignore
+        """Get the numpyro MultivariateNormal distribution for this process"""
+        import numpyro.distributions as dist
+
+        return dist.MultivariateNormal(
+            loc=self.loc, scale_tril=self.scale_tril, **kwargs
+        )
