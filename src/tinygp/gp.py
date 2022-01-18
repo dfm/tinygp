@@ -164,6 +164,14 @@ class GaussianProcess:
         """
         return self._sample(key, shape)
 
+    def numpyro_dist(self, **kwargs):  # type: ignore
+        """Get the numpyro MultivariateNormal distribution for this process"""
+        import numpyro.distributions as dist
+
+        return dist.MultivariateNormal(
+            loc=self.loc, scale_tril=self.scale_tril, **kwargs
+        )
+
     @partial(jax.jit, static_argnums=(0, 2))
     def _sample(
         self,
@@ -239,11 +247,3 @@ class GaussianProcess:
 
         cov = kernel(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
-
-    def numpyro_dist(self, **kwargs):  # type: ignore
-        """Get the numpyro MultivariateNormal distribution for this process"""
-        import numpyro.distributions as dist
-
-        return dist.MultivariateNormal(
-            loc=self.loc, scale_tril=self.scale_tril, **kwargs
-        )

@@ -332,7 +332,7 @@ class ExpSineSquared(Kernel):
         gamma: The parameter :math:`\Gamma`.
     """
 
-    def __init__(self, period: JAXArray, gamma: JAXArray):
+    def __init__(self, *, period: JAXArray, gamma: JAXArray):
         self.period = period
         self.gamma = gamma
 
@@ -352,15 +352,17 @@ class RationalQuadratic(Kernel):
 
     .. math::
 
-        r = ||\mathbf{x}_i - \mathbf{x}_j||_2
+        r = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_2
 
     Args:
+        scale: The parameter :math:`\ell`.
         alpha: The parameter :math:`\alpha`.
     """
 
-    def __init__(self, alpha: JAXArray):
+    def __init__(self, *, scale: JAXArray, alpha: JAXArray):
+        self.scale = scale
         self.alpha = alpha
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r2 = jnp.sum(jnp.square(X1 - X2))
+        r2 = jnp.sum(jnp.square((X1 - X2) / self.scale))
         return (1.0 + 0.5 * r2 / self.alpha) ** -self.alpha

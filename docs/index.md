@@ -34,6 +34,7 @@ tutorials/quickstart
 tutorials/modeling
 tutorials/transforms
 tutorials/kernels
+tutorials/likelihoods
 tutorials/mixture
 tutorials/george
 api
