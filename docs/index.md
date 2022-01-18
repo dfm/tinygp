@@ -33,7 +33,7 @@ install
 tutorials/quickstart
 tutorials/modeling
 tutorials/transforms
-tutorials/custom-kernels
+tutorials/kernels
 tutorials/mixture
 tutorials/george
 api
