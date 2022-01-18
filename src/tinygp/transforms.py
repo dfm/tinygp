@@ -5,7 +5,7 @@ from __future__ import annotations
 __all__ = ["Transform", "Affine", "Subspace"]
 
 from functools import partial
-from typing import Callable, Sequence, Union
+from typing import Any, Callable, Sequence, Union
 
 import jax.numpy as jnp
 from jax.scipy import linalg
@@ -23,11 +23,8 @@ class Transform(Kernel):
         kernel (Kernel): The kernel to use in the transformed space.
     """
 
-    def __init__(
-        self,
-        transform: Callable[[JAXArray], JAXArray],
-        kernel: Kernel,
-    ):
+    # This type signature is a hack for Sphinx sphinx-doc/sphinx#9736
+    def __init__(self, transform: Callable[[Any], Any], kernel: Kernel):
         self.transform = transform
         self.kernel = kernel
 

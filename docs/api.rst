@@ -1,4 +1,4 @@
-.. _api:
+.. _api-ref:
 
 API
 ===
@@ -9,7 +9,8 @@ Computation engine
 .. autoclass:: tinygp.GaussianProcess
    :members:
 
-.. _Kernels:
+
+.. _api-kernels:
 
 Kernels
 -------
@@ -30,7 +31,7 @@ Kernels
 .. autoclass:: tinygp.kernels.RationalQuadratic
 
 
-.. _Transforms:
+.. _api-transforms:
 
 Transforms
 ----------
@@ -44,6 +45,8 @@ inputs.
 .. autoclass:: tinygp.transforms.Affine
 .. autoclass:: tinygp.transforms.Subspace
 
+
+.. _api-means:
 
 Mean functions
 --------------

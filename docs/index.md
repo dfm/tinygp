@@ -7,39 +7,31 @@ models in Python, built on top of [`jax`](https://github.com/google/jax). It is
 not (yet?) designed to provide all the shiniest algorithms for scalable
 computations (check out [celerite2](https://celerite2.readthedocs.io) or
 [GPyTorch](https://gpytorch.ai) if you need something like that), but I think it
-has a [nice interface](api), and it's pretty fast. Thanks to `jax`, `tinygp`
+has a [nice interface](api-ref), and it's pretty fast. Thanks to `jax`, `tinygp`
 supports things like GPU acceleration and automatic differentiation.
 
 ```{admonition} How to find your way around?
 :class: tip
 
-👉 A good place to get started is with the [installation guide](install) and then
-the [tutorials](tutorials).
+🖥 A good place to get started is with the {ref}`install` and then the
+{ref}`tutorials`. You might also be interested in the {ref}`motivation` page.
 
-👉 For all the details, check out the [full API documentation](api), including a
-list of all [the built-in kernel functions](Kernels).
+📖 For all the details, check out the {ref}`guide`, including the [full API
+documentation](api-ref).
 
-👉 If you find bugs or otherwise have trouble getting `tinygp` to do what you want,
-head on over to the [GitHub issues page](https://github.com/dfm/tinygp/issues).
+🐛 If you find bugs or otherwise have trouble getting `tinygp` to do what you want,
+check out the {ref}`contributing` or head on over to the [GitHub issues
+page](https://github.com/dfm/tinygp/issues).
+
+👈 Check out the sidebar to find the full table of contents.
 ```
 
-## Table of contents
-
 ```{toctree}
-:maxdepth: 1
+:hidden:
 
-motivation
-install
-tutorials/quickstart
-tutorials/modeling
-tutorials/transforms
-tutorials/kernels
-tutorials/likelihoods
-tutorials/mixture
-tutorials/george
-api
+guide
+tutorials
 contributing
-code-of-conduct
 GitHub Repository <https://github.com/dfm/tinygp>
 ```
 

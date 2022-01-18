@@ -1,3 +1,5 @@
+(motivation)=
+
 # Why tinygp?
 
 There are many Python libraries that exist for Gaussian Process (GP) modeling,

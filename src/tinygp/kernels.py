@@ -19,7 +19,7 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from typing import Callable, Optional, Sequence, Union
+from typing import Any, Callable, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
@@ -94,7 +94,8 @@ class Custom(Kernel):
             :func:`Kernel.evaluate`.
     """
 
-    def __init__(self, function: Callable[[JAXArray, JAXArray], JAXArray]):
+    # This type signature is a hack for Sphinx sphinx-doc/sphinx#9736
+    def __init__(self, function: Callable[[Any, Any], Any]):
         self.function = function
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:

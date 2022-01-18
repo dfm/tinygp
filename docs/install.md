@@ -1,4 +1,6 @@
-# Installation
+(install)=
+
+# Installation Guide
 
 `tinygp` is built on top of [`jax`](https://github.com/google/jax) so that's the
 primary dependency that you'll need. All of the methods below will install any
@@ -32,6 +34,6 @@ If you installed from source, you can run the unit tests. From the root of the
 source directory, run:
 
 ```bash
-python -m pip install ".[test]"
-python -m pytest -v tests
+python -m pip install tox
+python -m tox
 ```
