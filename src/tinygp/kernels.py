@@ -359,8 +359,8 @@ class RationalQuadratic(Kernel):
         alpha: The parameter :math:`\alpha`.
     """
 
-    def __init__(self, *, scale: JAXArray, alpha: JAXArray):
-        self.scale = scale
+    def __init__(self, *, alpha: JAXArray, scale: Optional[JAXArray] = None):
+        self.scale = jnp.ones_like(alpha) if scale is None else scale
         self.alpha = alpha
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
