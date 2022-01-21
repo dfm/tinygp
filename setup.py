@@ -35,6 +35,7 @@ EXTRA_REQUIRE = {
         "flax",
         "optax",
         "george",
+        "ipython==7.31.0",
     ],
 }
 EXTRA_REQUIRE["coverage"] = EXTRA_REQUIRE["test"] + ["pytest-cov"]
