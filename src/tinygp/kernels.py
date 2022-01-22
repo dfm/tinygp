@@ -26,7 +26,7 @@ import jax.numpy as jnp
 
 from .types import JAXArray
 
-Axis = Union[int, Sequence[int], JAXArray]
+Axis = Union[int, Sequence[int]]
 
 
 class Kernel:
@@ -60,10 +60,24 @@ class Kernel:
         self, X1: JAXArray, X2: Optional[JAXArray] = None
     ) -> JAXArray:
         if X2 is None:
-            return jax.vmap(self.evaluate, in_axes=(0, 0))(X1, X1)
-        return jax.vmap(
+            k = jax.vmap(self.evaluate, in_axes=(0, 0))(X1, X1)
+            if k.ndim != 1:
+                raise ValueError(
+                    "Invalid kernel diagonal shape: "
+                    f"expected ndim = 1, got ndim={k.ndim} "
+                    "check the dimensions of parameters and custom kernels"
+                )
+            return k
+        k = jax.vmap(
             jax.vmap(self.evaluate, in_axes=(None, 0)), in_axes=(0, None)
         )(X1, X2)
+        if k.ndim != 2:
+            raise ValueError(
+                "Invalid kernel shape: "
+                f"expected ndim = 2, got ndim={k.ndim} "
+                "check the dimensions of parameters and custom kernels"
+            )
+        return k
 
     def __add__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
         if isinstance(other, Kernel):
@@ -125,7 +139,7 @@ class Product(Kernel):
 
 
 class Constant(Kernel):
-    """This kernel returns the constant
+    r"""This kernel returns the constant
 
     .. math::
 
@@ -138,14 +152,16 @@ class Constant(Kernel):
     """
 
     def __init__(self, value: JAXArray):
-        self.value = jnp.asarray(value)
+        if jnp.ndim(value) != 0:
+            raise ValueError("The value of a constant kernel must be a scalar")
+        self.value = value
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.value
 
 
 class DotProduct(Kernel):
-    """The dot product kernel
+    r"""The dot product kernel
 
     .. math::
 
@@ -159,7 +175,7 @@ class DotProduct(Kernel):
 
 
 class Polynomial(Kernel):
-    """A polynomial kernel
+    r"""A polynomial kernel
 
     .. math::
 
@@ -190,7 +206,7 @@ class Polynomial(Kernel):
 
 
 class Exp(Kernel):
-    """The exponential kernel
+    r"""The exponential kernel
 
     .. math::
 
@@ -214,7 +230,7 @@ class Exp(Kernel):
 
 
 class ExpSquared(Kernel):
-    """The exponential squared or radial basis function kernel
+    r"""The exponential squared or radial basis function kernel
 
     .. math::
 
@@ -238,7 +254,7 @@ class ExpSquared(Kernel):
 
 
 class Matern32(Kernel):
-    """The Matern-3/2 kernel
+    r"""The Matern-3/2 kernel
 
     .. math::
 
@@ -264,7 +280,7 @@ class Matern32(Kernel):
 
 
 class Matern52(Kernel):
-    """The Matern-5/2 kernel
+    r"""The Matern-5/2 kernel
 
     .. math::
 
@@ -291,7 +307,7 @@ class Matern52(Kernel):
 
 
 class Cosine(Kernel):
-    """The cosine kernel
+    r"""The cosine kernel
 
     .. math::
 
@@ -316,7 +332,7 @@ class Cosine(Kernel):
 
 
 class ExpSineSquared(Kernel):
-    """The exponential sine squared or quasiperiodic kernel
+    r"""The exponential sine squared or quasiperiodic kernel
 
     .. math::
 

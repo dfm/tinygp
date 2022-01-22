@@ -5,14 +5,13 @@ from __future__ import annotations
 __all__ = ["GaussianProcess"]
 
 from functools import partial
-from typing import Optional, Sequence, Tuple, Union
+from typing import Callable, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
 from .kernels import Kernel
-from .means import Mean, constant_mean, zero_mean
 from .types import JAXArray
 
 
@@ -20,15 +19,15 @@ class GaussianProcess:
     """An interface for designing a Gaussian Process regression model
 
     Args:
-        kernel (Kernel): The kernel function
-        X (JAXArray): The input coordinates. This can be any PyTree that is
+        kernel (Kernel): The kernel function X (JAXArray): The input
+        coordinates. This can be any PyTree that is
             compatible with ``kernel`` where the zeroth dimension is ``N_data``,
             the size of the data set.
         diag (JAXArray, optional): The value to add to the diagonal of the
             covariance matrix, often used to capture measurement uncertainty.
             This should be a scalar or have the shape ``(N_data,)``.
-        mean: (Mean, optional): A callable or constant mean function that will
-            be evaluated with the ``X`` as input: ``mean(X)``
+        mean: (Callable, optional): A callable or constant mean function that
+            will be evaluated with the ``X`` as input: ``mean(X)``
     """
 
     def __init__(
@@ -37,7 +36,7 @@ class GaussianProcess:
         X: JAXArray,
         *,
         diag: Union[JAXArray, float] = 0.0,
-        mean: Optional[Union[Mean, JAXArray]] = None,
+        mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
     ):
         self.X = X
         self.diag = diag
@@ -52,7 +51,11 @@ class GaussianProcess:
                 self.mean_function = constant_mean(mean)
         self.mean_function = jax.vmap(self.mean_function)
         self.loc = self.mean = self.mean_function(self.X)
-        assert self.mean.ndim == 1
+        if self.mean.ndim != 1:
+            raise ValueError(
+                "Invalid mean shape: "
+                f"expected ndim = 1, got ndim={self.mean.ndim}"
+            )
 
         # Evaluate the covariance matrix and factorize the matrix
         self.kernel = kernel
@@ -181,7 +184,7 @@ class GaussianProcess:
         if shape is None:
             shape = (self.num_data,)
         else:
-            shape = (self.num_data,) + tuple(shape)
+            shape = tuple(shape) + (self.num_data,)
         normal_samples = jax.random.normal(key, shape=shape, dtype=self.dtype)
         return self.mean + jnp.einsum(
             "...ij,...j->...i", self.scale_tril, normal_samples
@@ -247,3 +250,16 @@ class GaussianProcess:
 
         cov = kernel(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
+
+
+def zero_mean(X: JAXArray) -> JAXArray:
+    return jnp.zeros(())
+
+
+def constant_mean(value: JAXArray) -> Callable[[JAXArray], JAXArray]:
+    _value = value
+
+    def mean(X: JAXArray) -> JAXArray:
+        return _value
+
+    return mean

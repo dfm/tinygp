@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
-from functools import partial
-
 import numpy as np
 import pytest
 
 from tinygp import GaussianProcess, kernels
 
 george = pytest.importorskip("george")
+
+from jax.config import config
+
+config.update("jax_enable_x64", True)
 
 
 @pytest.fixture
