@@ -21,6 +21,21 @@ def test_affine():
     )
 
 
+def test_multivariate_affine():
+    kernel0 = kernels.Matern32(4.5)
+    kernel1 = kernels.Matern32(jnp.full(3, 4.5))
+    kernel2 = transforms.Affine(jnp.full(3, 4.5), kernels.Matern32())
+    kernel3 = transforms.Affine(jnp.diag(jnp.full(3, 4.5)), kernels.Matern32())
+    np.testing.assert_allclose(
+        kernel0.evaluate(jnp.full(3, 0.5), jnp.full(3, 0.1)),
+        kernel1.evaluate(jnp.full(3, 0.5), jnp.full(3, 0.1)),
+    )
+    np.testing.assert_allclose(
+        kernel0.evaluate(jnp.full(3, 0.5), jnp.full(3, 0.1)),
+        kernel2.evaluate(jnp.full(3, 0.5), jnp.full(3, 0.1)),
+    )
+
+
 def test_subspace():
     kernel = transforms.Subspace(1, kernels.Matern32())
     np.testing.assert_allclose(
