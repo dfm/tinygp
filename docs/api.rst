@@ -44,17 +44,3 @@ inputs.
 .. autoclass:: tinygp.transforms.Transform
 .. autoclass:: tinygp.transforms.Affine
 .. autoclass:: tinygp.transforms.Subspace
-
-
-.. _api-means:
-
-Mean functions
---------------
-
-In ``tinygp``, a mean function is specified as a callable that takes an input
-coordinate and returns the scalar mean value at that point. This will be
-``vmap``-ed, so it should treat its input as a single coordinate and leave
-broadcasting to the :class:`tinygp.GaussianProcess` object.
-
-.. autofunction:: tinygp.means.zero_mean
-.. autofunction:: tinygp.means.constant_mean

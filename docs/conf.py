@@ -51,6 +51,5 @@ execution_timeout = -1
 autodoc_type_aliases = {
     "JAXArray": "tinygp.types.JAXArray",
     "Axis": "tinygp.kernels.Axis",
-    "Mean": "tinygp.means.Mean",
     "Metric": "tinygp.metrics.Metric",
 }
