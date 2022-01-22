@@ -12,6 +12,6 @@ experience.
 
 motivation
 install
-api
 tutorials/george
+api
 ```

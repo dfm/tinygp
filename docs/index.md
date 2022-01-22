@@ -19,12 +19,30 @@ supports things like GPU acceleration and automatic differentiation.
 📖 For all the details, check out the {ref}`guide`, including the [full API
 documentation](api-ref).
 
-🐛 If you find bugs or otherwise have trouble getting `tinygp` to do what you want,
-check out the {ref}`contributing` or head on over to the [GitHub issues
+🐛 If you find bugs or otherwise have trouble getting `tinygp` to do what you
+want, check out the {ref}`contributing` or head on over to the [GitHub issues
 page](https://github.com/dfm/tinygp/issues).
 
 👈 Check out the sidebar to find the full table of contents.
 ```
+
+````{admonition} A note about numerical precision
+:class: warning
+
+The linear algebra used to evaluate Gaussian process models can be
+numerically unstable, especially with single point precision. Throughout this
+documentation, we will enable 64-bit precision manually, and you might want to
+do the same, especially if you're hitting NaNs or infinities. The `jax` docs
+[describe a few ways to enable x64](https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#double-64bit-precision),
+but the method that we'll use here is to include the following snippet in each
+tutorial:
+
+```python
+from jax.config import config
+config.update("jax_enable_x64", True)
+```
+
+````
 
 ```{toctree}
 :hidden:

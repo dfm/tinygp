@@ -62,7 +62,7 @@ class Affine(Transform):
     def __init__(
         self, scale: JAXArray, kernel: Kernel, *, variance: bool = False
     ):
-        scale = jnp.asarray(scale)
+        self.scale = scale = jnp.asarray(scale)
         if scale.ndim < 2:
             if variance:
                 self.transform = partial(jnp.multiply, 1.0 / jnp.sqrt(scale))
