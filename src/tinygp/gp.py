@@ -191,7 +191,8 @@ class GaussianProcess:
         )
 
     def _condition(self, alpha: JAXArray) -> JAXArray:
-        return -0.5 * jnp.sum(jnp.square(alpha)) - self.norm
+        loglike = -0.5 * jnp.sum(jnp.square(alpha)) - self.norm
+        return jnp.where(jnp.isfinite(loglike), loglike, -jnp.inf)
 
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return linalg.solve_triangular(
