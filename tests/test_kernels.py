@@ -61,3 +61,13 @@ def test_custom(data):
     )
     with pytest.raises(ValueError):
         kernel(x1, x2)
+
+
+def test_ops(data):
+    x1, x2 = data
+
+    k1 = 1.5 * kernels.Matern32(2.5)
+    k2 = 0.9 * kernels.ExpSineSquared(period=1.5, gamma=0.3)
+
+    np.testing.assert_allclose(k1(x1, x2) + k2(x1, x2), (k1 + k2)(x1, x2))
+    np.testing.assert_allclose(k1(x1, x2) * k2(x1, x2), (k1 * k2)(x1, x2))
