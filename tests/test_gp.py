@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from tinygp import kernels, GaussianProcess
+from tinygp import GaussianProcess, kernels
 
 
 @pytest.fixture
