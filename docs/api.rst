@@ -42,5 +42,7 @@ standard linear transformations that can be used to handle multivariate vector
 inputs.
 
 .. autoclass:: tinygp.transforms.Transform
-.. autoclass:: tinygp.transforms.Affine
+.. autoclass:: tinygp.transforms.Linear
+.. autoclass:: tinygp.transforms.Cholesky
+   :members:
 .. autoclass:: tinygp.transforms.Subspace
