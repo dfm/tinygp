@@ -16,7 +16,7 @@ def random():
 @pytest.fixture
 def data(random):
     x1 = random.uniform(-3, 3, (50, 5))
-    x2 = random.uniform(-5, 5, (50, 5))
+    x2 = random.uniform(-5, 5, (49, 5))
     return x1, x2
 
 

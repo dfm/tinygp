@@ -4,9 +4,6 @@ from __future__ import annotations
 
 __all__ = ["JAXArray"]
 
-from typing import Union
+from typing import Any
 
-import jax.numpy as jnp
-import numpy as np
-
-JAXArray = Union[np.ndarray, jnp.ndarray]
+JAXArray = Any

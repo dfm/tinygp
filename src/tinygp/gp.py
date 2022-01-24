@@ -35,7 +35,7 @@ class GaussianProcess:
         kernel: Kernel,
         X: JAXArray,
         *,
-        diag: Union[JAXArray, float] = 0.0,
+        diag: JAXArray = jnp.zeros(()),
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
     ):
         self.X = X
