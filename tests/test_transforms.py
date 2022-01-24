@@ -9,7 +9,7 @@ from tinygp import kernels, transforms
 
 def test_linear():
     kernel0 = kernels.Matern32(4.5)
-    kernel1 = transforms.Linear(1 / 4.5 ** 2, kernels.Matern32())
+    kernel1 = transforms.Linear(1 / 4.5, kernels.Matern32())
     np.testing.assert_allclose(
         kernel0.evaluate(0.5, 0.1), kernel1.evaluate(0.5, 0.1)
     )
@@ -18,7 +18,7 @@ def test_linear():
 def test_multivariate_linear():
     kernel0 = kernels.Matern32(4.5)
     kernel1 = kernels.Matern32(jnp.full(3, 4.5))
-    kernel2 = transforms.Linear(jnp.full(3, 1 / 4.5 ** 2), kernels.Matern32())
+    kernel2 = transforms.Linear(jnp.full(3, 1 / 4.5), kernels.Matern32())
     np.testing.assert_allclose(
         kernel0.evaluate(jnp.full(3, 0.5), jnp.full(3, 0.1)),
         kernel1.evaluate(jnp.full(3, 0.5), jnp.full(3, 0.1)),
