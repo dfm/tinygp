@@ -12,6 +12,7 @@ experience.
 
 motivation
 install
+troubleshooting
 tutorials/george
 api
 ```
