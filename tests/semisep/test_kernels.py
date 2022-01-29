@@ -53,8 +53,6 @@ def test_celerite_nd(data, args):
     np.testing.assert_allclose(kernel(x1, x2), expected, atol=1e-6)
 
     # Check the matmul operation
-    actual = kernel.matmul(x1, y)
-    expected = np.tril(kernel(x1), -1) @ y
-    print(actual)
-    print(expected)
-    np.testing.assert_allclose(actual, expected)
+    np.testing.assert_allclose(
+        kernel.matmul(x1, y), kernel(x1, x1) @ y, atol=5e-6
+    )

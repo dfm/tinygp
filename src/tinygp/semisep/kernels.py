@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import annotations
+from this import d
 
 __all__ = ["SemisepKernel", "Celerite"]
 
@@ -19,22 +20,23 @@ class SemisepKernel(Kernel):
     def right(self, X: JAXArray) -> JAXArray:
         raise NotImplementedError()
 
-    def propagate(
-        self, X1: JAXArray, X2: JAXArray, state: JAXArray
-    ) -> JAXArray:
+    def propagate(self, dX: JAXArray, state: JAXArray) -> JAXArray:
         raise NotImplementedError()
 
     def matmul(self, X: JAXArray, Y: JAXArray) -> JAXArray:
         U = jax.vmap(self.left)(X)
         V = jax.vmap(self.right)(X)
-        Xn = jax.tree_map(lambda arg: jnp.append(arg[1:], arg[-1]), X)
-        return linalg.matmul_lower(self.propagate, X, Xn, U, V, Y)
+        return (
+            jnp.einsum("nj,nj,n...->n...", U, V, Y)
+            + linalg.matmul_lower(self.propagate, X, U, V, Y)
+            + linalg.matmul_upper(self.propagate, X, U, V, Y)
+        )
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return jnp.where(
             X1 >= X2,
-            self.left(X1).T @ self.propagate(X1, X2, self.right(X2)),
-            self.left(X2).T @ self.propagate(X2, X1, self.right(X1)),
+            self.left(X1).T @ self.propagate(X1 - X2, self.right(X2)),
+            self.left(X2).T @ self.propagate(X2 - X1, self.right(X1)),
         )
 
 
@@ -60,11 +62,8 @@ class Celerite(SemisepKernel):
         arg = self.d * t
         return jnp.append(jnp.cos(arg), jnp.sin(arg))
 
-    def propagate(
-        self, t1: JAXArray, t2: JAXArray, state: JAXArray
-    ) -> JAXArray:
-        if jnp.ndim(t1) != 0 or jnp.ndim(t2) != 0:
+    def propagate(self, dt: JAXArray, state: JAXArray) -> JAXArray:
+        if jnp.ndim(dt) != 0:
             raise ValueError("Only 1D inputs are supported")
-        factor = jnp.exp(jnp.append(self.c, self.c) * (t2 - t1))
-        # print(factor)
+        factor = jnp.exp(-jnp.append(self.c, self.c) * dt)
         return factor * state
