@@ -240,7 +240,7 @@ class ExpSquared(Kernel):
 
     .. math::
 
-        r = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_2
+        r^2 = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_2^2
 
     Args:
         scale: The parameter :math:`\ell`.
@@ -369,7 +369,7 @@ class RationalQuadratic(Kernel):
 
     .. math::
 
-        r = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_2
+        r^2 = ||(\mathbf{x}_i - \mathbf{x}_j) / \ell||_2^2
 
     Args:
         scale: The parameter :math:`\ell`.

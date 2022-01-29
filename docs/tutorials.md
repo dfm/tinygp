@@ -18,6 +18,7 @@ directly.
 
 tutorials/quickstart
 tutorials/modeling
+tutorials/multivariate
 tutorials/transforms
 tutorials/kernels
 tutorials/likelihoods

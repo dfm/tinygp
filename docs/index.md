@@ -19,8 +19,11 @@ supports things like GPU acceleration and automatic differentiation.
 📖 For all the details, check out the {ref}`guide`, including the [full API
 documentation](api-ref).
 
-🐛 If you find bugs or otherwise have trouble getting `tinygp` to do what you want,
-check out the {ref}`contributing` or head on over to the [GitHub issues
+💡 If you're running into getting `tinygp` to do what you want, first check
+out the {ref}`troubleshooting` page, for some general tips and tricks.
+
+🐛 If {ref}`troubleshooting` doesn't solve your problems, or if you find bugs,
+check out the {ref}`contributing` and then head on over to the [GitHub issues
 page](https://github.com/dfm/tinygp/issues).
 
 👈 Check out the sidebar to find the full table of contents.
