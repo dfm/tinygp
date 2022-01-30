@@ -11,8 +11,8 @@ import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
+from .kernels import Conditioned, Kernel
 from .means import Mean
-from .kernels import Kernel, Conditioned
 from .types import JAXArray
 
 
