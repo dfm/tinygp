@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __all__ = [
     "Kernel",
+    "Conditioned",
     "Custom",
     "Sum",
     "Product",
@@ -23,6 +24,7 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
+from jax.scipy import linalg
 
 from .types import JAXArray
 
@@ -56,11 +58,20 @@ class Kernel:
         """
         raise NotImplementedError()
 
+    def evaluate_diag(self, X: JAXArray) -> JAXArray:
+        """Evaluate the kernel on its diagonal
+
+        The default implementation simply calls :func:`Kernel.evaluate` with
+        ``X`` as both arguments, but subclasses can use this to make diagonal
+        calcuations more efficient.
+        """
+        return self.evaluate(X, X)
+
     def __call__(
         self, X1: JAXArray, X2: Optional[JAXArray] = None
     ) -> JAXArray:
         if X2 is None:
-            k = jax.vmap(self.evaluate, in_axes=(0, 0))(X1, X1)
+            k = jax.vmap(self.evaluate_diag, in_axes=0)(X1)
             if k.ndim != 1:
                 raise ValueError(
                     "Invalid kernel diagonal shape: "
@@ -98,6 +109,40 @@ class Kernel:
         if isinstance(other, Kernel):
             return Product(other, self)
         return Product(Constant(other), self)
+
+
+class Conditioned(Kernel):
+    """A kernel operation used when conditioning a process on data
+
+    Args:
+        X: The coordinates of the data.
+        scale_tril: The lower Cholesky factor of the base process' kernel
+            matrix.
+        kernel: The predictive kerenl; this will generally be the kernel from
+            the kernel used by the original process.
+    """
+
+    def __init__(self, X: JAXArray, scale_tril: JAXArray, kernel: Kernel):
+        self.X = X
+        self.scale_tril = scale_tril
+        self.kernel = kernel
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
+        K1 = linalg.solve_triangular(
+            self.scale_tril, kernel_vec(self.X, X1), lower=True
+        )
+        K2 = linalg.solve_triangular(
+            self.scale_tril, kernel_vec(self.X, X2), lower=True
+        )
+        return self.kernel.evaluate(X1, X2) - K1.T @ K2
+
+    def evaluate_diag(self, X: JAXArray) -> JAXArray:
+        kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
+        K = linalg.solve_triangular(
+            self.scale_tril, kernel_vec(self.X, X), lower=True
+        )
+        return self.kernel.evaluate_diag(X) - K.T @ K
 
 
 class Custom(Kernel):

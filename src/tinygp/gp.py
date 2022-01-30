@@ -11,7 +11,8 @@ import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from .kernels import Kernel
+from .means import Mean
+from .kernels import Kernel, Conditioned
 from .types import JAXArray
 
 
@@ -26,8 +27,10 @@ class GaussianProcess:
         diag (JAXArray, optional): The value to add to the diagonal of the
             covariance matrix, often used to capture measurement uncertainty.
             This should be a scalar or have the shape ``(N_data,)``.
-        mean: (Callable, optional): A callable or constant mean function that
+        mean (Callable, optional): A callable or constant mean function that
             will be evaluated with the ``X`` as input: ``mean(X)``
+        mean_value (JAXArray, optional): The mean precomputed at the location
+            of the data.
     """
 
     def __init__(
@@ -37,6 +40,7 @@ class GaussianProcess:
         *,
         diag: Union[JAXArray, float] = 0.0,
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
+        mean_value: Optional[JAXArray] = None,
     ):
         self.X = X
         self.diag = diag
@@ -46,10 +50,12 @@ class GaussianProcess:
             self.mean_function = mean
         else:
             if mean is None:
-                self.mean_function = zero_mean
+                self.mean_function = Mean(jnp.zeros(()))
             else:
-                self.mean_function = constant_mean(mean)
+                self.mean_function = Mean(mean)
         self.mean_function = jax.vmap(self.mean_function)
+        if mean_value is None:
+            pass
         self.loc = self.mean = self.mean_function(self.X)
         if self.mean.ndim != 1:
             raise ValueError(
@@ -57,17 +63,20 @@ class GaussianProcess:
                 f"expected ndim = 1, got ndim={self.mean.ndim}"
             )
 
-        # Evaluate the covariance matrix and factorize the matrix
+        # Evaluate the variance of the process
         self.kernel = kernel
-        self.base_covariance_matrix = self.kernel(X, X)
-        self.dtype = self.base_covariance_matrix.dtype
-        self.num_data = self.base_covariance_matrix.shape[0]
-        self.covariance_matrix = self.base_covariance_matrix.at[  # type: ignore
+        self.variance = self.kernel(X) + self.diag
+        self.num_data = self.variance.shape[0]
+        self.dtype = self.variance.dtype
+
+        # Evaluate the covariance matrix
+        self.covariance = self.kernel(X, X)
+        self.covariance = self.covariance.at[  # type: ignore
             jnp.diag_indices(self.num_data)
-        ].add(
-            self.diag
-        )
-        self.scale_tril = linalg.cholesky(self.covariance_matrix, lower=True)
+        ].add(self.diag)
+
+        # Factorize the matrix and compute the log prob normalization
+        self.scale_tril = linalg.cholesky(self.covariance, lower=True)
         self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
         self.norm += 0.5 * self.num_data * jnp.log(2 * jnp.pi)
 
@@ -82,7 +91,29 @@ class GaussianProcess:
         Returns:
             The marginal likelihood of this model, evaluated at ``y``.
         """
-        return self._condition(self._get_alpha(y))
+        return self._compute_log_prob(self._get_alpha(y))
+
+    def conditioned(
+        self,
+        y: JAXArray,
+        X_test: Optional[JAXArray] = None,
+        *,
+        kernel: Optional[Kernel] = None,
+    ) -> Tuple[JAXArray, "GaussianProcess"]:
+        alpha = self._get_alpha(y)
+
+        if kernel is None:
+            kernel = self.kernel
+        if X_test is None:
+            X_test = self.X
+
+        return (
+            self._compute_log_prob(alpha),
+            GaussianProcess(
+                Conditioned(self.X, self.scale_tril, kernel),
+                X_test,
+            ),
+        )
 
     def predict(
         self,
@@ -144,7 +175,7 @@ class GaussianProcess:
         docstrings for a description of all the arguments.
         """
         alpha = self._get_alpha(y)
-        return self._condition(alpha), self._predict(
+        return self._compute_log_prob(alpha), self._predict(
             y, alpha, X_test, kernel, include_mean, return_var, return_cov
         )
 
@@ -190,10 +221,12 @@ class GaussianProcess:
             "...ij,...j->...i", self.scale_tril, normal_samples
         )
 
-    def _condition(self, alpha: JAXArray) -> JAXArray:
+    @partial(jax.jit, static_argnums=0)
+    def _compute_log_prob(self, alpha: JAXArray) -> JAXArray:
         loglike = -0.5 * jnp.sum(jnp.square(alpha)) - self.norm
         return jnp.where(jnp.isfinite(loglike), loglike, -jnp.inf)
 
+    @partial(jax.jit, static_argnums=0)
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return linalg.solve_triangular(
             self.scale_tril, y - self.loc, lower=True
@@ -224,7 +257,7 @@ class GaussianProcess:
 
             X_test = self.X
             K_testT = linalg.solve_triangular(
-                self.scale_tril, self.base_covariance_matrix, lower=True
+                self.scale_tril, self.covariance, lower=True
             )
 
         else:
@@ -251,16 +284,3 @@ class GaussianProcess:
 
         cov = kernel(X_test, X_test) - K_testT.T @ K_testT
         return mu, cov
-
-
-def zero_mean(X: JAXArray) -> JAXArray:
-    return jnp.zeros(())
-
-
-def constant_mean(value: JAXArray) -> Callable[[JAXArray], JAXArray]:
-    _value = value
-
-    def mean(X: JAXArray) -> JAXArray:
-        return _value
-
-    return mean
