@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 __all__ = [
+    "l1_distance",
+    "l2_distance",
     "Kernel",
     "Custom",
     "Sum",
@@ -27,6 +29,15 @@ import jax.numpy as jnp
 from .types import JAXArray
 
 Axis = Union[int, Sequence[int]]
+Distance = Callable[[JAXArray, JAXArray, JAXArray], JAXArray]
+
+
+def l1_distance(scale: JAXArray, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    return jnp.sum(jnp.abs((X1 - X2) / scale))
+
+
+def l2_distance(scale: JAXArray, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    return 0.5 * jnp.sum(jnp.square((X1 - X2) / scale))
 
 
 class Kernel:
@@ -222,14 +233,20 @@ class Exp(Kernel):
         scale: The parameter :math:`\ell`.
     """
 
-    def __init__(self, scale: JAXArray = jnp.ones(())):
+    def __init__(
+        self,
+        scale: JAXArray = jnp.ones(()),
+        *,
+        distance: Distance = l1_distance,
+    ):
         self.scale = scale
+        self.distance = distance
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jnp.exp(-jnp.sum(jnp.abs((X1 - X2) / self.scale)))
+        return jnp.exp(-self.distance(self.scale, X1, X2))
 
 
-class ExpSquared(Kernel):
+class ExpSquared(Exp):
     r"""The exponential squared or radial basis function kernel
 
     .. math::
@@ -246,11 +263,14 @@ class ExpSquared(Kernel):
         scale: The parameter :math:`\ell`.
     """
 
-    def __init__(self, scale: JAXArray = jnp.ones(())):
+    def __init__(
+        self,
+        scale: JAXArray = jnp.ones(()),
+        *,
+        distance: Distance = l2_distance,
+    ):
         self.scale = scale
-
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jnp.exp(-0.5 * jnp.sum(jnp.square((X1 - X2) / self.scale)))
+        self.distance = distance
 
 
 class Matern32(Kernel):
@@ -270,11 +290,17 @@ class Matern32(Kernel):
         scale: The parameter :math:`\ell`.
     """
 
-    def __init__(self, scale: JAXArray = jnp.ones(())):
+    def __init__(
+        self,
+        scale: JAXArray = jnp.ones(()),
+        *,
+        distance: Distance = l1_distance,
+    ):
         self.scale = scale
+        self.distance = distance
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r = jnp.sum(jnp.abs((X1 - X2) / self.scale))
+        r = self.distance(self.scale, X1, X2)
         arg = jnp.sqrt(3.0) * r
         return (1.0 + arg) * jnp.exp(-arg)
 
@@ -297,11 +323,17 @@ class Matern52(Kernel):
         scale: The parameter :math:`\ell`.
     """
 
-    def __init__(self, scale: JAXArray = jnp.ones(())):
+    def __init__(
+        self,
+        scale: JAXArray = jnp.ones(()),
+        *,
+        distance: Distance = l1_distance,
+    ):
         self.scale = scale
+        self.distance = distance
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r = jnp.sum(jnp.abs((X1 - X2) / self.scale))
+        r = self.distance(self.scale, X1, X2)
         arg = jnp.sqrt(5.0) * r
         return (1.0 + arg + jnp.square(arg) / 3.0) * jnp.exp(-arg)
 
@@ -323,11 +355,17 @@ class Cosine(Kernel):
         period: The parameter :math:`P`.
     """
 
-    def __init__(self, period: JAXArray):
+    def __init__(
+        self,
+        period: JAXArray,
+        *,
+        distance: Distance = l1_distance,
+    ):
         self.period = period
+        self.distance = distance
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r = jnp.sum(jnp.abs((X1 - X2) / self.period))
+        r = self.distance(self.period, X1, X2)
         return jnp.cos(2 * jnp.pi * r)
 
 
@@ -349,12 +387,19 @@ class ExpSineSquared(Kernel):
         gamma: The parameter :math:`\Gamma`.
     """
 
-    def __init__(self, *, period: JAXArray, gamma: JAXArray):
+    def __init__(
+        self,
+        *,
+        period: JAXArray,
+        gamma: JAXArray,
+        distance: Distance = l1_distance,
+    ):
         self.period = period
         self.gamma = gamma
+        self.distance = distance
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r = jnp.sum(jnp.abs((X1 - X2) / self.period))
+        r = self.distance(self.period, X1, X2)
         return jnp.exp(-self.gamma * jnp.square(jnp.sin(jnp.pi * r)))
 
 
@@ -376,10 +421,17 @@ class RationalQuadratic(Kernel):
         alpha: The parameter :math:`\alpha`.
     """
 
-    def __init__(self, *, alpha: JAXArray, scale: Optional[JAXArray] = None):
-        self.scale = jnp.ones_like(alpha) if scale is None else scale
+    def __init__(
+        self,
+        *,
+        alpha: JAXArray,
+        scale: JAXArray = jnp.ones(()),
+        distance: Distance = l2_distance,
+    ):
+        self.scale = scale
         self.alpha = alpha
+        self.distance = distance
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r2 = jnp.sum(jnp.square((X1 - X2) / self.scale))
-        return (1.0 + 0.5 * r2 / self.alpha) ** -self.alpha
+        r2 = self.distance(self.scale, X1, X2)
+        return (1.0 + r2 / self.alpha) ** -self.alpha
