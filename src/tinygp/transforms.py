@@ -10,8 +10,8 @@ from typing import Any, Callable, Sequence, Union
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from .kernels import Kernel
-from .types import JAXArray
+from tinygp.kernels import Kernel
+from tinygp.types import JAXArray
 
 
 class Transform(Kernel):

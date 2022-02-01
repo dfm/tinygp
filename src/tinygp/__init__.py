@@ -2,9 +2,9 @@
 
 __all__ = ["__version__", "kernels", "transforms", "GaussianProcess"]
 
-from . import kernels, transforms
-from .gp import GaussianProcess
-from .tinygp_version import version as __version__
+from tinygp import kernels, transforms
+from tinygp.gp import GaussianProcess
+from tinygp.tinygp_version import version as __version__
 
 __author__ = "Dan Foreman-Mackey"
 __email__ = "foreman.mackey@gmail.com"
