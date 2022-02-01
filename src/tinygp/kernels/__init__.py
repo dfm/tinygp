@@ -21,23 +21,23 @@ __all__ = [
 ]
 
 from tinygp.kernels.base import (
-    Kernel,
-    Custom,
-    Sum,
-    Product,
     Constant,
+    Custom,
     DotProduct,
+    Kernel,
     Polynomial,
+    Product,
+    Sum,
 )
 from tinygp.kernels.stationary import (
+    Cosine,
     Distance,
+    Exp,
+    ExpSineSquared,
+    ExpSquared,
     L1Distance,
     L2Distance,
-    Exp,
-    ExpSquared,
     Matern32,
     Matern52,
     RationalQuadratic,
-    Cosine,
-    ExpSineSquared,
 )

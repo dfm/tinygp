@@ -20,8 +20,8 @@ from typing import Any, Callable, Optional, Sequence, Union
 import jax
 import jax.numpy as jnp
 
-from tinygp.types import JAXArray
 from tinygp.kernels import Kernel
+from tinygp.types import JAXArray
 
 
 class Distance:
