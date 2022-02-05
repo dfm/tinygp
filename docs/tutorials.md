@@ -21,6 +21,7 @@ tutorials/modeling
 tutorials/multivariate
 tutorials/transforms
 tutorials/kernels
+tutorials/derivative
 tutorials/likelihoods
 tutorials/mixture
 ```
