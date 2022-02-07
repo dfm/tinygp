@@ -11,6 +11,7 @@ __all__ = [
     "Constant",
     "DotProduct",
     "Polynomial",
+    "Stationary",
     "Exp",
     "ExpSquared",
     "Matern32",
@@ -40,4 +41,5 @@ from tinygp.kernels.stationary import (
     Matern32,
     Matern52,
     RationalQuadratic,
+    Stationary,
 )
