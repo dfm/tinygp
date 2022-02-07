@@ -66,19 +66,19 @@ def stationary_kernel(request):
     return {
         "Exp": (
             kernels.Exp(scale),
-            george.kernels.ExpKernel(scale ** 2),
+            george.kernels.ExpKernel(scale**2),
         ),
         "ExpSquared": (
             kernels.ExpSquared(scale),
-            george.kernels.ExpSquaredKernel(scale ** 2),
+            george.kernels.ExpSquaredKernel(scale**2),
         ),
         "Matern32": (
             kernels.Matern32(scale),
-            george.kernels.Matern32Kernel(scale ** 2),
+            george.kernels.Matern32Kernel(scale**2),
         ),
         "Matern52": (
             kernels.Matern52(scale),
-            george.kernels.Matern52Kernel(scale ** 2),
+            george.kernels.Matern52Kernel(scale**2),
         ),
         "RationalQuadratic": (
             kernels.RationalQuadratic(alpha=1.5),

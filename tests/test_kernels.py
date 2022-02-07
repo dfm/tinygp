@@ -50,13 +50,6 @@ def test_custom(data):
     k2 = kernels.ExpSquared(scale)
     np.testing.assert_allclose(k1(x1, x2), k2(x1, x2))
 
-    scale = 1.5 * jnp.ones(x1.shape[1])
-    k1 = kernels.Custom(
-        lambda X1, X2: jnp.exp(-0.5 * jnp.sum(jnp.square((X1 - X2) / scale)))
-    )
-    k2 = kernels.ExpSquared(scale)
-    np.testing.assert_allclose(k1(x1, x2), k2(x1, x2))
-
     # Check that an invalid kernel raises as expected
     kernel = kernels.Custom(
         lambda X1, X2: jnp.exp(-0.5 * jnp.square((X1 - X2) / scale))

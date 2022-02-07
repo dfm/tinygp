@@ -11,9 +11,9 @@ import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from .kernels import Conditioned, Kernel
-from .means import Mean
-from .types import JAXArray
+from tinygp.kernels import Conditioned, Kernel
+from tinygp.means import Mean
+from tinygp.types import JAXArray
 
 
 class GaussianProcess:
