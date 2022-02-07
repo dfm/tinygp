@@ -19,6 +19,7 @@ directly.
 tutorials/quickstart
 tutorials/modeling
 tutorials/multivariate
+tutorials/geometry
 tutorials/transforms
 tutorials/kernels
 tutorials/derivative
