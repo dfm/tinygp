@@ -11,8 +11,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from tinygp.kernels import Conditioned, Kernel
-from tinygp.means import Mean
+from tinygp import kernels, means
 from tinygp.types import JAXArray
 
 
@@ -31,16 +30,19 @@ class GaussianProcess:
             will be evaluated with the ``X`` as input: ``mean(X)``
         mean_value (JAXArray, optional): The mean precomputed at the location
             of the data.
+        covariance_value (JAXArray, optional): The covariance matrix precomputed
+            at the location of the data.
     """
 
     def __init__(
         self,
-        kernel: Kernel,
+        kernel: kernels.Kernel,
         X: JAXArray,
         *,
         diag: Union[JAXArray, float] = 0.0,
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
         mean_value: Optional[JAXArray] = None,
+        covariance_value: Optional[JAXArray] = None,
     ):
         self.X = X
         self.diag = diag
@@ -50,9 +52,9 @@ class GaussianProcess:
             self.mean_function = mean
         else:
             if mean is None:
-                self.mean_function = Mean(jnp.zeros(()))
+                self.mean_function = means.Mean(jnp.zeros(()))
             else:
-                self.mean_function = Mean(mean)
+                self.mean_function = means.Mean(mean)
         self.mean_function = jax.vmap(self.mean_function)
         if mean_value is None:
             pass
@@ -70,8 +72,11 @@ class GaussianProcess:
         self.dtype = self.variance.dtype
 
         # Evaluate the covariance matrix
-        self.covariance = self.kernel(X, X)
-        self.covariance = self.covariance.at[  # type: ignore
+        if covariance_value is None:
+            self.base_covariance = self.kernel(X, X)
+        else:
+            self.base_covariance = covariance_value
+        self.covariance = self.base_covariance.at[  # type: ignore
             jnp.diag_indices(self.num_data)
         ].add(self.diag)
 
@@ -98,20 +103,41 @@ class GaussianProcess:
         y: JAXArray,
         X_test: Optional[JAXArray] = None,
         *,
-        kernel: Optional[Kernel] = None,
+        kernel: Optional[kernels.Kernel] = None,
+        include_mean: bool = True,
     ) -> Tuple[JAXArray, "GaussianProcess"]:
         alpha = self._get_alpha(y)
 
-        if kernel is None:
-            kernel = self.kernel
+        mean_value = None
         if X_test is None:
             X_test = self.X
+
+            # In this special case, the mean is especially fast to compute
+            if kernel is None:
+                delta = self.diag * linalg.solve_triangular(
+                    self.scale_tril, alpha, lower=True, trans=1
+                )
+                mean_value = y - delta
+                if not include_mean:
+                    mean_value -= self.loc
+
+        if kernel is None:
+            kernel = self.kernel
 
         return (
             self._compute_log_prob(alpha),
             GaussianProcess(
-                Conditioned(self.X, self.scale_tril, kernel),
+                kernels.Conditioned(self.X, self.scale_tril, kernel),
                 X_test,
+                mean=means.Conditioned(
+                    self.X,
+                    alpha,
+                    self.scale_tril,
+                    kernel,
+                    include_mean=include_mean,
+                    mean_function=self.mean_function,  # type: ignore
+                ),
+                mean_value=mean_value,
             ),
         )
 
@@ -120,7 +146,7 @@ class GaussianProcess:
         y: JAXArray,
         X_test: Optional[JAXArray] = None,
         *,
-        kernel: Optional[Kernel] = None,
+        kernel: Optional[kernels.Kernel] = None,
         include_mean: bool = True,
         return_var: bool = False,
         return_cov: bool = False,
@@ -162,7 +188,7 @@ class GaussianProcess:
         y: JAXArray,
         X_test: Optional[JAXArray] = None,
         *,
-        kernel: Optional[Kernel] = None,
+        kernel: Optional[kernels.Kernel] = None,
         include_mean: bool = True,
         return_var: bool = False,
         return_cov: bool = False,
@@ -238,7 +264,7 @@ class GaussianProcess:
         y: JAXArray,
         alpha: JAXArray,
         X_test: Optional[JAXArray],
-        kernel: Optional[Kernel],
+        kernel: Optional[kernels.Kernel],
         include_mean: bool,
         return_var: bool,
         return_cov: bool,
@@ -257,7 +283,7 @@ class GaussianProcess:
 
             X_test = self.X
             K_testT = linalg.solve_triangular(
-                self.scale_tril, self.covariance, lower=True
+                self.scale_tril, self.base_covariance, lower=True
             )
 
         else:

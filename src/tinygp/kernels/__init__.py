@@ -23,8 +23,8 @@ __all__ = [
 ]
 
 from tinygp.kernels.base import (
-    Constant,
     Conditioned,
+    Constant,
     Custom,
     DotProduct,
     Kernel,

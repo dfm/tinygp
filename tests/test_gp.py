@@ -40,7 +40,7 @@ def test_sample(data):
             jnp.mean(y, axis=0), jnp.sum(X, axis=1), atol=0.015
         )
         np.testing.assert_allclose(
-            jnp.cov(y, rowvar=0), gp.covariance_matrix, atol=0.015
+            jnp.cov(y, rowvar=0), gp.covariance, atol=0.015
         )
 
 
