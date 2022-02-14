@@ -106,6 +106,7 @@ class GaussianProcess:
         include_mean: bool = True,
     ) -> Tuple[JAXArray, "GaussianProcess"]:
         alpha = self._get_alpha(y)
+        logprob = self._compute_log_prob(alpha)
 
         mean_value = None
         if X_test is None:
@@ -125,22 +126,24 @@ class GaussianProcess:
         if kernel is None:
             kernel = self.kernel
 
-        return (
-            self._compute_log_prob(alpha),
-            GaussianProcess(
-                kernels.Conditioned(self.X, self.scale_tril, kernel),
-                X_test,
-                mean=means.Conditioned(
-                    self.X,
-                    alpha,
-                    self.scale_tril,
-                    kernel,
-                    include_mean=include_mean,
-                    mean_function=self.mean_function,  # type: ignore
-                ),
-                mean_value=mean_value,
+        # The conditional GP will also be a GP with the mean an covariance
+        # specified by a :class:`tinygp.means.Conditioned` and
+        # :class:`tinygp.kernels.Conditioned` respectively.
+        cond_gp = GaussianProcess(
+            kernels.Conditioned(self.X, self.scale_tril, kernel),
+            X_test,
+            mean=means.Conditioned(
+                self.X,
+                alpha,
+                self.scale_tril,
+                kernel,
+                include_mean=include_mean,
+                mean_function=self.mean_function,  # type: ignore
             ),
+            mean_value=mean_value,
         )
+
+        return logprob, cond_gp
 
     def predict(
         self,
@@ -266,56 +269,3 @@ class GaussianProcess:
         return linalg.solve_triangular(
             self.scale_tril, y - self.loc, lower=True
         )
-
-    # @partial(jax.jit, static_argnums=(0, 4, 5, 6, 7))
-    # def _predict(
-    #     self,
-    #     y: JAXArray,
-    #     alpha: JAXArray,
-    #     X_test: Optional[JAXArray],
-    #     kernel: Optional[kernels.Kernel],
-    #     include_mean: bool,
-    #     return_var: bool,
-    #     return_cov: bool,
-    # ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
-    #     if X_test is None and kernel is None:
-    #         kernel = self.kernel
-    #         delta = self.diag * linalg.solve_triangular(
-    #             self.scale_tril, alpha, lower=True, trans=1
-    #         )
-    #         mu = y - delta
-    #         if not include_mean:
-    #             mu -= self.loc
-
-    #         if not (return_var or return_cov):
-    #             return mu
-
-    #         X_test = self.X
-    #         K_testT = linalg.solve_triangular(
-    #             self.scale_tril, self.base_covariance, lower=True
-    #         )
-
-    #     else:
-    #         if X_test is None:
-    #             X_test = self.X
-    #         if kernel is None:
-    #             kernel = self.kernel
-
-    #         K_testT = linalg.solve_triangular(
-    #             self.scale_tril,
-    #             kernel(self.X, X_test),
-    #             lower=True,
-    #         )
-    #         mu = K_testT.T @ alpha
-    #         if include_mean:
-    #             mu += jax.vmap(self.mean_function)(X_test)
-
-    #         if not (return_var or return_cov):
-    #             return mu
-
-    #     if return_var:
-    #         var = kernel(X_test) - jnp.sum(jnp.square(K_testT), axis=0)
-    #         return mu, var
-
-    #     cov = kernel(X_test, X_test) - K_testT.T @ K_testT
-    #     return mu, cov
