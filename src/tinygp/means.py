@@ -6,7 +6,7 @@ __all__ = ["Mean"]
 
 from typing import Callable, Optional, Union
 
-import jax.numpy as jnp
+import jax
 from jax.scipy import linalg
 
 from tinygp.kernels import Kernel
@@ -42,10 +42,11 @@ class Conditioned:
         self.mean_function = mean_function
 
     def __call__(self, X: JAXArray) -> JAXArray:
+        Ks = jax.vmap(self.kernel.evaluate, in_axes=(0, None), out_axes=0)(
+            self.X, X
+        )
         mu = self.alpha @ linalg.solve_triangular(
-            self.scale_tril,
-            self.kernel(self.X, X),
-            lower=True,
+            self.scale_tril, Ks, lower=True
         )
         if self.include_mean and self.mean_function is not None:
             mu += self.mean_function(X)
