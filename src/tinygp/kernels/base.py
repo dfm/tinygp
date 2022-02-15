@@ -20,6 +20,7 @@ __all__ = [
     "RationalQuadratic",
 ]
 
+import dataclasses
 from typing import Any, Callable, Optional, Sequence, Union
 
 import jax
@@ -31,6 +32,7 @@ from tinygp.types import JAXArray
 Axis = Union[int, Sequence[int]]
 
 
+@dataclasses.dataclass(frozen=True)
 class Kernel:
     """The base class for all kernel implementations
 
@@ -111,6 +113,7 @@ class Kernel:
         return Product(Constant(other), self)
 
 
+@dataclasses.dataclass(frozen=True)
 class Conditioned(Kernel):
     """A kernel used when conditioning a process on data
 
@@ -122,10 +125,9 @@ class Conditioned(Kernel):
             the kernel used by the original process.
     """
 
-    def __init__(self, X: JAXArray, scale_tril: JAXArray, kernel: Kernel):
-        self.X = X
-        self.scale_tril = scale_tril
-        self.kernel = kernel
+    X: JAXArray
+    scale_tril: JAXArray
+    kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
@@ -161,28 +163,29 @@ class Custom(Kernel):
         return self.function(X1, X2)
 
 
+@dataclasses.dataclass(frozen=True)
 class Sum(Kernel):
     """A helper to represent the sum of two kernels"""
 
-    def __init__(self, kernel1: Kernel, kernel2: Kernel):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Kernel
+    kernel2: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) + self.kernel2.evaluate(X1, X2)
 
 
+@dataclasses.dataclass(frozen=True)
 class Product(Kernel):
     """A helper to represent the product of two kernels"""
 
-    def __init__(self, kernel1: Kernel, kernel2: Kernel):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Kernel
+    kernel2: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) * self.kernel2.evaluate(X1, X2)
 
 
+@dataclasses.dataclass(frozen=True)
 class Constant(Kernel):
     r"""This kernel returns the constant
 
@@ -196,10 +199,11 @@ class Constant(Kernel):
         c: The parameter :math:`c` in the above equation.
     """
 
-    def __init__(self, value: JAXArray):
-        if jnp.ndim(value) != 0:
+    value: JAXArray
+
+    def __post_init__(self) -> None:
+        if jnp.ndim(self.value) != 0:
             raise ValueError("The value of a constant kernel must be a scalar")
-        self.value = value
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.value
@@ -219,6 +223,7 @@ class DotProduct(Kernel):
         return X1 @ X2
 
 
+@dataclasses.dataclass(frozen=True)
 class Polynomial(Kernel):
     r"""A polynomial kernel
 
@@ -232,19 +237,11 @@ class Polynomial(Kernel):
         scale: The parameter :math:`\ell`.
         sigma: The parameter :math:`\sigma`.
     """
-
-    def __init__(
-        self,
-        *,
-        order: JAXArray,
-        scale: JAXArray = jnp.ones(()),
-        sigma: JAXArray = jnp.zeros(()),
-    ):
-        self.order = order
-        self.scale = scale
-        self.sigma2 = jnp.square(sigma)
+    order: JAXArray
+    scale: JAXArray = jnp.ones(())
+    sigma: JAXArray = jnp.zeros(())
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return (
-            (X1 / self.scale) @ (X2 / self.scale) + self.sigma2
+            (X1 / self.scale) @ (X2 / self.scale) + jnp.square(self.sigma)
         ) ** self.order
