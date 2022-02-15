@@ -55,5 +55,5 @@ def test_means(data):
 
     np.testing.assert_allclose(gp1.mean, gp2.mean)
     np.testing.assert_allclose(gp1.mean, gp3.mean)
-    np.testing.assert_allclose(gp1.condition(y), gp2.condition(y))
-    np.testing.assert_allclose(gp1.condition(y), gp3.condition(y))
+    np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
+    np.testing.assert_allclose(gp1.log_probability(y), gp3.log_probability(y))

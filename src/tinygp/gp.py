@@ -5,7 +5,7 @@ from __future__ import annotations
 __all__ = ["GaussianProcess"]
 
 from functools import partial
-from typing import Callable, Optional, Sequence, Tuple, Union
+from typing import Callable, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -20,9 +20,9 @@ class GaussianProcess:
 
     Args:
         kernel (Kernel): The kernel function X (JAXArray): The input
-        coordinates. This can be any PyTree that is
-            compatible with ``kernel`` where the zeroth dimension is ``N_data``,
-            the size of the data set.
+            coordinates. This can be any PyTree that is compatible with
+            ``kernel`` where the zeroth dimension is ``N_data``, the size of the
+            data set.
         diag (JAXArray, optional): The value to add to the diagonal of the
             covariance matrix, often used to capture measurement uncertainty.
             This should be a scalar or have the shape ``(N_data,)``.
@@ -30,8 +30,6 @@ class GaussianProcess:
             will be evaluated with the ``X`` as input: ``mean(X)``
         mean_value (JAXArray, optional): The mean precomputed at the location
             of the data.
-        covariance_value (JAXArray, optional): The covariance matrix precomputed
-            at the location of the data.
     """
 
     def __init__(
@@ -39,13 +37,12 @@ class GaussianProcess:
         kernel: kernels.Kernel,
         X: JAXArray,
         *,
-        diag: Union[JAXArray, float] = 0.0,
+        diag: Optional[JAXArray] = None,
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
         mean_value: Optional[JAXArray] = None,
-        covariance_value: Optional[JAXArray] = None,
     ):
         self.X = X
-        self.diag = diag
+        self.diag = jnp.zeros(()) if diag is None else diag
 
         # Parse the mean function
         if callable(mean):
@@ -71,10 +68,7 @@ class GaussianProcess:
         self.dtype = self.variance.dtype
 
         # Evaluate the covariance matrix
-        if covariance_value is None:
-            self.base_covariance = self.kernel(X, X)
-        else:
-            self.base_covariance = covariance_value
+        self.base_covariance = self.kernel(X, X)
         self.covariance = self.base_covariance.at[  # type: ignore
             jnp.diag_indices(self.num_data)
         ].add(self.diag)
@@ -84,8 +78,8 @@ class GaussianProcess:
         self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
         self.norm += 0.5 * self.num_data * jnp.log(2 * jnp.pi)
 
-    def condition(self, y: JAXArray) -> JAXArray:
-        """Condition the process on observed data
+    def log_probability(self, y: JAXArray) -> JAXArray:
+        """Compute the log probability of this multivariate normal
 
         Args:
             y (JAXArray): The observed data. This should have the shape
@@ -93,20 +87,49 @@ class GaussianProcess:
                 data provided when instantiating this object.
 
         Returns:
-            The marginal likelihood of this model, evaluated at ``y``.
+            The marginal log probability of this multivariate normal model,
+            evaluated at ``y``.
         """
         return self._compute_log_prob(self._get_alpha(y))
 
-    def conditioned(
+    def condition(
         self,
         y: JAXArray,
         X_test: Optional[JAXArray] = None,
         *,
-        kernel: Optional[kernels.Kernel] = None,
+        diag: Optional[JAXArray] = None,
         include_mean: bool = True,
-    ) -> Tuple[JAXArray, "GaussianProcess"]:
+        kernel: Optional[kernels.Kernel] = None,
+    ) -> ConditionResult:
+        """Condition the model on observed data and
+
+        Args:
+            y (JAXArray): The observed data. This should have the shape
+                ``(N_data,)``, where ``N_data`` was the zeroth axis of the ``X``
+                data provided when instantiating this object.
+            X_test (JAXArray, optional): The coordinates where the prediction
+                should be evaluated. This should have a data type compatible
+                with the ``X`` data provided when instantiating this object. If
+                it is not provided, ``X`` will be used by default, so the
+                predictions will be made.
+            diag (JAXArray, optional): Will be passed as the diagonal to the
+                conditioned ``GaussianProcess`` object, so this can be used to
+                introduce, for example, observational noise to predicted data.
+            include_mean (bool, optional): If ``True`` (default), the predicted
+                values will include the mean function evaluated at ``X_test``.
+            kernel (Kernel, optional): A kernel to optionally specify the
+                covariance between the observed data and predicted data. See
+                :ref:`mixture` for an example.
+
+        Returns:
+            A named tuple where the first element ``log_probability`` is the log
+            marginal probability of the model, and the second element ``gp`` is
+            the :class:`GaussianProcess` object describing the conditional
+            distribution evaluated at ``X_test``.
+        """
+
         alpha = self._get_alpha(y)
-        logprob = self._compute_log_prob(alpha)
+        log_prob = self._compute_log_prob(alpha)
 
         mean_value = None
         if X_test is None:
@@ -129,9 +152,10 @@ class GaussianProcess:
         # The conditional GP will also be a GP with the mean an covariance
         # specified by a :class:`tinygp.means.Conditioned` and
         # :class:`tinygp.kernels.Conditioned` respectively.
-        cond_gp = GaussianProcess(
+        gp = GaussianProcess(
             kernels.Conditioned(self.X, self.scale_tril, kernel),
             X_test,
+            diag=diag,
             mean=means.Conditioned(
                 self.X,
                 alpha,
@@ -143,7 +167,7 @@ class GaussianProcess:
             mean_value=mean_value,
         )
 
-        return logprob, cond_gp
+        return ConditionResult(log_prob, gp)
 
     def predict(
         self,
@@ -182,7 +206,15 @@ class GaussianProcess:
             returned with shape ``(N_test,)`` or ``(N_test, N_test)``
             respectively.
         """
-        _, cond = self.conditioned(
+        import warnings
+
+        warnings.warn(
+            "The 'predict' method is deprecated and 'condition' should be preferred",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        _, cond = self.condition(
             y, X_test, kernel=kernel, include_mean=include_mean
         )
         if return_var:
@@ -190,32 +222,6 @@ class GaussianProcess:
         if return_cov:
             return cond.loc, cond.covariance
         return cond.loc
-
-    def condition_and_predict(
-        self,
-        y: JAXArray,
-        X_test: Optional[JAXArray] = None,
-        *,
-        kernel: Optional[kernels.Kernel] = None,
-        include_mean: bool = True,
-        return_var: bool = False,
-        return_cov: bool = False,
-    ) -> Tuple[JAXArray, Union[JAXArray, Tuple[JAXArray, JAXArray]]]:
-        """Condition on observed data and return the predictive process
-
-        This combines :func:`GaussianProcess.condition` and
-        :func:`GaussianProcess.predict` into a single operation which will be
-        somewhat more efficient than calling them both separately. See those
-        docstrings for a description of all the arguments.
-        """
-        logprob, cond = self.conditioned(
-            y, X_test, kernel=kernel, include_mean=include_mean
-        )
-        if return_var:
-            return logprob, (cond.loc, cond.variance)
-        if return_cov:
-            return logprob, (cond.loc, cond.covariance)
-        return logprob, cond.loc
 
     def sample(
         self,
@@ -269,3 +275,8 @@ class GaussianProcess:
         return linalg.solve_triangular(
             self.scale_tril, y - self.loc, lower=True
         )
+
+
+class ConditionResult(NamedTuple):
+    log_probability: JAXArray
+    gp: GaussianProcess

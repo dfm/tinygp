@@ -112,7 +112,7 @@ class Kernel:
 
 
 class Conditioned(Kernel):
-    """A kernel operation used when conditioning a process on data
+    """A kernel used when conditioning a process on data
 
     Args:
         X: The coordinates of the data.

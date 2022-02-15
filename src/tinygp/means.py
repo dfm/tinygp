@@ -14,6 +14,16 @@ from tinygp.types import JAXArray
 
 
 class Mean:
+    """A wrapper for the GP mean which supports a constant value or a callable
+
+    In ``tinygp``, a mean function can be any callable which takes as input a
+    single coordinate and returns the scalar mean at that location.
+
+    Args:
+        value: Either a *scalar* constant, or a callable with the correct
+        signature.
+    """
+
     def __init__(self, value: Union[JAXArray, Callable[[JAXArray], JAXArray]]):
         self.value = value
 
@@ -24,6 +34,22 @@ class Mean:
 
 
 class Conditioned:
+    """The mean of a process conditioned on observed data
+
+    Args:
+        X: The coordinates of the data. alpha: The value :math:`L^-1\,y` where L
+        is ``scale_tril`` and y is the
+            observed data.
+        scale_tril: The lower Cholesky factor of the base process' kernel
+            matrix.
+        kernel: The predictive kerenl; this will generally be the kernel from
+            the kernel used by the original process.
+        include_mean: If ``True``, the predicted values will include the mean
+            function evaluated at ``X_test``.
+        mean_function: The mean function of the base process. Used only if
+            ``include_mean`` is ``True``.
+    """
+
     def __init__(
         self,
         X: JAXArray,
