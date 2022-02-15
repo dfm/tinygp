@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -119,48 +121,51 @@ def compare_gps(random, tiny_kernel, george_kernel):
 
     # Likelihood
     np.testing.assert_allclose(
-        tiny_gp.condition(y), george_gp.log_likelihood(y)
+        tiny_gp.log_probability(y), george_gp.log_likelihood(y)
     )
 
     # Filtering
-    np.testing.assert_allclose(
-        tiny_gp.predict(y),
-        george_gp.predict(y, x, return_var=False, return_cov=False),
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
 
-    # Filtering with explicit value
-    np.testing.assert_allclose(
-        tiny_gp.predict(y, x),
-        george_gp.predict(y, x, return_var=False, return_cov=False),
-    )
-    np.testing.assert_allclose(
-        tiny_gp.predict(y, t),
-        george_gp.predict(y, t, return_var=False, return_cov=False),
-    )
+        np.testing.assert_allclose(
+            tiny_gp.predict(y),
+            george_gp.predict(y, x, return_var=False, return_cov=False),
+        )
 
-    # Variance
-    np.testing.assert_allclose(
-        tiny_gp.predict(y, return_var=True)[1],
-        george_gp.predict(y, x, return_var=True, return_cov=False)[1],
-        rtol=1e-5,
-    )
-    np.testing.assert_allclose(
-        tiny_gp.predict(y, t, return_var=True)[1],
-        george_gp.predict(y, t, return_var=True, return_cov=False)[1],
-        rtol=1e-5,
-    )
+        # Filtering with explicit value
+        np.testing.assert_allclose(
+            tiny_gp.predict(y, x),
+            george_gp.predict(y, x, return_var=False, return_cov=False),
+        )
+        np.testing.assert_allclose(
+            tiny_gp.predict(y, t),
+            george_gp.predict(y, t, return_var=False, return_cov=False),
+        )
 
-    # Covariance
-    np.testing.assert_allclose(
-        tiny_gp.predict(y, return_cov=True)[1],
-        george_gp.predict(y, x, return_var=False, return_cov=True)[1],
-        atol=1e-5,
-    )
-    np.testing.assert_allclose(
-        tiny_gp.predict(y, t, return_cov=True)[1],
-        george_gp.predict(y, t, return_var=False, return_cov=True)[1],
-        atol=1e-5,
-    )
+        # Variance
+        np.testing.assert_allclose(
+            tiny_gp.predict(y, return_var=True)[1],
+            george_gp.predict(y, x, return_var=True, return_cov=False)[1],
+            rtol=1e-5,
+        )
+        np.testing.assert_allclose(
+            tiny_gp.predict(y, t, return_var=True)[1],
+            george_gp.predict(y, t, return_var=True, return_cov=False)[1],
+            rtol=1e-5,
+        )
+
+        # Covariance
+        np.testing.assert_allclose(
+            tiny_gp.predict(y, return_cov=True)[1],
+            george_gp.predict(y, x, return_var=False, return_cov=True)[1],
+            atol=1e-5,
+        )
+        np.testing.assert_allclose(
+            tiny_gp.predict(y, t, return_cov=True)[1],
+            george_gp.predict(y, t, return_var=False, return_cov=True)[1],
+            atol=1e-5,
+        )
 
 
 def test_kernel_value(random, kernel):

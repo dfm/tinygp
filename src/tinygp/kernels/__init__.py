@@ -5,6 +5,7 @@ __all__ = [
     "L1Distance",
     "L2Distance",
     "Kernel",
+    "Conditioned",
     "Custom",
     "Sum",
     "Product",
@@ -22,6 +23,7 @@ __all__ = [
 ]
 
 from tinygp.kernels.base import (
+    Conditioned,
     Constant,
     Custom,
     DotProduct,

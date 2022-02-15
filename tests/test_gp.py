@@ -40,7 +40,7 @@ def test_sample(data):
             jnp.mean(y, axis=0), jnp.sum(X, axis=1), atol=0.015
         )
         np.testing.assert_allclose(
-            jnp.cov(y, rowvar=0), gp.covariance_matrix, atol=0.015
+            jnp.cov(y, rowvar=0), gp.covariance, atol=0.015
         )
 
 
@@ -55,5 +55,5 @@ def test_means(data):
 
     np.testing.assert_allclose(gp1.mean, gp2.mean)
     np.testing.assert_allclose(gp1.mean, gp3.mean)
-    np.testing.assert_allclose(gp1.condition(y), gp2.condition(y))
-    np.testing.assert_allclose(gp1.condition(y), gp3.condition(y))
+    np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
+    np.testing.assert_allclose(gp1.log_probability(y), gp3.log_probability(y))
