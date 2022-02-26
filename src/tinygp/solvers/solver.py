@@ -4,8 +4,8 @@ from __future__ import annotations
 
 __all__ = ["Solver"]
 
-from typing import Any, Optional
 from abc import ABCMeta, abstractmethod
+from typing import Any, Optional
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels import Kernel

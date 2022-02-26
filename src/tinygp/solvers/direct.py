@@ -4,13 +4,13 @@ from __future__ import annotations
 
 __all__ = ["DirectSolver"]
 
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 from jax.scipy import linalg
 
-from tinygp.solvers.solver import Solver
-from tinygp.kernels import Kernel
 from tinygp.helpers import JAXArray, dataclass
+from tinygp.kernels import Kernel
+from tinygp.solvers.solver import Solver
 
 
 @dataclass
