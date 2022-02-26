@@ -5,14 +5,14 @@ from __future__ import annotations
 __all__ = ["GaussianProcess"]
 
 from functools import partial
-from typing import Callable, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-from jax.scipy import linalg
 
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
+from tinygp.solvers.direct import DirectSolver
 
 
 class GaussianProcess:
@@ -40,9 +40,16 @@ class GaussianProcess:
         diag: Optional[JAXArray] = None,
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
         mean_value: Optional[JAXArray] = None,
+        solver: Optional[Any] = None,
     ):
+        self.kernel = kernel
         self.X = X
         self.diag = jnp.zeros(()) if diag is None else diag
+
+        # Set up the solver, defaulting to a simple direct solver
+        if solver is None:
+            solver = DirectSolver
+        self.solver = solver.init(kernel, self.X, self.diag)
 
         # Parse the mean function
         if callable(mean):
@@ -54,6 +61,8 @@ class GaussianProcess:
                 self.mean_function = means.Mean(mean)
         if mean_value is None:
             mean_value = jax.vmap(self.mean_function)(self.X)
+        self.num_data = mean_value.shape[0]
+        self.dtype = mean_value.dtype
         self.loc = self.mean = mean_value
         if self.mean.ndim != 1:
             raise ValueError(
@@ -61,22 +70,13 @@ class GaussianProcess:
                 f"expected ndim = 1, got ndim={self.mean.ndim}"
             )
 
-        # Evaluate the variance of the process
-        self.kernel = kernel
-        self.variance = self.kernel(X) + self.diag
-        self.num_data = self.variance.shape[0]
-        self.dtype = self.variance.dtype
+    @property
+    def variance(self) -> JAXArray:
+        return self.solver.variance()
 
-        # Evaluate the covariance matrix
-        self.base_covariance = self.kernel(X, X)
-        self.covariance = self.base_covariance.at[
-            jnp.diag_indices(self.num_data)
-        ].add(self.diag)
-
-        # Factorize the matrix and compute the log prob normalization
-        self.scale_tril = linalg.cholesky(self.covariance, lower=True)
-        self.norm = jnp.sum(jnp.log(jnp.diag(self.scale_tril)))
-        self.norm += 0.5 * self.num_data * jnp.log(2 * jnp.pi)
+    @property
+    def covariance(self) -> JAXArray:
+        return self.solver.covariance()
 
     def log_probability(self, y: JAXArray) -> JAXArray:
         """Compute the log probability of this multivariate normal
@@ -139,8 +139,8 @@ class GaussianProcess:
             # points, using the original kernel), the mean is especially fast to
             # compute; so let's use that calculation here.
             if kernel is None:
-                delta = self.diag * linalg.solve_triangular(
-                    self.scale_tril, alpha, lower=True, trans=1
+                delta = self.diag * self.solver.solve_triangular(
+                    alpha, transpose=True
                 )
                 mean_value = y - delta
                 if not include_mean:
@@ -153,13 +153,13 @@ class GaussianProcess:
         # specified by a :class:`tinygp.means.Conditioned` and
         # :class:`tinygp.kernels.Conditioned` respectively.
         gp = GaussianProcess(
-            kernels.Conditioned(self.X, self.scale_tril, kernel),
+            kernels.Conditioned(self.X, self.solver.scale_tril, kernel),
             X_test,
             diag=diag,
             mean=means.Conditioned(
                 self.X,
                 alpha,
-                self.scale_tril,
+                self.solver.scale_tril,
                 kernel,
                 include_mean=include_mean,
                 mean_function=self.mean_function,  # type: ignore
@@ -247,7 +247,7 @@ class GaussianProcess:
         import numpyro.distributions as dist
 
         return dist.MultivariateNormal(
-            loc=self.loc, scale_tril=self.scale_tril, **kwargs
+            loc=self.loc, scale_tril=self.solver.scale_tril, **kwargs
         )
 
     @partial(jax.jit, static_argnums=(0, 2))
@@ -259,22 +259,22 @@ class GaussianProcess:
         if shape is None:
             shape = (self.num_data,)
         else:
-            shape = tuple(shape) + (self.num_data,)
+            shape = (self.num_data,) + tuple(shape)
         normal_samples = jax.random.normal(key, shape=shape, dtype=self.dtype)
-        return self.mean + jnp.einsum(
-            "...ij,...j->...i", self.scale_tril, normal_samples
+        return self.mean + jnp.moveaxis(
+            self.solver.dot_triangular(normal_samples), 0, -1
         )
 
     @partial(jax.jit, static_argnums=0)
     def _compute_log_prob(self, alpha: JAXArray) -> JAXArray:
-        loglike = -0.5 * jnp.sum(jnp.square(alpha)) - self.norm
+        loglike = (
+            -0.5 * jnp.sum(jnp.square(alpha)) - self.solver.normalization()
+        )
         return jnp.where(jnp.isfinite(loglike), loglike, -jnp.inf)
 
     @partial(jax.jit, static_argnums=0)
     def _get_alpha(self, y: JAXArray) -> JAXArray:
-        return linalg.solve_triangular(
-            self.scale_tril, y - self.loc, lower=True
-        )
+        return self.solver.solve_triangular(y - self.loc)
 
 
 class ConditionResult(NamedTuple):
