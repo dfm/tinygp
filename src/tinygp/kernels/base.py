@@ -11,16 +11,10 @@ __all__ = [
     "Constant",
     "DotProduct",
     "Polynomial",
-    "Exp",
-    "ExpSquared",
-    "Matern32",
-    "Matern52",
-    "Cosine",
-    "ExpSineSquared",
-    "RationalQuadratic",
 ]
 
 from typing import Any, Callable, Optional, Sequence, Union
+from abc import ABCMeta, abstractmethod
 
 import jax
 import jax.numpy as jnp
@@ -31,7 +25,7 @@ from tinygp.helpers import JAXArray
 Axis = Union[int, Sequence[int]]
 
 
-class Kernel:
+class Kernel(metaclass=ABCMeta):
     """The base class for all kernel implementations
 
     This subclass provides default implementations to add and multiply kernels.
@@ -39,6 +33,7 @@ class Kernel:
     :func:`Kernel.evaluate` with custom behavior.
     """
 
+    @abstractmethod
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         """Evaluate the kernel at a pair of input coordinates
 
@@ -56,7 +51,7 @@ class Kernel:
            ``(n_data, n_dim)``, and you should let the :class:`Kernel` ``vmap``
            magic handle all the broadcasting for you.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         """Evaluate the kernel on its diagonal

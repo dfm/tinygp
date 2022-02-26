@@ -19,6 +19,7 @@ __all__ = [
 from typing import Optional
 
 import jax.numpy as jnp
+import numpy as np
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels import Kernel
@@ -156,8 +157,8 @@ class Matern32(Stationary):
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r = self.distance.distance(X1, X2) / self.scale
-        arg = jnp.sqrt(3.0) * r
-        return (1.0 + arg) * jnp.exp(-arg)
+        arg = np.sqrt(3) * r
+        return (1 + arg) * jnp.exp(-arg)
 
 
 class Matern52(Stationary):
@@ -180,8 +181,8 @@ class Matern52(Stationary):
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r = self.distance.distance(X1, X2) / self.scale
-        arg = jnp.sqrt(5.0) * r
-        return (1.0 + arg + jnp.square(arg) / 3.0) * jnp.exp(-arg)
+        arg = np.sqrt(5) * r
+        return (1 + arg + jnp.square(arg) / 3) * jnp.exp(-arg)
 
 
 class Cosine(Stationary):

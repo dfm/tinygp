@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    "__version__",
     "DiagQSM",
     "StrictLowerTriQSM",
     "StrictUpperTriQSM",
