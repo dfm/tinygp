@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
-from jax.scipy import linalg
 
-from tinygp import kernels as base_kernels
 from tinygp.solvers.quasisep import kernels
 
 
