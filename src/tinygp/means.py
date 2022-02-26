@@ -9,8 +9,8 @@ from typing import Callable, Optional, Union
 import jax
 from jax.scipy import linalg
 
-from tinygp.kernels import Kernel
 from tinygp.helpers import JAXArray
+from tinygp.kernels import Kernel
 
 
 class Mean:

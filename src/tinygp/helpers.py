@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-
 __all__ = ["qsm", "JAXArray"]
 
 import dataclasses
