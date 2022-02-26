@@ -10,7 +10,7 @@ import jax
 from jax.scipy import linalg
 
 from tinygp.kernels import Kernel
-from tinygp.types import JAXArray
+from tinygp.helpers import JAXArray
 
 
 class Mean:

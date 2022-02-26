@@ -26,7 +26,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from tinygp.types import JAXArray
+from tinygp.helpers import JAXArray
 
 Axis = Union[int, Sequence[int]]
 

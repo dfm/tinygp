@@ -21,7 +21,7 @@ from typing import Optional
 import jax.numpy as jnp
 
 from tinygp.kernels import Kernel
-from tinygp.types import JAXArray
+from tinygp.helpers import JAXArray
 
 
 class Distance:

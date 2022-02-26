@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from jax.scipy import linalg
 
 from tinygp import kernels, means
-from tinygp.types import JAXArray
+from tinygp.helpers import JAXArray
 
 
 class GaussianProcess:
@@ -69,7 +69,7 @@ class GaussianProcess:
 
         # Evaluate the covariance matrix
         self.base_covariance = self.kernel(X, X)
-        self.covariance = self.base_covariance.at[  # type: ignore
+        self.covariance = self.base_covariance.at[
             jnp.diag_indices(self.num_data)
         ].add(self.diag)
 
