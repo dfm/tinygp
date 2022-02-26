@@ -6,7 +6,6 @@ from itertools import combinations
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from jax.config import config
 
 from tinygp.solvers.quasisep import (
     DiagQSM,
@@ -16,8 +15,6 @@ from tinygp.solvers.quasisep import (
     StrictUpperTriQSM,
     SymmQSM,
 )
-
-config.update("jax_enable_x64", True)
 
 
 @pytest.fixture(params=["random", "celerite"])

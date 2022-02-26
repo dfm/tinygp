@@ -19,36 +19,36 @@ def data(random):
 
 
 def test_matern32(data):
-    kernel = kernels.Matern32(1.5)
+    kernel = kernels.Matern32(sigma=1.8, scale=1.5)
     np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data), atol=1e-6
+        kernel.to_qsm(data).to_dense(), kernel(data, data)
     )
 
     kernel = 2.3 * kernels.Matern32(1.5)
     np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data), atol=1e-6
+        kernel.to_qsm(data).to_dense(), kernel(data, data)
     )
 
 
 def test_matern52(data):
-    kernel = kernels.Matern52(1.5)
+    kernel = kernels.Matern52(sigma=1.8, scale=1.5)
     np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data), atol=1e-6
+        kernel.to_qsm(data).to_dense(), kernel(data, data)
     )
 
     kernel = 2.3 * kernels.Matern52(1.5)
     np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data), atol=2e-6
+        kernel.to_qsm(data).to_dense(), kernel(data, data)
     )
 
 
 def test_celerite(data):
     kernel = kernels.Celerite(1.1, 0.8, 0.9, 0.1)
     np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data), atol=1e-6
+        kernel.to_qsm(data).to_dense(), kernel(data, data)
     )
 
     kernel = 2.3 * kernels.Celerite(1.1, 0.8, 0.9, 0.1)
     np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data), atol=1e-6
+        kernel.to_qsm(data).to_dense(), kernel(data, data)
     )

@@ -92,9 +92,33 @@ class Scale(Quasisep):
         return self.kernel.evaluate(X1, X2) * self.scale
 
 
+# Notes for deriving relevant matrices:
+#
+# => For Matern-3/2:
+#
+# import sympy as sm
+#
+# f, s, t = sm.symbols("f, s, t", real=True)
+# F = sm.Matrix([[0, 1], [-f**2, -2*f]])
+# L = sm.Matrix([[0], [1]])
+# phi = sm.simplify((F * t).exp())
+# P = sm.Matrix([
+#     sm.symbols("p1, p2"),
+#     sm.symbols("p3, p4"),
+# ])
+# Pinf = sm.solve(F @ P + P @ F.T + 4 * f**3 * s * L @ L.T, P)
+#
+# => For Matern-5/2:
+#
+# F = sm.Matrix([[0, 1, 0], [0, 0, 1], [-f**3, -3*f**2, -3*f]])
+# and
+# Pinf = [[sigma, 0, -sigma * f^2 / 3], ...]
+
+
 @dataclass
 class Matern32(Quasisep):
     scale: JAXArray
+    sigma: JAXArray = jnp.ones(())
 
     def to_qsm(self, X: JAXArray) -> SymmQSM:
         if jnp.ndim(X) != 1:
@@ -108,23 +132,24 @@ class Matern32(Quasisep):
                 [[1 + f * dt, dt], [-jnp.square(f) * dt, 1 - f * dt]]
             )
         )(dt)
-        p = a[:, 0, :]
+        p = jnp.square(self.sigma) * a[:, 0, :]
         q = jnp.stack((jnp.ones_like(dt), jnp.zeros_like(dt)), axis=-1)
 
         return SymmQSM(
-            diag=DiagQSM(d=jnp.ones_like(dt)),
+            diag=DiagQSM(d=jnp.full_like(dt, jnp.square(self.sigma))),
             lower=StrictLowerTriQSM(p=p, q=q, a=a),
         )
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r = jnp.abs(X1 - X2) / self.scale
         arg = np.sqrt(3) * r
-        return (1 + arg) * jnp.exp(-arg)
+        return jnp.square(self.sigma) * (1 + arg) * jnp.exp(-arg)
 
 
 @dataclass
 class Matern52(Quasisep):
     scale: JAXArray
+    sigma: JAXArray = jnp.ones(())
 
     def to_qsm(self, X: JAXArray) -> SymmQSM:
         if jnp.ndim(X) != 1:
@@ -159,21 +184,27 @@ class Matern52(Quasisep):
         a = impl(dt)  # type: ignore
 
         # In SDE notation, p_k = (1, 0, 0) @ P_inf @ phi_k
-        p = a[:, 0, :] - jnp.square(f) * a[:, 2, :] / 3
+        p = jnp.square(self.sigma) * (
+            a[:, 0, :] - jnp.square(f) * a[:, 2, :] / 3
+        )
         q = jnp.stack(
             (jnp.ones_like(dt), jnp.zeros_like(dt), jnp.zeros_like(dt)),
             axis=-1,
         )
 
         return SymmQSM(
-            diag=DiagQSM(d=jnp.ones_like(dt)),
+            diag=DiagQSM(d=jnp.full_like(dt, jnp.square(self.sigma))),
             lower=StrictLowerTriQSM(p=p, q=q, a=a),
         )
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r = jnp.abs(X1 - X2) / self.scale
         arg = np.sqrt(5) * r
-        return (1 + arg + jnp.square(arg) / 3) * jnp.exp(-arg)
+        return (
+            jnp.square(self.sigma)
+            * (1 + arg + jnp.square(arg) / 3)
+            * jnp.exp(-arg)
+        )
 
 
 @dataclass
