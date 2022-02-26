@@ -13,8 +13,8 @@ __all__ = [
     "Polynomial",
 ]
 
-from typing import Any, Callable, Optional, Sequence, Union
 from abc import ABCMeta, abstractmethod
+from typing import Any, Callable, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp

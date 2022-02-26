@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-
 __all__ = ["Quasisep"]
 
-from typing import Union
 from abc import ABCMeta, abstractmethod
+from typing import Union
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels.base import Kernel
