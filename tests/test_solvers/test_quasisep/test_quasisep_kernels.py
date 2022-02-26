@@ -9,7 +9,7 @@ from tinygp.solvers.quasisep import kernels
 
 @pytest.fixture
 def random():
-    return np.random.default_rng(1058390)
+    return np.random.default_rng(84930)
 
 
 @pytest.fixture
@@ -18,37 +18,24 @@ def data(random):
     return x
 
 
-def test_matern32(data):
-    kernel = kernels.Matern32(sigma=1.8, scale=1.5)
-    np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data)
-    )
-
-    kernel = 2.3 * kernels.Matern32(1.5)
-    np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data)
-    )
-
-
-def test_matern52(data):
-    kernel = kernels.Matern52(sigma=1.8, scale=1.5)
-    np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data)
-    )
-
-    kernel = 2.3 * kernels.Matern52(1.5)
-    np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data)
-    )
+@pytest.fixture(
+    params=[
+        kernels.Matern32(sigma=1.8, scale=1.5),
+        kernels.Matern32(1.5),
+        kernels.Matern52(sigma=1.8, scale=1.5),
+        kernels.Matern52(1.5),
+        kernels.Celerite(1.1, 0.8, 0.9, 0.1),
+        kernels.Exp(sigma=1.8, scale=1.5),
+        kernels.Exp(1.5),
+        1.5 * kernels.Matern52(1.5) + 0.3 * kernels.Exp(1.5),
+        1.5 * kernels.Matern52(1.5) * kernels.Celerite(1.1, 0.8, 0.9, 0.1),
+    ]
+)
+def kernel(request):
+    return request.param
 
 
-def test_celerite(data):
-    kernel = kernels.Celerite(1.1, 0.8, 0.9, 0.1)
-    np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data)
-    )
-
-    kernel = 2.3 * kernels.Celerite(1.1, 0.8, 0.9, 0.1)
+def test_to_qsm(data, kernel):
     np.testing.assert_allclose(
         kernel.to_qsm(data).to_dense(), kernel(data, data)
     )

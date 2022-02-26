@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__all__ = ["Quasisep"]
+__all__ = ["Quasisep", "Celerite", "Matern32", "Matern52"]
 
 from abc import ABCMeta, abstractmethod
 from typing import Union
@@ -92,7 +92,68 @@ class Scale(Quasisep):
         return self.kernel.evaluate(X1, X2) * self.scale
 
 
+@dataclass
+class Celerite(Quasisep):
+    a: JAXArray
+    b: JAXArray
+    c: JAXArray
+    d: JAXArray
+
+    def to_qsm(self, X: JAXArray) -> SymmQSM:
+        if jnp.ndim(X) != 1:
+            raise ValueError("Only 1D inputs are supported")
+
+        @jax.vmap
+        def impl(dt):  # type: ignore
+            cos = jnp.cos(self.d * dt)
+            sin = jnp.sin(self.d * dt)
+            return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]])
+
+        dt = jnp.append(0, jnp.diff(X))
+        a = impl(dt)  # type: ignore
+        p = self.a * a[:, 0, :] + self.b * a[:, 1, :]
+        q = jnp.stack((jnp.ones_like(dt), jnp.zeros_like(dt)), axis=-1)
+
+        return SymmQSM(
+            diag=DiagQSM(d=jnp.full_like(dt, self.a)),
+            lower=StrictLowerTriQSM(p=p, q=q, a=a),
+        )
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        tau = jnp.abs(X1 - X2)
+        return jnp.exp(-self.c * tau) * (
+            self.a * jnp.cos(self.d * tau) + self.b * jnp.sin(self.d * tau)
+        )
+
+
+@dataclass
+class Exp(Quasisep):
+    scale: JAXArray
+    sigma: JAXArray = jnp.ones(())
+
+    def to_qsm(self, X: JAXArray) -> SymmQSM:
+        if jnp.ndim(X) != 1:
+            raise ValueError("Only 1D inputs are supported")
+
+        dt = jnp.append(0, jnp.diff(X))
+        a = jnp.exp(-dt / self.scale)
+        p = jnp.square(self.sigma) * a
+        q = jnp.ones_like(dt)
+
+        return SymmQSM(
+            diag=DiagQSM(d=jnp.full_like(dt, jnp.square(self.sigma))),
+            lower=StrictLowerTriQSM(
+                p=p[:, None], q=q[:, None], a=a[:, None, None]
+            ),
+        )
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        tau = jnp.abs(X1 - X2)
+        return jnp.square(self.sigma) * jnp.exp(-tau / self.scale)
+
+
 # Notes for deriving relevant matrices:
+# See also: https://github.com/SheffieldML/GPy/blob/bb1bc5088671f9316bc92a46d356734e34c2d5c0/GPy/kern/src/sde_matern.py
 #
 # => For Matern-3/2:
 #
@@ -204,38 +265,4 @@ class Matern52(Quasisep):
             jnp.square(self.sigma)
             * (1 + arg + jnp.square(arg) / 3)
             * jnp.exp(-arg)
-        )
-
-
-@dataclass
-class Celerite(Quasisep):
-    a: JAXArray
-    b: JAXArray
-    c: JAXArray
-    d: JAXArray
-
-    def to_qsm(self, X: JAXArray) -> SymmQSM:
-        if jnp.ndim(X) != 1:
-            raise ValueError("Only 1D inputs are supported")
-
-        @jax.vmap
-        def impl(dt):  # type: ignore
-            cos = jnp.cos(self.d * dt)
-            sin = jnp.sin(self.d * dt)
-            return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]])
-
-        dt = jnp.append(0, jnp.diff(X))
-        a = impl(dt)  # type: ignore
-        p = self.a * a[:, 0, :] + self.b * a[:, 1, :]
-        q = jnp.stack((jnp.ones_like(dt), jnp.zeros_like(dt)), axis=-1)
-
-        return SymmQSM(
-            diag=DiagQSM(d=jnp.full_like(dt, self.a)),
-            lower=StrictLowerTriQSM(p=p, q=q, a=a),
-        )
-
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        tau = jnp.abs(X1 - X2)
-        return jnp.exp(-self.c * tau) * (
-            self.a * jnp.cos(self.d * tau) + self.b * jnp.sin(self.d * tau)
         )
