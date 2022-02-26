@@ -120,3 +120,91 @@ class Matern32(Quasisep):
         r = jnp.abs(X1 - X2) / self.scale
         arg = np.sqrt(3) * r
         return (1 + arg) * jnp.exp(-arg)
+
+
+@dataclass
+class Matern52(Quasisep):
+    scale: JAXArray
+
+    def to_qsm(self, X: JAXArray) -> SymmQSM:
+        if jnp.ndim(X) != 1:
+            raise ValueError("Only 1D inputs are supported")
+
+        @jax.vmap
+        def impl(dt):  # type: ignore
+            f2 = jnp.square(f)
+            d2 = jnp.square(dt)
+            return jnp.exp(-f * dt) * jnp.array(
+                [
+                    [
+                        0.5 * f2 * d2 + f * dt + 1,
+                        -0.5 * f * f2 * d2,
+                        0.5 * f2 * f * dt * (f * dt - 2),
+                    ],
+                    [
+                        dt * (f * dt + 1),
+                        -f2 * d2 + f * dt + 1,
+                        f2 * dt * (f * dt - 3),
+                    ],
+                    [
+                        0.5 * d2,
+                        0.5 * dt * (2 - f * dt),
+                        0.5 * f2 * d2 - 2 * f * dt + 1,
+                    ],
+                ]
+            )
+
+        f = np.sqrt(5) / self.scale
+        dt = jnp.append(0, jnp.diff(X))
+        a = impl(dt)  # type: ignore
+
+        # In SDE notation, p_k = (1, 0, 0) @ P_inf @ phi_k
+        p = a[:, 0, :] - jnp.square(f) * a[:, 2, :] / 3
+        q = jnp.stack(
+            (jnp.ones_like(dt), jnp.zeros_like(dt), jnp.zeros_like(dt)),
+            axis=-1,
+        )
+
+        return SymmQSM(
+            diag=DiagQSM(d=jnp.ones_like(dt)),
+            lower=StrictLowerTriQSM(p=p, q=q, a=a),
+        )
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        r = jnp.abs(X1 - X2) / self.scale
+        arg = np.sqrt(5) * r
+        return (1 + arg + jnp.square(arg) / 3) * jnp.exp(-arg)
+
+
+@dataclass
+class Celerite(Quasisep):
+    a: JAXArray
+    b: JAXArray
+    c: JAXArray
+    d: JAXArray
+
+    def to_qsm(self, X: JAXArray) -> SymmQSM:
+        if jnp.ndim(X) != 1:
+            raise ValueError("Only 1D inputs are supported")
+
+        @jax.vmap
+        def impl(dt):  # type: ignore
+            cos = jnp.cos(self.d * dt)
+            sin = jnp.sin(self.d * dt)
+            return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]])
+
+        dt = jnp.append(0, jnp.diff(X))
+        a = impl(dt)  # type: ignore
+        p = self.a * a[:, 0, :] + self.b * a[:, 1, :]
+        q = jnp.stack((jnp.ones_like(dt), jnp.zeros_like(dt)), axis=-1)
+
+        return SymmQSM(
+            diag=DiagQSM(d=jnp.full_like(dt, self.a)),
+            lower=StrictLowerTriQSM(p=p, q=q, a=a),
+        )
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        tau = jnp.abs(X1 - X2)
+        return jnp.exp(-self.c * tau) * (
+            self.a * jnp.cos(self.d * tau) + self.b * jnp.sin(self.d * tau)
+        )
