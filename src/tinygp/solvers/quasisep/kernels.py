@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__all__ = ["Quasisep", "Celerite", "Exp", "Matern32", "Matern52"]
+__all__ = ["Quasisep", "Celerite", "SHO", "Exp", "Matern32", "Matern52"]
 
 from abc import ABCMeta, abstractmethod
 from typing import Union
@@ -123,6 +123,105 @@ class Celerite(Quasisep):
         tau = jnp.abs(X1 - X2)
         return jnp.exp(-self.c * tau) * (
             self.a * jnp.cos(self.d * tau) + self.b * jnp.sin(self.d * tau)
+        )
+
+
+@dataclass
+class SHO(Quasisep):
+    omega: JAXArray
+    quality: JAXArray
+    sigma: JAXArray = jnp.ones(())
+
+    def to_qsm(self, X: JAXArray) -> SymmQSM:
+        if jnp.ndim(X) != 1:
+            raise ValueError("Only 1D inputs are supported")
+
+        def critical(dt: JAXArray) -> JAXArray:
+            @jax.vmap
+            def impl(dt: JAXArray) -> JAXArray:
+                return jnp.exp(-w * dt) * jnp.array(
+                    [[1 + w * dt, dt], [-jnp.square(w) * dt, 1 - w * dt]]
+                )
+
+            return impl(dt)
+
+        def underdamped(dt: JAXArray) -> JAXArray:
+            f = jnp.sqrt(jnp.maximum(4 * jnp.square(q) - 1, 0))
+
+            @jax.vmap
+            def impl(dt: JAXArray) -> JAXArray:
+                arg = 0.5 * f * w * dt / q
+                sin = jnp.sin(arg)
+                cos = jnp.cos(arg)
+                return jnp.exp(-0.5 * w * dt / q) * jnp.array(
+                    [
+                        [cos + sin / f, 2 * q * sin / (w * f)],
+                        [-2 * q * w * sin / f, cos - sin / f],
+                    ]
+                )
+
+            return impl(dt)
+
+        def overdamped(dt: JAXArray) -> JAXArray:
+            f = jnp.sqrt(jnp.maximum(1 - 4 * jnp.square(q), 0))
+
+            @jax.vmap
+            def impl(dt: JAXArray) -> JAXArray:
+                arg = 0.5 * f * w * dt / q
+                sinh = jnp.sinh(arg)
+                cosh = jnp.cosh(arg)
+                return jnp.exp(-0.5 * w * dt / q) * jnp.array(
+                    [
+                        [cosh + sinh / f, 2 * q * sinh / (w * f)],
+                        [-2 * q * w * sinh / f, cosh - sinh / f],
+                    ]
+                )
+
+            return impl(dt)
+
+        w = self.omega
+        q = self.quality
+        dt = jnp.append(0, jnp.diff(X))
+        a = jax.lax.cond(
+            jnp.allclose(q, 0.5),
+            critical,
+            lambda dt: jax.lax.cond(q > 0.5, underdamped, overdamped, dt),
+            dt,
+        )
+        p = jnp.square(self.sigma) * a[:, 0, :]
+        q = jnp.stack((jnp.ones_like(dt), jnp.zeros_like(dt)), axis=-1)
+
+        return SymmQSM(
+            diag=DiagQSM(d=jnp.full_like(dt, jnp.square(self.sigma))),
+            lower=StrictLowerTriQSM(p=p, q=q, a=a),
+        )
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        def underdamped(tau: JAXArray) -> JAXArray:
+            f = jnp.sqrt(jnp.maximum(4 * jnp.square(q) - 1, 0))
+            arg = 0.5 * f * w * tau / q
+            return jnp.cos(arg) + jnp.sin(arg) / f
+
+        def overdamped(tau: JAXArray) -> JAXArray:
+            f = jnp.sqrt(jnp.maximum(1 - 4 * jnp.square(q), 0))
+            arg = 0.5 * f * w * tau / q
+            return jnp.cosh(arg) + jnp.sinh(arg) / f
+
+        s2 = jnp.square(self.sigma)
+        w = self.omega
+        q = self.quality
+        tau = jnp.abs(X1 - X2)
+        return (
+            s2
+            * jnp.exp(-0.5 * w * tau / q)
+            * jax.lax.cond(
+                jnp.allclose(q, 0.5),
+                lambda tau: 1 + w * tau,
+                lambda tau: jax.lax.cond(
+                    q > 0.5, underdamped, overdamped, tau
+                ),
+                tau,
+            )
         )
 
 
