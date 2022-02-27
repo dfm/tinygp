@@ -41,21 +41,22 @@ class GaussianProcess:
         diag: Optional[JAXArray] = None,
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
         mean_value: Optional[JAXArray] = None,
+        covariance_value: Optional[Any] = None,
         solver: Optional[Any] = None,
     ):
         self.kernel = kernel
         self.X = X
         self.diag = jnp.zeros(()) if diag is None else diag
 
-        # Set up the solver, defaulting to a simple direct solver
         if solver is None:
             if isinstance(kernel, Quasisep):
                 solver = QuasisepSolver
             else:
                 solver = DirectSolver
-        self.solver = solver.init(kernel, self.X, self.diag)
+        self.solver = solver.init(
+            kernel, self.X, self.diag, covariance=covariance_value
+        )
 
-        # Parse the mean function
         if callable(mean):
             self.mean_function = mean
         else:
@@ -135,6 +136,9 @@ class GaussianProcess:
         alpha = self._get_alpha(y)
         log_prob = self._compute_log_prob(alpha)
 
+        # Below, we actually want alpha = K^-1 y instead of alpha = L^-1 y
+        alpha = self.solver.solve_triangular(alpha, transpose=True)
+
         mean_value = None
         if X_test is None:
             X_test = self.X
@@ -143,9 +147,7 @@ class GaussianProcess:
             # points, using the original kernel), the mean is especially fast to
             # compute; so let's use that calculation here.
             if kernel is None:
-                delta = self.diag * self.solver.solve_triangular(
-                    alpha, transpose=True
-                )
+                delta = self.diag * alpha
                 mean_value = y - delta
                 if not include_mean:
                     mean_value -= self.loc
@@ -157,13 +159,12 @@ class GaussianProcess:
         # specified by a :class:`tinygp.means.Conditioned` and
         # :class:`tinygp.kernels.Conditioned` respectively.
         gp = GaussianProcess(
-            kernels.Conditioned(self.X, self.solver.scale_tril, kernel),
+            kernels.Conditioned(self.X, self.solver, kernel),
             X_test,
             diag=diag,
             mean=means.Conditioned(
                 self.X,
                 alpha,
-                self.solver.scale_tril,
                 kernel,
                 include_mean=include_mean,
                 mean_function=self.mean_function,  # type: ignore

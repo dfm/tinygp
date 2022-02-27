@@ -4,7 +4,7 @@ from __future__ import annotations
 
 __all__ = ["QuasisepSolver"]
 
-from typing import Any
+from typing import Any, Optional
 
 import jax.numpy as jnp
 import numpy as np
@@ -24,11 +24,20 @@ class QuasisepSolver(Solver):
 
     @classmethod
     def init(
-        cls, kernel: Kernel, X: JAXArray, diag: JAXArray
+        cls,
+        kernel: Kernel,
+        X: JAXArray,
+        diag: JAXArray,
+        *,
+        covariance: Optional[Any] = None,
     ) -> "QuasisepSolver":
-        assert isinstance(kernel, Quasisep)
-        matrix = kernel.to_qsm(X)
-        matrix += DiagQSM(d=jnp.broadcast_to(diag, matrix.diag.d.shape))
+        if covariance is None:
+            assert isinstance(kernel, Quasisep)
+            matrix = kernel.to_qsm(X)
+            matrix += DiagQSM(d=jnp.broadcast_to(diag, matrix.diag.d.shape))
+        else:
+            assert isinstance(covariance, SymmQSM)
+            matrix = covariance
         factor = matrix.cholesky()
         return cls(X=X, matrix=matrix, factor=factor)
 

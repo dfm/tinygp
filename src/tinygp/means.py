@@ -7,7 +7,6 @@ __all__ = ["Mean"]
 from typing import Callable, Optional, Union
 
 import jax
-from jax.scipy import linalg
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels import Kernel
@@ -54,7 +53,6 @@ class Conditioned:
         self,
         X: JAXArray,
         alpha: JAXArray,
-        scale_tril: JAXArray,
         kernel: Kernel,
         *,
         include_mean: bool,
@@ -62,18 +60,15 @@ class Conditioned:
     ):
         self.X = X
         self.alpha = alpha
-        self.scale_tril = scale_tril
         self.kernel = kernel
         self.include_mean = include_mean
         self.mean_function = mean_function
 
     def __call__(self, X: JAXArray) -> JAXArray:
-        Ks = jax.vmap(self.kernel.evaluate, in_axes=(0, None), out_axes=0)(
-            self.X, X
+        Ks = jax.vmap(self.kernel.evaluate, in_axes=(None, 0), out_axes=0)(
+            X, self.X
         )
-        mu = self.alpha @ linalg.solve_triangular(
-            self.scale_tril, Ks, lower=True
-        )
+        mu = Ks @ self.alpha
         if self.include_mean and self.mean_function is not None:
             mu += self.mean_function(X)
         return mu

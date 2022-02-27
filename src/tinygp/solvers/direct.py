@@ -4,42 +4,51 @@ from __future__ import annotations
 
 __all__ = ["DirectSolver"]
 
-from typing import Any
+from typing import Any, Optional
 
 import jax.numpy as jnp
 import numpy as np
 from jax.scipy import linalg
 
+from tinygp import kernels
 from tinygp.helpers import JAXArray, dataclass
-from tinygp.kernels import Kernel
 from tinygp.solvers.solver import Solver
 
 
 @dataclass
 class DirectSolver(Solver):
-    kernel: Kernel
     X: JAXArray
-    diag: JAXArray
+    variance_value: JAXArray
+    covariance_value: JAXArray
     scale_tril: JAXArray
 
     @classmethod
     def init(
-        cls, kernel: Kernel, X: JAXArray, diag: JAXArray
+        cls,
+        kernel: kernels.Kernel,
+        X: JAXArray,
+        diag: JAXArray,
+        *,
+        covariance: Optional[Any] = None,
     ) -> "DirectSolver":
-        covariance = construct_covariance(kernel, X, diag)
+        if covariance is None:
+            variance = kernel(X) + diag
+            covariance = construct_covariance(kernel, X, diag)
+        else:
+            variance = jnp.diag(covariance)
         scale_tril = linalg.cholesky(covariance, lower=True)
         return cls(
-            kernel=kernel,
             X=X,
-            diag=diag,
+            variance_value=variance,
+            covariance_value=covariance,
             scale_tril=scale_tril,
         )
 
     def variance(self) -> JAXArray:
-        return self.kernel(self.X)
+        return self.variance_value
 
     def covariance(self) -> Any:
-        return construct_covariance(self.kernel, self.X, self.diag)
+        return self.covariance_value
 
     def normalization(self) -> JAXArray:
         return jnp.sum(
@@ -61,7 +70,7 @@ class DirectSolver(Solver):
 
 
 def construct_covariance(
-    kernel: Kernel, X: JAXArray, diag: JAXArray
+    kernel: kernels.Kernel, X: JAXArray, diag: JAXArray
 ) -> JAXArray:
     covariance = kernel(X, X)
     covariance = covariance.at[jnp.diag_indices(covariance.shape[0])].add(diag)  # type: ignore

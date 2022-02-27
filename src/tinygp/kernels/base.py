@@ -14,13 +14,16 @@ __all__ = [
 ]
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
-from jax.scipy import linalg
 
 from tinygp.helpers import JAXArray
+
+if TYPE_CHECKING:
+    from tinygp.solvers.solver import Solver
+
 
 Axis = Union[int, Sequence[int]]
 
@@ -117,27 +120,21 @@ class Conditioned(Kernel):
             the kernel used by the original process.
     """
 
-    def __init__(self, X: JAXArray, scale_tril: JAXArray, kernel: Kernel):
+    def __init__(self, X: JAXArray, solver: Solver, kernel: Kernel):
         self.X = X
-        self.scale_tril = scale_tril
+        self.solver = solver
         self.kernel = kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
-        K1 = linalg.solve_triangular(
-            self.scale_tril, kernel_vec(self.X, X1), lower=True
-        )
-        K2 = linalg.solve_triangular(
-            self.scale_tril, kernel_vec(self.X, X2), lower=True
-        )
-        return self.kernel.evaluate(X1, X2) - K1.T @ K2
+        K1 = self.solver.solve_triangular(kernel_vec(self.X, X1))
+        K2 = self.solver.solve_triangular(kernel_vec(self.X, X2))
+        return self.kernel.evaluate(X1, X2) - K1.transpose() @ K2
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
-        K = linalg.solve_triangular(
-            self.scale_tril, kernel_vec(self.X, X), lower=True
-        )
-        return self.kernel.evaluate_diag(X) - K.T @ K
+        K = self.solver.solve_triangular(kernel_vec(self.X, X))
+        return self.kernel.evaluate_diag(X) - K.transpose() @ K
 
 
 class Custom(Kernel):

@@ -104,13 +104,13 @@ class Celerite(Quasisep):
             raise ValueError("Only 1D inputs are supported")
 
         @jax.vmap
-        def impl(dt):  # type: ignore
+        def impl(dt: JAXArray) -> JAXArray:
             cos = jnp.cos(self.d * dt)
             sin = jnp.sin(self.d * dt)
             return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]])
 
         dt = jnp.append(0, jnp.diff(X))
-        a = impl(dt)  # type: ignore
+        a = impl(dt)
         p = self.a * a[:, 0, :] + self.b * a[:, 1, :]
         q = jnp.stack((jnp.ones_like(dt), jnp.zeros_like(dt)), axis=-1)
 
@@ -316,7 +316,7 @@ class Matern52(Quasisep):
             raise ValueError("Only 1D inputs are supported")
 
         @jax.vmap
-        def impl(dt):  # type: ignore
+        def impl(dt: JAXArray) -> JAXArray:
             f2 = jnp.square(f)
             d2 = jnp.square(dt)
             return jnp.exp(-f * dt) * jnp.array(
@@ -341,7 +341,7 @@ class Matern52(Quasisep):
 
         f = np.sqrt(5) / self.scale
         dt = jnp.append(0, jnp.diff(X))
-        a = impl(dt)  # type: ignore
+        a = impl(dt)
 
         # In SDE notation, p_k = (1, 0, 0) @ P_inf @ phi_k
         p = jnp.square(self.sigma) * (

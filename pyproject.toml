@@ -27,3 +27,6 @@ source = ["src", "*/site-packages"]
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.pycln]
+all = true

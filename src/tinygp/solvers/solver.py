@@ -5,7 +5,7 @@ from __future__ import annotations
 __all__ = ["Solver"]
 
 from abc import ABCMeta, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels import Kernel
@@ -16,7 +16,14 @@ class Solver(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def init(cls, kernel: Kernel, X: JAXArray, diag: JAXArray) -> "Solver":
+    def init(
+        cls,
+        kernel: Kernel,
+        X: JAXArray,
+        diag: JAXArray,
+        *,
+        covariance: Optional[Any] = None,
+    ) -> "Solver":
         raise NotImplementedError
 
     @abstractmethod
