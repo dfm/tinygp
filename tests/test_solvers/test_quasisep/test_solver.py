@@ -7,9 +7,8 @@ import pytest
 
 from tinygp import GaussianProcess
 from tinygp import kernels as base_kernels
-from tinygp.solvers.direct import DirectSolver
+from tinygp.solvers import DirectSolver, QuasisepSolver
 from tinygp.solvers.quasisep import kernels
-from tinygp.solvers.quasisep.solver import QuasisepSolver
 
 
 @pytest.fixture

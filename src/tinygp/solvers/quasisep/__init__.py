@@ -1,21 +1,6 @@
 # -*- coding: utf-8 -*-
 
-__all__ = [
-    "DiagQSM",
-    "StrictLowerTriQSM",
-    "StrictUpperTriQSM",
-    "LowerTriQSM",
-    "UpperTriQSM",
-    "SquareQSM",
-    "SymmQSM",
-]
+__all__ = ["kernels", "QuasisepSolver"]
 
-from tinygp.solvers.quasisep.core import (
-    DiagQSM,
-    LowerTriQSM,
-    SquareQSM,
-    StrictLowerTriQSM,
-    StrictUpperTriQSM,
-    SymmQSM,
-    UpperTriQSM,
-)
+from tinygp.solvers.quasisep import kernels
+from tinygp.solvers.quasisep.solver import QuasisepSolver

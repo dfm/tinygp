@@ -12,9 +12,8 @@ import jax.numpy as jnp
 
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
-from tinygp.solvers.direct import DirectSolver
+from tinygp.solvers import DirectSolver, QuasisepSolver
 from tinygp.solvers.quasisep.kernels import Quasisep
-from tinygp.solvers.quasisep.solver import QuasisepSolver
 
 
 class GaussianProcess:

@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from tinygp.solvers.quasisep import (
+from tinygp.solvers.quasisep.core import (
     DiagQSM,
     LowerTriQSM,
     SquareQSM,
