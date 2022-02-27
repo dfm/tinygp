@@ -116,6 +116,43 @@ def get_matrices(name):
     return diag, p, q, a, v, m, l, u
 
 
+def test_quasisep_def():
+    random = np.random.default_rng(2022)
+    n = 17
+    m1 = 3
+    m2 = 5
+    d = random.normal(size=n)
+    p = random.normal(size=(n, m1))
+    q = random.normal(size=(n, m1))
+    a = random.normal(size=(n, m1, m1))
+    g = random.normal(size=(n, m2))
+    h = random.normal(size=(n, m2))
+    b = random.normal(size=(n, m2, m2))
+    m = SquareQSM(
+        diag=DiagQSM(d=d),
+        lower=StrictLowerTriQSM(p=p, q=q, a=a),
+        upper=StrictUpperTriQSM(p=g, q=h, a=b),
+    ).to_dense()
+
+    def get_value(i, j):
+        if i == j:
+            return d[i]
+        if j < i:
+            tmp = np.copy(q[j])
+            for k in range(j + 1, i):
+                tmp = a[k] @ tmp
+            return p[i] @ tmp
+        if j > i:
+            tmp = np.copy(h[i])
+            for k in range(i + 1, j):
+                tmp = tmp @ b[k].T
+            return tmp @ g[j]
+
+    for i in range(n):
+        for j in range(n):
+            np.testing.assert_allclose(get_value(i, j), m[i, j])
+
+
 def test_strict_tri_matmul(matrices):
     _, p, q, a, v, m, l, u = matrices
     mat = StrictLowerTriQSM(p=p, q=q, a=a)
