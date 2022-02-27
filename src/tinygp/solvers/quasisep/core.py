@@ -29,14 +29,9 @@ def handle_matvec_shapes(
 ) -> Callable[[Any, JAXArray], JAXArray]:
     @wraps(func)
     def wrapped(self: Any, x: JAXArray) -> JAXArray:
-        vector = False
-        if jnp.ndim(x) == 1:
-            vector = True
-            x = x[:, None]
-        result = func(self, x)
-        if vector:
-            return result[:, 0]
-        return result
+        output_shape = x.shape
+        result = func(self, jnp.reshape(x, (output_shape[0], -1)))
+        return jnp.reshape(result, output_shape)
 
     return wrapped
 

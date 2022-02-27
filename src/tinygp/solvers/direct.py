@@ -4,6 +4,8 @@ from __future__ import annotations
 
 __all__ = ["DirectSolver"]
 
+from typing import Any
+
 import jax.numpy as jnp
 import numpy as np
 from jax.scipy import linalg
@@ -24,7 +26,6 @@ class DirectSolver(Solver):
     def init(
         cls, kernel: Kernel, X: JAXArray, diag: JAXArray
     ) -> "DirectSolver":
-        diag = jnp.zeros(()) if diag is None else diag
         covariance = construct_covariance(kernel, X, diag)
         scale_tril = linalg.cholesky(covariance, lower=True)
         return cls(
@@ -37,7 +38,7 @@ class DirectSolver(Solver):
     def variance(self) -> JAXArray:
         return self.kernel(self.X)
 
-    def covariance(self) -> JAXArray:
+    def covariance(self) -> Any:
         return construct_covariance(self.kernel, self.X, self.diag)
 
     def normalization(self) -> JAXArray:

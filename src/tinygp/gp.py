@@ -13,6 +13,8 @@ import jax.numpy as jnp
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
 from tinygp.solvers.direct import DirectSolver
+from tinygp.solvers.quasisep.kernels import Quasisep
+from tinygp.solvers.quasisep.solver import QuasisepSolver
 
 
 class GaussianProcess:
@@ -48,7 +50,10 @@ class GaussianProcess:
 
         # Set up the solver, defaulting to a simple direct solver
         if solver is None:
-            solver = DirectSolver
+            if isinstance(kernel, Quasisep):
+                solver = QuasisepSolver
+            else:
+                solver = DirectSolver
         self.solver = solver.init(kernel, self.X, self.diag)
 
         # Parse the mean function

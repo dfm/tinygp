@@ -5,7 +5,7 @@ from __future__ import annotations
 __all__ = ["Solver"]
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels import Kernel
@@ -24,7 +24,7 @@ class Solver(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def covariance(self) -> JAXArray:
+    def covariance(self) -> Any:
         raise NotImplementedError
 
     @abstractmethod

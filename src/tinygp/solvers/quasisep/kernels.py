@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__all__ = ["Quasisep", "Celerite", "Matern32", "Matern52"]
+__all__ = ["Quasisep", "Celerite", "Exp", "Matern32", "Matern52"]
 
 from abc import ABCMeta, abstractmethod
 from typing import Union
