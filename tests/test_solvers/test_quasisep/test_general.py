@@ -33,12 +33,12 @@ def test_lower_matmul():
 
         r = np.abs(x1[:, None] - x2[None, :]) / scale
         arg = np.sqrt(3) * r
-        K = sigma ** 2 * (1 + arg) * np.exp(-arg)
+        K = sigma**2 * (1 + arg) * np.exp(-arg)
         K[x1[:, None] < x2[None, :]] = 0.0
 
         a = get_a(jnp.append(0, jnp.diff(x2)))
         q = jnp.stack((jnp.ones_like(x2), jnp.zeros_like(x2)), axis=-1)
-        p = sigma ** 2 * get_a(x1 - x2[idx])[:, 0, :]
+        p = sigma**2 * get_a(x1 - x2[idx])[:, 0, :]
         m = LowerGQSM(p=p, q=q, a=a, idx=idx)
         np.testing.assert_allclose(m.matmul(y), K @ y)
 
@@ -66,13 +66,13 @@ def test_upper_matmul():
 
     r = np.abs(x1[:, None] - x2[None, :]) / scale
     arg = np.sqrt(3) * r
-    K = sigma ** 2 * (1 + arg) * np.exp(-arg)
+    K = sigma**2 * (1 + arg) * np.exp(-arg)
     K[x1[:, None] >= x2[None, :]] = 0.0
 
     a = get_a(jnp.append(0, jnp.diff(x2)))
     p = a[:, 0, :]
     # p = jnp.stack((jnp.ones_like(x2), jnp.zeros_like(x2)), axis=-1)
-    q = sigma ** 2 * get_a(x2[idx] - x1)[:, :, 0]
+    q = sigma**2 * get_a(x2[idx] - x1)[:, :, 0]
     m = UpperGQSM(p=p, q=q, a=a, idx=idx)
     # print(m.matmul(y)[:, 0])
     # print((K @ y)[:, 0])
