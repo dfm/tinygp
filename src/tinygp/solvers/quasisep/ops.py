@@ -68,7 +68,7 @@ def qsm_mul(a: QSM, b: QSM) -> Optional[QSM]:
             a, b, q, g = data
             return a @ phi @ b.T + jnp.outer(q, g), phi
 
-        init = jnp.zeros_like(jnp.outer(lower_a.q[0], upper_b.p[0]))
+        init = jnp.zeros_like(jnp.outer(lower_a.q[0], upper_b.q[0]))
         args = (lower_a.a, upper_b.a, lower_a.q, upper_b.q)
         _, phi = jax.lax.scan(calc_phi, init, args)
 
