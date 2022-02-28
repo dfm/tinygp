@@ -53,7 +53,7 @@ def test_consistent_with_direct(kernel_pair, data):
     gp1 = GaussianProcess(kernel1, x, diag=0.1, solver=QuasisepSolver)
     gp2 = GaussianProcess(kernel2, x, diag=0.1, solver=DirectSolver)
 
-    np.testing.assert_allclose(gp1.covariance.to_dense(), gp2.covariance)
+    np.testing.assert_allclose(gp1.covariance, gp2.covariance)
     np.testing.assert_allclose(
         gp1.solver.normalization(), gp2.solver.normalization()
     )

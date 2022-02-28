@@ -31,11 +31,9 @@ class DirectSolver(Solver):
         *,
         covariance: Optional[Any] = None,
     ) -> "DirectSolver":
+        variance = kernel(X) + diag
         if covariance is None:
-            variance = kernel(X) + diag
             covariance = construct_covariance(kernel, X, diag)
-        else:
-            variance = jnp.diag(covariance)
         scale_tril = linalg.cholesky(covariance, lower=True)
         return cls(
             X=X,
@@ -47,7 +45,7 @@ class DirectSolver(Solver):
     def variance(self) -> JAXArray:
         return self.variance_value
 
-    def covariance(self) -> Any:
+    def covariance(self) -> JAXArray:
         return self.covariance_value
 
     def normalization(self) -> JAXArray:
@@ -67,6 +65,28 @@ class DirectSolver(Solver):
 
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return jnp.einsum("ij,j...->i...", self.scale_tril, y)
+
+    def condition(
+        self,
+        kernel: kernels.Kernel,
+        X_test: Optional[JAXArray],
+        diag: Optional[JAXArray],
+    ) -> Any:
+        if X_test is None:
+            Ks = kernel(self.X, self.X)
+            if diag is None:
+                Kss = Ks
+            else:
+                Kss = construct_covariance(kernel, self.X, diag)
+        else:
+            if diag is None:
+                Kss = kernel(X_test, X_test)
+            else:
+                Kss = construct_covariance(kernel, X_test, diag)
+            Ks = kernel(self.X, X_test)
+
+        A = self.solve_triangular(Ks)
+        return Kss - A.transpose() @ A
 
 
 def construct_covariance(

@@ -31,7 +31,7 @@ class Solver(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def covariance(self) -> Any:
+    def covariance(self) -> JAXArray:
         raise NotImplementedError
 
     @abstractmethod
@@ -46,4 +46,13 @@ class Solver(metaclass=ABCMeta):
 
     @abstractmethod
     def dot_triangular(self, y: JAXArray) -> JAXArray:
+        raise NotImplementedError
+
+    @abstractmethod
+    def condition(
+        self,
+        kernel: Kernel,
+        X_test: Optional[JAXArray],
+        diag: Optional[JAXArray],
+    ) -> Any:
         raise NotImplementedError

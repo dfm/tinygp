@@ -33,7 +33,7 @@ class QuasisepSolver(Solver):
     ) -> "QuasisepSolver":
         if covariance is None:
             assert isinstance(kernel, Quasisep)
-            matrix = kernel.to_qsm(X)
+            matrix = kernel.to_symm_qsm(X)
             matrix += DiagQSM(d=jnp.broadcast_to(diag, matrix.diag.d.shape))
         else:
             assert isinstance(covariance, SymmQSM)
@@ -44,8 +44,8 @@ class QuasisepSolver(Solver):
     def variance(self) -> JAXArray:
         return self.matrix.diag.d
 
-    def covariance(self) -> Any:
-        return self.matrix
+    def covariance(self) -> JAXArray:
+        return self.matrix.to_dense()
 
     def normalization(self) -> JAXArray:
         return jnp.sum(jnp.log(self.factor.diag.d)) + 0.5 * self.factor.shape[
@@ -62,3 +62,28 @@ class QuasisepSolver(Solver):
 
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return self.factor @ y
+
+    def condition(
+        self,
+        kernel: Kernel,
+        X_test: Optional[JAXArray],
+        diag: Optional[JAXArray],
+    ) -> Any:
+        # We can easily compute the conditional as a QSM in the special case
+        # where we are predicting at the input coordinates and a Quasisep kernel
+        if X_test is None and isinstance(kernel, Quasisep):
+            M = kernel.to_symm_qsm(self.X)
+            delta = (self.factor.inv() @ M).gram()
+            if diag is not None:
+                M += DiagQSM(d=jnp.broadcast_to(diag, M.diag.d.shape))
+            return M - delta
+
+        # Otherwise fall back on the slow method :(
+        if X_test is None:
+            Kss = Ks = kernel(self.X, self.X)
+        else:
+            Kss = kernel(X_test, X_test)
+            Ks = kernel(self.X, X_test)
+
+        A = self.solve_triangular(Ks)
+        return Kss - A.transpose() @ A

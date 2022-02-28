@@ -13,6 +13,7 @@ import jax.numpy as jnp
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
 from tinygp.solvers import DirectSolver, QuasisepSolver
+from tinygp.solvers.quasisep.core import SymmQSM
 from tinygp.solvers.quasisep.kernels import Quasisep
 
 
@@ -49,7 +50,9 @@ class GaussianProcess:
         self.diag = jnp.zeros(()) if diag is None else diag
 
         if solver is None:
-            if isinstance(kernel, Quasisep):
+            if isinstance(covariance_value, SymmQSM) or isinstance(
+                kernel, Quasisep
+            ):
                 solver = QuasisepSolver
             else:
                 solver = DirectSolver
@@ -133,27 +136,17 @@ class GaussianProcess:
             distribution evaluated at ``X_test``.
         """
 
-        alpha = self._get_alpha(y)
-        log_prob = self._compute_log_prob(alpha)
-
-        # Below, we actually want alpha = K^-1 y instead of alpha = L^-1 y
-        alpha = self.solver.solve_triangular(alpha, transpose=True)
-
-        mean_value = None
-        if X_test is None:
-            X_test = self.X
-
-            # In this common case (where we're predicting the GP at the data
-            # points, using the original kernel), the mean is especially fast to
-            # compute; so let's use that calculation here.
-            if kernel is None:
-                delta = self.diag * alpha
-                mean_value = y - delta
-                if not include_mean:
-                    mean_value -= self.loc
+        alpha, log_prob, mean_value = self._condition(
+            y, X_test, include_mean, kernel
+        )
 
         if kernel is None:
             kernel = self.kernel
+
+        covariance_value = self.solver.condition(kernel, X_test, diag)
+
+        if X_test is None:
+            X_test = self.X
 
         # The conditional GP will also be a GP with the mean an covariance
         # specified by a :class:`tinygp.means.Conditioned` and
@@ -170,6 +163,7 @@ class GaussianProcess:
                 mean_function=self.mean_function,  # type: ignore
             ),
             mean_value=mean_value,
+            covariance_value=covariance_value,
         )
 
         return ConditionResult(log_prob, gp)
@@ -280,6 +274,47 @@ class GaussianProcess:
     @partial(jax.jit, static_argnums=0)
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return self.solver.solve_triangular(y - self.loc)
+
+    @partial(jax.jit, static_argnums=(0, 3, 4))
+    def _condition(
+        self,
+        y: JAXArray,
+        X_test: Optional[JAXArray],
+        include_mean: bool,
+        kernel: Optional[kernels.Kernel] = None,
+    ) -> Tuple[JAXArray, JAXArray, JAXArray]:
+        alpha = self._get_alpha(y)
+        log_prob = self._compute_log_prob(alpha)
+
+        # Below, we actually want alpha = K^-1 y instead of alpha = L^-1 y
+        alpha = self.solver.solve_triangular(alpha, transpose=True)
+
+        if X_test is None:
+            X_test = self.X
+
+            # In this common case (where we're predicting the GP at the data
+            # points, using the original kernel), the mean is especially fast to
+            # compute; so let's use that calculation here.
+            if kernel is None:
+                delta = self.diag * alpha
+                mean_value = y - delta
+                if not include_mean:
+                    mean_value -= self.loc
+
+            else:
+                mean_value = self.kernel.matmul(self.X, y=alpha)
+                if include_mean:
+                    mean_value += self.loc
+
+        else:
+            if kernel is None:
+                kernel = self.kernel
+
+            mean_value = self.kernel.matmul(X_test, self.X, alpha)
+            if include_mean:
+                mean_value += self.mean_function(X_test)
+
+        return alpha, log_prob, mean_value
 
 
 class ConditionResult(NamedTuple):

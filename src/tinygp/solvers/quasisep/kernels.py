@@ -5,7 +5,7 @@ from __future__ import annotations
 __all__ = ["Quasisep", "Celerite", "SHO", "Exp", "Matern32", "Matern52"]
 
 from abc import ABCMeta, abstractmethod
-from typing import Union
+from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -15,6 +15,7 @@ from jax.scipy.linalg import block_diag
 from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
+from tinygp.solvers.quasisep.general import GeneralQSM
 
 
 class Quasisep(Kernel, metaclass=ABCMeta):
@@ -30,7 +31,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
     def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         raise NotImplementedError
 
-    def to_qsm(self, X: JAXArray) -> SymmQSM:
+    def to_symm_qsm(self, X: JAXArray) -> SymmQSM:
         a = jax.vmap(self.A)(
             jax.tree_util.tree_map(lambda y: jnp.append(X[0], X[:-1]), X), X
         )
@@ -41,6 +42,47 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         return SymmQSM(
             diag=DiagQSM(d=d), lower=StrictLowerTriQSM(p=p, q=q, a=a)
         )
+
+    def to_general_qsm(self, X1: JAXArray, X2: JAXArray) -> GeneralQSM:
+        sortable = jax.vmap(self.coord_to_sortable)
+        idx = jnp.searchsorted(sortable(X1), sortable(X2), side="right") - 1
+
+        Xs = jax.tree_util.tree_map(lambda x: np.append(x[0], x[:-1]), X2)
+        a = jax.vmap(self.A)(Xs, X2)
+        ql = jax.vmap(self.q)(X2)
+        pl = jax.vmap(self.p)(X1)
+        qu = jax.vmap(self.q)(X1)
+        pu = jax.vmap(self.p)(X2)
+
+        i = jnp.clip(idx, 0, ql.shape[0] - 1)
+        Xi = jax.tree_util.tree_map(lambda x: x[i], X2)
+        pl = jax.vmap(jnp.dot)(pl, jax.vmap(self.A)(Xi, X1))
+
+        i = jnp.clip(idx + 1, 0, pu.shape[0] - 1)
+        Xi = jax.tree_util.tree_map(lambda x: x[i], X2)
+        qu = jax.vmap(jnp.dot)(jax.vmap(self.A)(X1, Xi), qu)
+
+        return GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)
+
+    def matmul(
+        self,
+        X1: JAXArray,
+        X2: Optional[JAXArray] = None,
+        y: Optional[JAXArray] = None,
+    ) -> JAXArray:
+        if y is None:
+            assert X2 is not None
+            y = X2
+            X2 = None
+
+        if X2 is None:
+            return self.to_symm_qsm(X1) @ y
+
+        else:
+            return self.to_general_qsm(X1, X2) @ y
+
+    def coord_to_sortable(self, X: JAXArray) -> JAXArray:
+        return X
 
     def __add__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
         if not isinstance(other, Quasisep):

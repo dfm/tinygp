@@ -1,75 +1,36 @@
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
-from itertools import combinations
-
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
-from tinygp.solvers.quasisep.general import LowerGQSM, UpperGQSM
+from tinygp.solvers.quasisep import kernels
+from tinygp.solvers.quasisep.general import GeneralQSM
 
 
-def test_lower_matmul():
+def test_matmul():
     random = np.random.default_rng(1234)
-
-    sigma = 1.5
-    scale = 3.4
-    f = np.sqrt(3) / scale
-
-    @jax.vmap
-    def get_a(dt):
-        return jnp.exp(-f * dt) * jnp.array(
-            [[1 + f * dt, dt], [-jnp.square(f) * dt, 1 - f * dt]]
-        )
-
     x1 = np.sort(random.uniform(0, 10, 100))
     x2 = np.sort(random.uniform(2, 8, 75))
+    kernel = kernels.Matern52(sigma=1.5, scale=3.4)
 
     for (x1, x2) in [(x1, x2), (x1, x1), (x2, x1)]:
-        idx = np.searchsorted(x2, x1, side="right") - 1
         y = np.sin(x2)[:, None]
+        K = kernel(x1, x2)
 
-        r = np.abs(x1[:, None] - x2[None, :]) / scale
-        arg = np.sqrt(3) * r
-        K = sigma**2 * (1 + arg) * np.exp(-arg)
-        K[x1[:, None] < x2[None, :]] = 0.0
+        idx = jnp.searchsorted(x2, x1, side="right") - 1
+        a = jax.vmap(kernel.A)(np.append(x2[0], x2[:-1]), x2)
+        ql = jax.vmap(kernel.q)(x2)
+        pl = jax.vmap(kernel.p)(x1)
+        qu = jax.vmap(kernel.q)(x1)
+        pu = jax.vmap(kernel.p)(x2)
 
-        a = get_a(jnp.append(0, jnp.diff(x2)))
-        q = jnp.stack((jnp.ones_like(x2), jnp.zeros_like(x2)), axis=-1)
-        p = sigma**2 * get_a(x1 - x2[idx])[:, 0, :]
-        m = LowerGQSM(p=p, q=q, a=a, idx=idx)
-        np.testing.assert_allclose(m.matmul(y), K @ y)
+        i = jnp.clip(idx, 0, x2.shape[0] - 1)
+        pl = jax.vmap(jnp.dot)(pl, jax.vmap(kernel.A)(x2[i], x1))
 
+        i = jnp.clip(idx + 1, 0, x2.shape[0] - 1)
+        qu = jax.vmap(jnp.dot)(jax.vmap(kernel.A)(x1, x2[i]), qu)
 
-def test_upper_matmul():
-    random = np.random.default_rng(1234)
-
-    sigma = 1.5
-    scale = 3.4
-    f = np.sqrt(3) / scale
-
-    @jax.vmap
-    def get_a(dt):
-        return jnp.exp(-f * dt) * jnp.array(
-            [[1 + f * dt, dt], [-jnp.square(f) * dt, 1 - f * dt]]
-        )
-
-    x1 = np.sort(random.uniform(0, 10, 100))
-    x2 = np.sort(random.uniform(2, 8, 75))
-
-    for (x1, x2) in [(x1, x2), (x1, x1), (x2, x1)]:
-        idx = np.searchsorted(x2, x1, side="right")
-        y = np.sin(x2)[:, None]
-
-        r = np.abs(x1[:, None] - x2[None, :]) / scale
-        arg = np.sqrt(3) * r
-        K = sigma**2 * (1 + arg) * np.exp(-arg)
-        K[x1[:, None] >= x2[None, :]] = 0.0
-
-        a = get_a(jnp.append(jnp.diff(x2), 0))
-        p = jnp.stack((jnp.ones_like(x2), jnp.zeros_like(x2)), axis=-1)
-        q = sigma**2 * get_a(x2[np.minimum(idx, len(x2) - 1)] - x1)[:, :, 0]
-        m = UpperGQSM(p=p, q=q, a=a, idx=idx)
-        np.testing.assert_allclose(m.matmul(y), K @ y)
+        mat = GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)
+        np.testing.assert_allclose(mat.matmul(y), K @ y)

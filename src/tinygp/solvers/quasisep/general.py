@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-__all__ = ["LowerGQSM"]
+__all__ = ["GeneralQSM"]
 
-from typing import Tuple
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Callable, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -12,51 +13,69 @@ import jax.numpy as jnp
 from tinygp.helpers import JAXArray, dataclass
 
 
+def handle_matvec_shapes(
+    func: Callable[[Any, JAXArray], JAXArray]
+) -> Callable[[Any, JAXArray], JAXArray]:
+    @wraps(func)
+    def wrapped(self: Any, x: JAXArray) -> JAXArray:
+        output_shape = (-1,) + x.shape[1:]
+        result = func(self, jnp.reshape(x, (x.shape[0], -1)))
+        return jnp.reshape(result, output_shape)
+
+    return wrapped
+
+
 @dataclass
-class LowerGQSM:
-    p: JAXArray
-    q: JAXArray
+class GeneralQSM:
+    pl: JAXArray
+    ql: JAXArray
+    pu: JAXArray
+    qu: JAXArray
     a: JAXArray
     idx: JAXArray
 
+    if TYPE_CHECKING:
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
     @property
     def shape(self) -> Tuple[int, int]:
-        return (self.p.shape[0], self.q.shape[0])
+        return (self.pl.shape[0], self.ql.shape[0])
 
     @jax.jit
+    @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
-        def impl(f, data):  # type: ignore
+        # Use a forward pass to dot the "lower" matrix
+        def forward(f, data):  # type: ignore
             q, a, x = data
             fn = a @ f + jnp.outer(q, x)
             return fn, fn
 
-        init = jnp.zeros_like(jnp.outer(self.q[0], x[0]))
-        _, f = jax.lax.scan(impl, init, (self.q, self.a, x))
+        init = jnp.zeros_like(jnp.outer(self.ql[0], x[0]))
+        _, f = jax.lax.scan(forward, init, (self.ql, self.a, x))
         idx = jnp.clip(self.idx, 0, f.shape[0] - 1)
         mask = jnp.logical_and(self.idx >= 0, self.idx < f.shape[0])
-        return jax.vmap(jnp.dot)(jnp.where(mask[:, None], self.p, 0), f[idx])
+        lower = jax.vmap(jnp.dot)(jnp.where(mask[:, None], self.pl, 0), f[idx])
 
-
-@dataclass
-class UpperGQSM:
-    p: JAXArray
-    q: JAXArray
-    a: JAXArray
-    idx: JAXArray
-
-    @property
-    def shape(self) -> Tuple[int, int]:
-        return (self.q.shape[0], self.p.shape[0])
-
-    @jax.jit
-    def matmul(self, x: JAXArray) -> JAXArray:
-        def impl(f, data):  # type: ignore
+        # Then a backward pass to apply the "upper" matrix
+        def backward(f, data):  # type: ignore
             p, a, x = data
             fn = a.T @ f + jnp.outer(p, x)
             return fn, fn
 
-        init = jnp.zeros_like(jnp.outer(self.p[-1], x[-1]))
-        _, f = jax.lax.scan(impl, init, (self.p, self.a, x), reverse=True)
-        idx = jnp.clip(self.idx, 0, f.shape[0] - 1)
-        mask = jnp.logical_and(self.idx >= 0, self.idx < f.shape[0])
-        return jax.vmap(jnp.dot)(jnp.where(mask[:, None], self.q, 0), f[idx])
+        init = jnp.zeros_like(jnp.outer(self.pu[-1], x[-1]))
+        _, f = jax.lax.scan(
+            backward,
+            init,
+            (self.pu, jnp.roll(self.a, -1, axis=0), x),
+            reverse=True,
+        )
+        idx = jnp.clip(self.idx + 1, 0, f.shape[0] - 1)
+        mask = jnp.logical_and(self.idx >= -1, self.idx < f.shape[0] - 1)
+        upper = jax.vmap(jnp.dot)(jnp.where(mask[:, None], self.qu, 0), f[idx])
+
+        return lower + upper
+
+    def __matmul__(self, other: Any) -> Any:
+        return self.matmul(other)

@@ -38,7 +38,7 @@ def kernel(request):
     return request.param
 
 
-def test_to_qsm(data, kernel):
+def test_to_symm_qsm(data, kernel):
     np.testing.assert_allclose(
-        kernel.to_qsm(data).to_dense(), kernel(data, data)
+        kernel.to_symm_qsm(data).to_dense(), kernel(data, data)
     )

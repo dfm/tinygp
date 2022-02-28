@@ -65,6 +65,22 @@ class Kernel(metaclass=ABCMeta):
         """
         return self.evaluate(X, X)
 
+    def matmul(
+        self,
+        X1: JAXArray,
+        X2: Optional[JAXArray] = None,
+        y: Optional[JAXArray] = None,
+    ) -> JAXArray:
+        if y is None:
+            assert X2 is not None
+            y = X2
+            X2 = None
+
+        if X2 is None:
+            X2 = X1
+
+        return jnp.dot(self(X1, X2), y)
+
     def __call__(
         self, X1: JAXArray, X2: Optional[JAXArray] = None
     ) -> JAXArray:
