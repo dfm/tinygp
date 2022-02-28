@@ -312,7 +312,7 @@ class GaussianProcess:
                     mean_value -= self.loc
 
             else:
-                mean_value = self.kernel.matmul(self.X, y=alpha)
+                mean_value = kernel.matmul(self.X, y=alpha)
                 if include_mean:
                     mean_value += self.loc
 
@@ -320,7 +320,7 @@ class GaussianProcess:
             if kernel is None:
                 kernel = self.kernel
 
-            mean_value = self.kernel.matmul(X_test, self.X, alpha)
+            mean_value = kernel.matmul(X_test, self.X, alpha)
             if include_mean:
                 mean_value += self.mean_function(X_test)
 

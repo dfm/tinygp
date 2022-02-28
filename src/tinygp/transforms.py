@@ -10,7 +10,7 @@ from typing import Any, Callable, Sequence, Union
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray, dataclass, field
 from tinygp.kernels import Kernel
 
 
@@ -86,23 +86,20 @@ class Cholesky(Kernel):
 
     Args:
         factor (JAXArray): A 0-, 1-, or 2-dimensional array specifying the
-            Cholesky factor. If 2-dimensional, this must be a lower or
-            upper triangular matrix as specified by ``lower``, but this is
-            not checked.
+            Cholesky factor. If 2-dimensional, this must be a lower
+            triangular matrix, but this is not checked.
         kernel (Kernel): The kernel to use in the transformed space.
-        lower: (bool, optional): Is ``factor`` lower (vs upper) triangular.
     """
 
     factor: JAXArray
     kernel: Kernel
-    lower: bool = True
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         if jnp.ndim(self.factor) < 2:
             transform = partial(jnp.multiply, 1.0 / self.factor)
         elif jnp.ndim(self.factor) == 2:
             transform = partial(
-                linalg.solve_triangular, self.factor, lower=self.factor
+                linalg.solve_triangular, self.factor, lower=True
             )
         else:
             raise ValueError("'scale' must be 0-, 1-, or 2-dimensional")
@@ -132,7 +129,7 @@ class Cholesky(Kernel):
         factor = jnp.zeros((ndim, ndim))
         factor = factor.at[jnp.diag_indices(ndim)].add(diagonal)
         factor = factor.at[jnp.tril_indices(ndim, -1)].add(off_diagonal)
-        return cls(factor, kernel, lower=True)
+        return cls(factor, kernel)
 
 
 @dataclass

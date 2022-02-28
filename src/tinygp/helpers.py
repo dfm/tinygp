@@ -76,5 +76,5 @@ def dataclass(clz: _T) -> _T:
     return data_clz
 
 
-def field(pytree_node=True, **kwargs):
+def field(pytree_node: bool = True, **kwargs: Any) -> Any:
     return dataclasses.field(metadata={"pytree_node": pytree_node}, **kwargs)
