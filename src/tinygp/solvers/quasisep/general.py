@@ -53,10 +53,10 @@ class UpperGQSM:
         def impl(f, data):  # type: ignore
             p, a, x = data
             fn = a.T @ f + jnp.outer(p, x)
-            return fn, f
+            return fn, fn
 
         init = jnp.zeros_like(jnp.outer(self.p[-1], x[-1]))
         _, f = jax.lax.scan(impl, init, (self.p, self.a, x), reverse=True)
         idx = jnp.clip(self.idx, 0, f.shape[0] - 1)
-        mask = self.idx < f.shape[0]
+        mask = jnp.logical_and(self.idx >= 0, self.idx < f.shape[0])
         return jax.vmap(jnp.dot)(jnp.where(mask[:, None], self.q, 0), f[idx])
