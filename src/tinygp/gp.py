@@ -5,7 +5,16 @@ from __future__ import annotations
 __all__ = ["GaussianProcess"]
 
 from functools import partial
-from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -15,6 +24,9 @@ from tinygp.helpers import JAXArray
 from tinygp.solvers import DirectSolver, QuasisepSolver
 from tinygp.solvers.quasisep.core import SymmQSM
 from tinygp.solvers.quasisep.kernels import Quasisep
+
+if TYPE_CHECKING:
+    from tinygp.numpyro_support import TinyDistribution
 
 
 class GaussianProcess:
@@ -160,7 +172,7 @@ class GaussianProcess:
                 alpha,
                 kernel,
                 include_mean=include_mean,
-                mean_function=self.mean_function,  # type: ignore
+                mean_function=self.mean_function,
             ),
             mean_value=mean_value,
             covariance_value=covariance_value,
@@ -241,13 +253,11 @@ class GaussianProcess:
         """
         return self._sample(key, shape)
 
-    def numpyro_dist(self, **kwargs):  # type: ignore
+    def numpyro_dist(self, **kwargs: Any) -> "TinyDistribution":
         """Get the numpyro MultivariateNormal distribution for this process"""
-        import numpyro.distributions as dist
+        from tinygp.numpyro_support import TinyDistribution
 
-        return dist.MultivariateNormal(
-            loc=self.loc, scale_tril=self.solver.scale_tril, **kwargs
-        )
+        return TinyDistribution(self, **kwargs)  # type: ignore
 
     @partial(jax.jit, static_argnums=(0, 2))
     def _sample(
@@ -275,7 +285,7 @@ class GaussianProcess:
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return self.solver.solve_triangular(y - self.loc)
 
-    @partial(jax.jit, static_argnums=(0, 3, 4))
+    @partial(jax.jit, static_argnums=(0, 3))
     def _condition(
         self,
         y: JAXArray,

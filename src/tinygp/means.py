@@ -4,7 +4,7 @@ from __future__ import annotations
 
 __all__ = ["Mean"]
 
-from typing import Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 import jax
 
@@ -25,6 +25,11 @@ class Mean:
     """
 
     value: Union[JAXArray, Callable[[JAXArray], JAXArray]]
+
+    if TYPE_CHECKING:
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
 
     def __call__(self, X: JAXArray) -> JAXArray:
         if callable(self.value):
@@ -55,6 +60,11 @@ class Conditioned:
     kernel: Kernel
     include_mean: bool
     mean_function: Optional[Mean] = None
+
+    if TYPE_CHECKING:
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
 
     def __call__(self, X: JAXArray) -> JAXArray:
         Ks = jax.vmap(self.kernel.evaluate, in_axes=(None, 0), out_axes=0)(
