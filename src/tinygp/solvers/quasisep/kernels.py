@@ -33,7 +33,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
 
     def to_symm_qsm(self, X: JAXArray) -> SymmQSM:
         a = jax.vmap(self.A)(
-            jax.tree_util.tree_map(lambda y: jnp.append(X[0], X[:-1]), X), X
+            jax.tree_util.tree_map(lambda y: jnp.append(y[0], y[:-1]), X), X
         )
         q = jax.vmap(self.q)(X)
         p = jax.vmap(self.p)(X)
@@ -45,7 +45,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
 
     def to_general_qsm(self, X1: JAXArray, X2: JAXArray) -> GeneralQSM:
         sortable = jax.vmap(self.coord_to_sortable)
-        idx = jnp.searchsorted(sortable(X1), sortable(X2), side="right") - 1
+        idx = jnp.searchsorted(sortable(X2), sortable(X1), side="right") - 1
 
         Xs = jax.tree_util.tree_map(lambda x: np.append(x[0], x[:-1]), X2)
         a = jax.vmap(self.A)(Xs, X2)
@@ -55,11 +55,11 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         pu = jax.vmap(self.p)(X2)
 
         i = jnp.clip(idx, 0, ql.shape[0] - 1)
-        Xi = jax.tree_util.tree_map(lambda x: x[i], X2)
+        Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
         pl = jax.vmap(jnp.dot)(pl, jax.vmap(self.A)(Xi, X1))
 
         i = jnp.clip(idx + 1, 0, pu.shape[0] - 1)
-        Xi = jax.tree_util.tree_map(lambda x: x[i], X2)
+        Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
         qu = jax.vmap(jnp.dot)(jax.vmap(self.A)(X1, Xi), qu)
 
         return GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)

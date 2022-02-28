@@ -4,8 +4,10 @@ from __future__ import annotations
 
 __all__ = ["QuasisepSolver"]
 
+from functools import partial
 from typing import Any, Optional
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -63,6 +65,7 @@ class QuasisepSolver(Solver):
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return self.factor @ y
 
+    @partial(jax.jit, static_argnums=(1,))
     def condition(
         self,
         kernel: Kernel,
@@ -78,7 +81,7 @@ class QuasisepSolver(Solver):
                 M += DiagQSM(d=jnp.broadcast_to(diag, M.diag.d.shape))
             return M - delta
 
-        # Otherwise fall back on the slow method :(
+        # Otherwise fall back on the slow method for now :(
         if X_test is None:
             Kss = Ks = kernel(self.X, self.X)
         else:

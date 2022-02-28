@@ -346,8 +346,11 @@ class SquareQSM(QSM):
             upper=self.upper.scale(other),
         )
 
-    def gram(self) -> "QSM":
-        return self.transpose() @ self
+    def gram(self) -> "SymmQSM":
+        # We know that this must result in symmetric matrix, but that won't be
+        # enforced; we make it so!
+        M = self.transpose() @ self
+        return SymmQSM(diag=M.diag, lower=M.lower)
 
     @jax.jit
     def inv(self) -> "SquareQSM":
