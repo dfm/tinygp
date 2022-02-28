@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Union
 import jax
 import jax.numpy as jnp
 
-from tinygp.helpers import JAXArray
+from tinygp.helpers import JAXArray, dataclass
 
 if TYPE_CHECKING:
     from tinygp.solvers.solver import Solver
@@ -35,6 +35,11 @@ class Kernel(metaclass=ABCMeta):
     Subclasses should accept parameters in their ``__init__`` and then override
     :func:`Kernel.evaluate` with custom behavior.
     """
+
+    if TYPE_CHECKING:
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
 
     @abstractmethod
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -125,6 +130,7 @@ class Kernel(metaclass=ABCMeta):
         return Product(Constant(other), self)
 
 
+@dataclass
 class Conditioned(Kernel):
     """A kernel used when conditioning a process on data
 
@@ -136,10 +142,9 @@ class Conditioned(Kernel):
             the kernel used by the original process.
     """
 
-    def __init__(self, X: JAXArray, solver: Solver, kernel: Kernel):
-        self.X = X
-        self.solver = solver
-        self.kernel = kernel
+    X: JAXArray
+    solver: Solver
+    kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
@@ -153,6 +158,7 @@ class Conditioned(Kernel):
         return self.kernel.evaluate_diag(X) - K.transpose() @ K
 
 
+@dataclass
 class Custom(Kernel):
     """A custom kernel class implemented as a callable
 
@@ -161,36 +167,35 @@ class Custom(Kernel):
             :func:`Kernel.evaluate`.
     """
 
-    # This type signature is a hack for Sphinx sphinx-doc/sphinx#9736
-    def __init__(self, function: Callable[[Any, Any], Any]):
-        self.function = function
+    function: Callable[[Any, Any], Any]
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.function(X1, X2)
+        return self.function(X1, X2)  # type: ignore
 
 
+@dataclass
 class Sum(Kernel):
     """A helper to represent the sum of two kernels"""
 
-    def __init__(self, kernel1: Kernel, kernel2: Kernel):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Kernel
+    kernel2: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) + self.kernel2.evaluate(X1, X2)
 
 
+@dataclass
 class Product(Kernel):
     """A helper to represent the product of two kernels"""
 
-    def __init__(self, kernel1: Kernel, kernel2: Kernel):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Kernel
+    kernel2: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) * self.kernel2.evaluate(X1, X2)
 
 
+@dataclass
 class Constant(Kernel):
     r"""This kernel returns the constant
 
@@ -204,15 +209,17 @@ class Constant(Kernel):
         c: The parameter :math:`c` in the above equation.
     """
 
-    def __init__(self, value: JAXArray):
-        if jnp.ndim(value) != 0:
+    value: JAXArray
+
+    def __post_init__(self) -> None:
+        if jnp.ndim(self.value) != 0:
             raise ValueError("The value of a constant kernel must be a scalar")
-        self.value = value
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.value
 
 
+@dataclass
 class DotProduct(Kernel):
     r"""The dot product kernel
 
@@ -227,6 +234,7 @@ class DotProduct(Kernel):
         return X1 @ X2
 
 
+@dataclass
 class Polynomial(Kernel):
     r"""A polynomial kernel
 
@@ -241,18 +249,11 @@ class Polynomial(Kernel):
         sigma: The parameter :math:`\sigma`.
     """
 
-    def __init__(
-        self,
-        *,
-        order: JAXArray,
-        scale: JAXArray = jnp.ones(()),
-        sigma: JAXArray = jnp.zeros(()),
-    ):
-        self.order = order
-        self.scale = scale
-        self.sigma2 = jnp.square(sigma)
+    order: JAXArray
+    scale: JAXArray = jnp.ones(())
+    sigma: JAXArray = jnp.zeros(())
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return (
-            (X1 / self.scale) @ (X2 / self.scale) + self.sigma2
+            (X1 / self.scale) @ (X2 / self.scale) + jnp.square(self.sigma)
         ) ** self.order

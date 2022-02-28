@@ -10,10 +10,11 @@ from typing import Any, Callable, Sequence, Union
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from tinygp.helpers import JAXArray
+from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels import Kernel
 
 
+@dataclass
 class Transform(Kernel):
     """Apply a transformation to the input coordinates of the kernel
 
@@ -23,16 +24,15 @@ class Transform(Kernel):
         kernel (Kernel): The kernel to use in the transformed space.
     """
 
-    # This type signature is a hack for Sphinx sphinx-doc/sphinx#9736
-    def __init__(self, transform: Callable[[Any], Any], kernel: Kernel):
-        self.transform = transform
-        self.kernel = kernel
+    transform: Callable[[Any], Any]
+    kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.kernel.evaluate(self.transform(X1), self.transform(X2))
+        return self.kernel.evaluate(self.transform(X1), self.transform(X2))  # type: ignore
 
 
-class Linear(Transform):
+@dataclass
+class Linear(Kernel):
     """Apply a linear transformation to the input coordinates of the kernel
 
     For example, the following transformed kernels are all equivalent, but the
@@ -54,18 +54,21 @@ class Linear(Transform):
         kernel (Kernel): The kernel to use in the transformed space.
     """
 
-    def __init__(self, scale: JAXArray, kernel: Kernel):
-        self.scale = scale
-        if jnp.ndim(scale) < 2:
-            self.transform = partial(jnp.multiply, scale)
-        elif jnp.ndim(scale) == 2:
-            self.transform = partial(jnp.dot, scale)
+    scale: JAXArray
+    kernel: Kernel
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        if jnp.ndim(self.scale) < 2:
+            transform = partial(jnp.multiply, self.scale)
+        elif jnp.ndim(self.scale) == 2:
+            transform = partial(jnp.dot, self.scale)
         else:
             raise ValueError("'scale' must be 0-, 1-, or 2-dimensional")
-        self.kernel = kernel
+        return self.kernel.evaluate(transform(X1), transform(X2))
 
 
-class Cholesky(Transform):
+@dataclass
+class Cholesky(Kernel):
     """Apply a Cholesky transformation to the input coordinates of the kernel
 
     For example, the following transformed kernels are all equivalent, but the
@@ -90,19 +93,20 @@ class Cholesky(Transform):
         lower: (bool, optional): Is ``factor`` lower (vs upper) triangular.
     """
 
-    def __init__(
-        self, factor: JAXArray, kernel: Kernel, *, lower: bool = True
-    ):
-        self.factor = factor
-        if jnp.ndim(factor) < 2:
-            self.transform = partial(jnp.multiply, 1.0 / factor)
-        elif jnp.ndim(factor) == 2:
-            self.transform = partial(
-                linalg.solve_triangular, factor, lower=lower
+    factor: JAXArray
+    kernel: Kernel
+    lower: bool = True
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        if jnp.ndim(self.factor) < 2:
+            transform = partial(jnp.multiply, 1.0 / self.factor)
+        elif jnp.ndim(self.factor) == 2:
+            transform = partial(
+                linalg.solve_triangular, self.factor, lower=self.factor
             )
         else:
             raise ValueError("'scale' must be 0-, 1-, or 2-dimensional")
-        self.kernel = kernel
+        return self.kernel.evaluate(transform(X1), transform(X2))
 
     @classmethod
     def from_parameters(
@@ -131,7 +135,8 @@ class Cholesky(Transform):
         return cls(factor, kernel, lower=True)
 
 
-class Subspace(Transform):
+@dataclass
+class Subspace(Kernel):
     """A kernel transform that selects a subset of the input dimensions
 
     For example, the following kernel only depends on the coordinates in the
@@ -153,6 +158,8 @@ class Subspace(Transform):
         kernel (Kernel): The kernel to use in the transformed space.
     """
 
-    def __init__(self, axis: Union[Sequence[int], int], kernel: Kernel):
-        self.transform = lambda X: X[axis]
-        self.kernel = kernel
+    axis: Union[Sequence[int], int]
+    kernel: Kernel
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.kernel.evaluate(X1[self.axis], X2[self.axis])

@@ -45,11 +45,11 @@ def kernel(request):
 def periodic_kernel(request):
     return {
         "Cosine": (
-            kernels.Cosine(period=2.3),
+            kernels.Cosine(scale=2.3),
             george.kernels.CosineKernel(log_period=np.log(2.3)),
         ),
         "ExpSineSquared": (
-            kernels.ExpSineSquared(period=2.3, gamma=1.3),
+            kernels.ExpSineSquared(scale=2.3, gamma=1.3),
             george.kernels.ExpSine2Kernel(gamma=1.3, log_period=np.log(2.3)),
         ),
     }[request.param]

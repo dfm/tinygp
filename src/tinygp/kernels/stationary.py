@@ -16,18 +16,20 @@ __all__ = [
     "RationalQuadratic",
 ]
 
+from abc import ABCMeta, abstractmethod
 from typing import Optional
 
 import jax.numpy as jnp
 import numpy as np
 
-from tinygp.helpers import JAXArray
+from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels import Kernel
 
 
-class Distance:
+class Distance(metaclass=ABCMeta):
     """An abstract base class defining a distance metric interface"""
 
+    @abstractmethod
     def distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         """Compute the distance between two coordinates under this metric"""
         raise NotImplementedError()
@@ -43,6 +45,7 @@ class Distance:
         return jnp.square(self.distance(X1, X2))
 
 
+@dataclass
 class L1Distance(Distance):
     """The L1 or Manhattan distance between two coordinates"""
 
@@ -50,6 +53,7 @@ class L1Distance(Distance):
         return jnp.sum(jnp.abs(X1 - X2))
 
 
+@dataclass
 class L2Distance(Distance):
     """The L2 or Euclidean distance bettwen two coordaintes"""
 
@@ -60,6 +64,7 @@ class L2Distance(Distance):
         return jnp.sum(jnp.square(X1 - X2))
 
 
+@dataclass
 class Stationary(Kernel):
     """A stationary kernel is defined with respect to a distance metric
 
@@ -77,23 +82,18 @@ class Stationary(Kernel):
             ``distance`` isn't provided.
     """
 
-    default_distance: Distance = L1Distance()
+    scale: JAXArray = jnp.ones(())
+    distance: Distance = L1Distance()
 
-    def __init__(
-        self,
-        scale: JAXArray = jnp.ones(()),
-        *,
-        distance: Optional[Distance] = None,
-    ):
-        if jnp.ndim(scale):
+    def __post_init__(self) -> None:
+        if jnp.ndim(self.scale):
             raise ValueError(
                 "Only scalar scales are permitted for stationary kernels; use"
                 "transforms.Linear or transforms.Cholesky for more flexiblity"
             )
-        self.scale = scale
-        self.distance = self.default_distance if distance is None else distance
 
 
+@dataclass
 class Exp(Stationary):
     r"""The exponential kernel
 
@@ -115,6 +115,7 @@ class Exp(Stationary):
         return jnp.exp(-self.distance.distance(X1, X2) / self.scale)
 
 
+@dataclass
 class ExpSquared(Stationary):
     r"""The exponential squared or radial basis function kernel
 
@@ -131,13 +132,15 @@ class ExpSquared(Stationary):
     Args:
         scale: The parameter :math:`\ell`.
     """
-    default_distance: Distance = L2Distance()
+
+    distance: Distance = L2Distance()
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r2 = self.distance.squared_distance(X1, X2) / jnp.square(self.scale)
         return jnp.exp(-0.5 * r2)
 
 
+@dataclass
 class Matern32(Stationary):
     r"""The Matern-3/2 kernel
 
@@ -161,6 +164,7 @@ class Matern32(Stationary):
         return (1 + arg) * jnp.exp(-arg)
 
 
+@dataclass
 class Matern52(Stationary):
     r"""The Matern-5/2 kernel
 
@@ -185,6 +189,7 @@ class Matern52(Stationary):
         return (1 + arg + jnp.square(arg) / 3) * jnp.exp(-arg)
 
 
+@dataclass
 class Cosine(Stationary):
     r"""The cosine kernel
 
@@ -199,20 +204,15 @@ class Cosine(Stationary):
         r = ||(\mathbf{x}_i - \mathbf{x}_j) / P||_1
 
     Args:
-        period: The parameter :math:`P`.
+        scale: The parameter :math:`P`.
     """
 
-    def __init__(
-        self, period: JAXArray, *, distance: Optional[Distance] = None
-    ):
-        super().__init__(scale=period, distance=distance)
-        self.period = self.scale
-
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r = self.distance.distance(X1, X2) / self.period
+        r = self.distance.distance(X1, X2) / self.scale
         return jnp.cos(2 * jnp.pi * r)
 
 
+@dataclass
 class ExpSineSquared(Stationary):
     r"""The exponential sine squared or quasiperiodic kernel
 
@@ -227,26 +227,23 @@ class ExpSineSquared(Stationary):
         r = ||(\mathbf{x}_i - \mathbf{x}_j) / P||_1
 
     Args:
-        period: The parameter :math:`P`.
+        scale: The parameter :math:`P`.
         gamma: The parameter :math:`\Gamma`.
     """
 
-    def __init__(
-        self,
-        *,
-        period: JAXArray,
-        gamma: JAXArray,
-        distance: Optional[Distance] = None,
-    ):
-        super().__init__(scale=period, distance=distance)
-        self.period = self.scale
-        self.gamma = gamma
+    gamma: Optional[JAXArray] = None
+
+    def __post_init__(self) -> None:
+        if self.gamma is None:
+            raise ValueError("Missing required argument 'gamma'")
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        r = self.distance.distance(X1, X2) / self.period
+        assert self.gamma is not None
+        r = self.distance.distance(X1, X2) / self.scale
         return jnp.exp(-self.gamma * jnp.square(jnp.sin(jnp.pi * r)))
 
 
+@dataclass
 class RationalQuadratic(Stationary):
     r"""The rational quadratic
 
@@ -265,17 +262,13 @@ class RationalQuadratic(Stationary):
         alpha: The parameter :math:`\alpha`.
     """
 
-    def __init__(
-        self,
-        *,
-        alpha: JAXArray,
-        scale: JAXArray = jnp.ones(()),
-        distance: Optional[Distance] = None,
-    ):
-        super().__init__(scale=scale, distance=distance)
-        self.scale = scale
-        self.alpha = alpha
+    alpha: Optional[JAXArray] = None
+
+    def __post_init__(self) -> None:
+        if self.alpha is None:
+            raise ValueError("Missing required argument 'alpha'")
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        assert self.alpha is not None
         r2 = self.distance.squared_distance(X1, X2) / jnp.square(self.scale)
         return (1.0 + 0.5 * r2 / self.alpha) ** -self.alpha

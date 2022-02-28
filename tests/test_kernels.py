@@ -62,7 +62,7 @@ def test_ops(data):
     x1, x2 = data
 
     k1 = 1.5 * kernels.Matern32(2.5)
-    k2 = 0.9 * kernels.ExpSineSquared(period=1.5, gamma=0.3)
+    k2 = 0.9 * kernels.ExpSineSquared(scale=1.5, gamma=0.3)
 
     np.testing.assert_allclose(k1(x1, x2) + k2(x1, x2), (k1 + k2)(x1, x2))
     np.testing.assert_allclose(k1(x1, x2) * k2(x1, x2), (k1 * k2)(x1, x2))
@@ -72,7 +72,7 @@ def test_conditioned(data):
     x1, x2 = data
     with jax.experimental.enable_x64():
         k1 = 1.5 * kernels.Matern32(2.5)
-        k2 = 0.9 * kernels.ExpSineSquared(period=1.5, gamma=0.3)
+        k2 = 0.9 * kernels.ExpSineSquared(scale=1.5, gamma=0.3)
         K = k1(x1, x1) + 0.1 * jnp.eye(x1.shape[0])
         solver = DirectSolver.init(k1, x1, 0.1)
         cond = kernels.Conditioned(x1, solver, k2)

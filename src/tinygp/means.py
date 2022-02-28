@@ -8,10 +8,11 @@ from typing import Callable, Optional, Union
 
 import jax
 
-from tinygp.helpers import JAXArray
+from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels import Kernel
 
 
+@dataclass
 class Mean:
     """A wrapper for the GP mean which supports a constant value or a callable
 
@@ -23,8 +24,7 @@ class Mean:
         signature.
     """
 
-    def __init__(self, value: Union[JAXArray, Callable[[JAXArray], JAXArray]]):
-        self.value = value
+    value: Union[JAXArray, Callable[[JAXArray], JAXArray]]
 
     def __call__(self, X: JAXArray) -> JAXArray:
         if callable(self.value):
@@ -32,6 +32,7 @@ class Mean:
         return self.value
 
 
+@dataclass
 class Conditioned:
     """The mean of a process conditioned on observed data
 
@@ -49,20 +50,11 @@ class Conditioned:
             ``include_mean`` is ``True``.
     """
 
-    def __init__(
-        self,
-        X: JAXArray,
-        alpha: JAXArray,
-        kernel: Kernel,
-        *,
-        include_mean: bool,
-        mean_function: Optional[Mean] = None,
-    ):
-        self.X = X
-        self.alpha = alpha
-        self.kernel = kernel
-        self.include_mean = include_mean
-        self.mean_function = mean_function
+    X: JAXArray
+    alpha: JAXArray
+    kernel: Kernel
+    include_mean: bool
+    mean_function: Optional[Mean] = None
 
     def __call__(self, X: JAXArray) -> JAXArray:
         Ks = jax.vmap(self.kernel.evaluate, in_axes=(None, 0), out_axes=0)(
