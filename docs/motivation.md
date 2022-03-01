@@ -89,7 +89,7 @@ the "HODLR" approximate linear algebra technique. This has somewhat limited
 applicability (in particular it is really only useful for 1-dimensional data,
 where `celerite` is probably a better choice anyway), and using the
 GPU-accelerated version of `tinygp` will often provide even better performance,
-see {ref}`george`.
+see {ref}`benchmarks`.
 
 With these points in mind, much of this documentation will discuss `tinygp` in
 the context of `george` and give advice on porting models.
