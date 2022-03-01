@@ -13,6 +13,6 @@ experience.
 motivation
 install
 troubleshooting
-tutorials/george
+tutorials/benchmarks
 api
 ```

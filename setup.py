@@ -35,7 +35,6 @@ EXTRA_REQUIRE = {
         "flax",
         "optax",
         "jaxopt",
-        "george",
         "ipython==7.31.0",
     ],
 }

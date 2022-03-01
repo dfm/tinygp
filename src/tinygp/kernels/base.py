@@ -11,27 +11,24 @@ __all__ = [
     "Constant",
     "DotProduct",
     "Polynomial",
-    "Exp",
-    "ExpSquared",
-    "Matern32",
-    "Matern52",
-    "Cosine",
-    "ExpSineSquared",
-    "RationalQuadratic",
 ]
 
-from typing import Any, Callable, Optional, Sequence, Union
+from abc import ABCMeta, abstractmethod
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Union
 
 import jax
 import jax.numpy as jnp
-from jax.scipy import linalg
 
-from tinygp.types import JAXArray
+from tinygp.helpers import JAXArray, dataclass
+
+if TYPE_CHECKING:
+    from tinygp.solvers.solver import Solver
+
 
 Axis = Union[int, Sequence[int]]
 
 
-class Kernel:
+class Kernel(metaclass=ABCMeta):
     """The base class for all kernel implementations
 
     This subclass provides default implementations to add and multiply kernels.
@@ -39,6 +36,12 @@ class Kernel:
     :func:`Kernel.evaluate` with custom behavior.
     """
 
+    if TYPE_CHECKING:
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+    @abstractmethod
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         """Evaluate the kernel at a pair of input coordinates
 
@@ -56,7 +59,7 @@ class Kernel:
            ``(n_data, n_dim)``, and you should let the :class:`Kernel` ``vmap``
            magic handle all the broadcasting for you.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         """Evaluate the kernel on its diagonal
@@ -66,6 +69,22 @@ class Kernel:
         calcuations more efficient.
         """
         return self.evaluate(X, X)
+
+    def matmul(
+        self,
+        X1: JAXArray,
+        X2: Optional[JAXArray] = None,
+        y: Optional[JAXArray] = None,
+    ) -> JAXArray:
+        if y is None:
+            assert X2 is not None
+            y = X2
+            X2 = None
+
+        if X2 is None:
+            X2 = X1
+
+        return jnp.dot(self(X1, X2), y)
 
     def __call__(
         self, X1: JAXArray, X2: Optional[JAXArray] = None
@@ -111,6 +130,7 @@ class Kernel:
         return Product(Constant(other), self)
 
 
+@dataclass
 class Conditioned(Kernel):
     """A kernel used when conditioning a process on data
 
@@ -122,29 +142,23 @@ class Conditioned(Kernel):
             the kernel used by the original process.
     """
 
-    def __init__(self, X: JAXArray, scale_tril: JAXArray, kernel: Kernel):
-        self.X = X
-        self.scale_tril = scale_tril
-        self.kernel = kernel
+    X: JAXArray
+    solver: Solver
+    kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
-        K1 = linalg.solve_triangular(
-            self.scale_tril, kernel_vec(self.X, X1), lower=True
-        )
-        K2 = linalg.solve_triangular(
-            self.scale_tril, kernel_vec(self.X, X2), lower=True
-        )
-        return self.kernel.evaluate(X1, X2) - K1.T @ K2
+        K1 = self.solver.solve_triangular(kernel_vec(self.X, X1))
+        K2 = self.solver.solve_triangular(kernel_vec(self.X, X2))
+        return self.kernel.evaluate(X1, X2) - K1.transpose() @ K2
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
-        K = linalg.solve_triangular(
-            self.scale_tril, kernel_vec(self.X, X), lower=True
-        )
-        return self.kernel.evaluate_diag(X) - K.T @ K
+        K = self.solver.solve_triangular(kernel_vec(self.X, X))
+        return self.kernel.evaluate_diag(X) - K.transpose() @ K
 
 
+@dataclass
 class Custom(Kernel):
     """A custom kernel class implemented as a callable
 
@@ -153,36 +167,35 @@ class Custom(Kernel):
             :func:`Kernel.evaluate`.
     """
 
-    # This type signature is a hack for Sphinx sphinx-doc/sphinx#9736
-    def __init__(self, function: Callable[[Any, Any], Any]):
-        self.function = function
+    function: Callable[[Any, Any], Any]
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.function(X1, X2)
+        return self.function(X1, X2)  # type: ignore
 
 
+@dataclass
 class Sum(Kernel):
     """A helper to represent the sum of two kernels"""
 
-    def __init__(self, kernel1: Kernel, kernel2: Kernel):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Kernel
+    kernel2: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) + self.kernel2.evaluate(X1, X2)
 
 
+@dataclass
 class Product(Kernel):
     """A helper to represent the product of two kernels"""
 
-    def __init__(self, kernel1: Kernel, kernel2: Kernel):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Kernel
+    kernel2: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) * self.kernel2.evaluate(X1, X2)
 
 
+@dataclass
 class Constant(Kernel):
     r"""This kernel returns the constant
 
@@ -196,15 +209,17 @@ class Constant(Kernel):
         c: The parameter :math:`c` in the above equation.
     """
 
-    def __init__(self, value: JAXArray):
-        if jnp.ndim(value) != 0:
+    value: JAXArray
+
+    def __post_init__(self) -> None:
+        if jnp.ndim(self.value) != 0:
             raise ValueError("The value of a constant kernel must be a scalar")
-        self.value = value
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.value
 
 
+@dataclass
 class DotProduct(Kernel):
     r"""The dot product kernel
 
@@ -219,6 +234,7 @@ class DotProduct(Kernel):
         return X1 @ X2
 
 
+@dataclass
 class Polynomial(Kernel):
     r"""A polynomial kernel
 
@@ -233,18 +249,11 @@ class Polynomial(Kernel):
         sigma: The parameter :math:`\sigma`.
     """
 
-    def __init__(
-        self,
-        *,
-        order: JAXArray,
-        scale: JAXArray = jnp.ones(()),
-        sigma: JAXArray = jnp.zeros(()),
-    ):
-        self.order = order
-        self.scale = scale
-        self.sigma2 = jnp.square(sigma)
+    order: JAXArray
+    scale: JAXArray = jnp.ones(())
+    sigma: JAXArray = jnp.zeros(())
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return (
-            (X1 / self.scale) @ (X2 / self.scale) + self.sigma2
+            (X1 / self.scale) @ (X2 / self.scale) + jnp.square(self.sigma)
         ) ** self.order

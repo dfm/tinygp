@@ -45,11 +45,11 @@ html_theme_options = {
 }
 html_baseurl = "https://tinygp.readthedocs.io/en/latest/"
 jupyter_execute_notebooks = "auto"
-execution_excludepatterns = ["tutorials/george.ipynb"]
+execution_excludepatterns = ["tutorials/benchmarks.ipynb"]
 execution_timeout = -1
 
 autodoc_type_aliases = {
-    "JAXArray": "tinygp.types.JAXArray",
+    "JAXArray": "tinygp.helpers.JAXArray",
     "Axis": "tinygp.kernels.Axis",
     "Distance": "tinygp.kernels.Distance",
     "Metric": "tinygp.metrics.Metric",
