@@ -3,11 +3,8 @@
 **The tiniest of Gaussian Process libraries.**
 
 `tinygp` is an extremely lightweight library for building Gaussian Process (GP)
-models in Python, built on top of [`jax`](https://github.com/google/jax). It is
-not (yet?) designed to provide all the shiniest algorithms for scalable
-computations (check out [celerite2](https://celerite2.readthedocs.io) or
-[GPyTorch](https://gpytorch.ai) if you need something like that), but I think it
-has a [nice interface](api-ref), and it's pretty fast. Thanks to `jax`, `tinygp`
+models in Python, built on top of [`jax`](https://github.com/google/jax). It has
+a [nice interface](api-ref), and it's [pretty fast](benchmarks). Thanks to `jax`, `tinygp`
 supports things like GPU acceleration and automatic differentiation.
 
 ```{admonition} How to find your way around?
