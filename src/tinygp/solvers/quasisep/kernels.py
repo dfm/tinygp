@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax.scipy.linalg import block_diag
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray, dataclass, field
 from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
@@ -218,7 +218,7 @@ class Celerite(Quasisep):
 class SHO(Quasisep):
     omega: JAXArray
     quality: JAXArray
-    sigma: JAXArray = jnp.ones(())
+    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
     def p(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma, 0])
@@ -299,7 +299,7 @@ class SHO(Quasisep):
 @dataclass
 class Exp(Quasisep):
     scale: JAXArray
-    sigma: JAXArray = jnp.ones(())
+    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
     def p(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma])
@@ -343,7 +343,7 @@ class Exp(Quasisep):
 @dataclass
 class Matern32(Quasisep):
     scale: JAXArray
-    sigma: JAXArray = jnp.ones(())
+    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
     def p(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma, 0])
@@ -355,7 +355,7 @@ class Matern32(Quasisep):
         dt = X2 - X1
         f = np.sqrt(3) / self.scale
         return jnp.exp(-f * dt) * jnp.array(
-            [[1 + f * dt, dt], [-jnp.square(f) * dt, 1 - f * dt]]
+            [[1 + f * dt, -dt], [jnp.square(f) * dt, 1 - f * dt]]
         )
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -367,7 +367,7 @@ class Matern32(Quasisep):
 @dataclass
 class Matern52(Quasisep):
     scale: JAXArray
-    sigma: JAXArray = jnp.ones(())
+    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
     def p(self, X: JAXArray) -> JAXArray:
         return jnp.array(
