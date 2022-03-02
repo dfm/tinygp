@@ -4,8 +4,10 @@ import tinygp
 
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
     "myst_nb",
 ]
 
@@ -15,6 +17,7 @@ source_suffix = {
     ".rst": "restructuredtext",
     ".ipynb": "myst-nb",
 }
+templates_path = ["_templates"]
 
 # General information about the project.
 project = "tinygp"
@@ -51,6 +54,5 @@ execution_timeout = -1
 autodoc_type_aliases = {
     "JAXArray": "tinygp.helpers.JAXArray",
     "Axis": "tinygp.kernels.Axis",
-    "Distance": "tinygp.kernels.Distance",
-    "Metric": "tinygp.metrics.Metric",
+    "Distance": "tinygp.kernels.distance.Distance",
 }

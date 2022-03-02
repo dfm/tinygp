@@ -33,6 +33,7 @@ page](https://github.com/dfm/tinygp/issues).
 guide
 tutorials
 contributing
+api/index
 GitHub Repository <https://github.com/dfm/tinygp>
 ```
 

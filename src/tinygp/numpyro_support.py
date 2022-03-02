@@ -16,6 +16,8 @@ from numpyro.distributions.util import (
 
 
 class TinyDistribution(Distribution):
+    """Blah"""
+
     support = constraints.real_vector
 
     def __init__(self, gp, validate_args=None):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__all__ = ["Mean"]
+__all__ = ["Mean", "Conditioned"]
 
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 

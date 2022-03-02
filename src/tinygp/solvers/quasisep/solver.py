@@ -13,8 +13,8 @@ import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels import Kernel
+from tinygp.kernels.quasisep import Quasisep
 from tinygp.solvers.quasisep.core import DiagQSM, LowerTriQSM, SymmQSM
-from tinygp.solvers.quasisep.kernels import Quasisep
 from tinygp.solvers.solver import Solver
 
 

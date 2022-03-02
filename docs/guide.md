@@ -14,5 +14,4 @@ motivation
 install
 troubleshooting
 tutorials/benchmarks
-api
 ```

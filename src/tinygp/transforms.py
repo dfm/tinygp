@@ -10,8 +10,8 @@ from typing import Any, Callable, Sequence, Union
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from tinygp.helpers import JAXArray, dataclass, field
-from tinygp.kernels import Kernel
+from tinygp.helpers import JAXArray, dataclass
+from tinygp.kernels.base import Kernel
 
 
 @dataclass

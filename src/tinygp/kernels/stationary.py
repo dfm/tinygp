@@ -1,11 +1,22 @@
 # -*- coding: utf-8 -*-
 
+"""
+Many of the most commonly used kernels are implemented as subclasses of the
+:class:`Stationary` kernel. This means that each kernel in this section has (at
+least) the two parameters:
+
+- ``scale``: A scalar lengthscale for the kernel in the radial distance
+  specified by ``distance``, and
+- ``distance``: A :class:`tinygp.kernels.distance.Distance` metric specifying
+  how to compute the scalar distance between two input coordinates.
+
+Most of these kernels use the :class:`tinygp.kernels.distance.L1Distance` metric
+by default, and ``scale`` defaults to ``1``.
+"""
+
 from __future__ import annotations
 
 __all__ = [
-    "Distance",
-    "L1Distance",
-    "L2Distance",
     "Stationary",
     "Exp",
     "ExpSquared",
@@ -16,52 +27,14 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from abc import ABCMeta, abstractmethod
 from typing import Optional
 
 import jax.numpy as jnp
 import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass, field
-from tinygp.kernels import Kernel
-
-
-class Distance(metaclass=ABCMeta):
-    """An abstract base class defining a distance metric interface"""
-
-    @abstractmethod
-    def distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        """Compute the distance between two coordinates under this metric"""
-        raise NotImplementedError()
-
-    def squared_distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        """Compute the squared distance between two coordinates
-
-        By default this returns the squared result of
-        :func:`tinygp.kernels.stationary.Distance.distance`, but some metrics
-        can take advantage of these separate implementations to avoid
-        unnecessary square roots.
-        """
-        return jnp.square(self.distance(X1, X2))
-
-
-@dataclass
-class L1Distance(Distance):
-    """The L1 or Manhattan distance between two coordinates"""
-
-    def distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jnp.sum(jnp.abs(X1 - X2))
-
-
-@dataclass
-class L2Distance(Distance):
-    """The L2 or Euclidean distance bettwen two coordaintes"""
-
-    def distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jnp.sqrt(self.squared_distance(X1, X2))
-
-    def squared_distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jnp.sum(jnp.square(X1 - X2))
+from tinygp.kernels.base import Kernel
+from tinygp.kernels.distance import Distance, L1Distance, L2Distance
 
 
 @dataclass

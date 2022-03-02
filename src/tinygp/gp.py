@@ -21,9 +21,9 @@ import jax.numpy as jnp
 
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
+from tinygp.kernels.quasisep import Quasisep
 from tinygp.solvers import DirectSolver, QuasisepSolver
 from tinygp.solvers.quasisep.core import SymmQSM
-from tinygp.solvers.quasisep.kernels import Quasisep
 
 if TYPE_CHECKING:
     from tinygp.numpyro_support import TinyDistribution
