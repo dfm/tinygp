@@ -27,8 +27,10 @@ page](https://github.com/dfm/tinygp/issues).
 👈 Check out the sidebar to find the full table of contents.
 ```
 
+## Table of contents
+
 ```{toctree}
-:hidden:
+:maxdepth: 2
 
 guide
 tutorials
