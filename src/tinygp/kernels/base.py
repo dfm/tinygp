@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Union
 import jax
 import jax.numpy as jnp
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray, dataclass, field
 
 if TYPE_CHECKING:
     from tinygp.solvers.solver import Solver
@@ -250,8 +250,8 @@ class Polynomial(Kernel):
     """
 
     order: JAXArray
-    scale: JAXArray = jnp.ones(())
-    sigma: JAXArray = jnp.zeros(())
+    scale: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray = field(default_factory=lambda: jnp.zeros(()))
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return (

@@ -22,7 +22,7 @@ from typing import Optional
 import jax.numpy as jnp
 import numpy as np
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray, dataclass, field
 from tinygp.kernels import Kernel
 
 
@@ -82,7 +82,7 @@ class Stationary(Kernel):
             ``distance`` isn't provided.
     """
 
-    scale: JAXArray = jnp.ones(())
+    scale: JAXArray = field(default_factory=lambda: jnp.ones(()))
     distance: Distance = L1Distance()
 
     def __post_init__(self) -> None:
