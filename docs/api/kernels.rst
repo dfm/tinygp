@@ -1,7 +1,7 @@
 .. _api-kernels:
 
-tinygp.kernels package
-======================
+kernels package
+===============
 
 .. currentmodule:: tinygp.kernels
 
@@ -61,4 +61,4 @@ Subpackages
 .. toctree::
    :maxdepth: 1
 
-   tinygp.kernels.quasisep
+   kernels.quasisep

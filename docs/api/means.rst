@@ -1,5 +1,5 @@
-tinygp.means package
-====================
+means package
+=============
 
 .. currentmodule:: tinygp.means
 

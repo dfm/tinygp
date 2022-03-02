@@ -1,5 +1,5 @@
-tinygp.transforms package
-=========================
+transforms package
+==================
 
 .. currentmodule:: tinygp.transforms
 

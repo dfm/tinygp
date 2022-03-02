@@ -1,5 +1,5 @@
-tinygp.kernels.quasisep package
-===============================
+kernels.quasisep package
+========================
 
 .. currentmodule:: tinygp.kernels.quasisep
 

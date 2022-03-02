@@ -1,5 +1,5 @@
-tinygp.solvers package
-======================
+solvers package
+===============
 
 .. currentmodule:: tinygp.solvers
 
@@ -18,4 +18,4 @@ Subpackages
 .. toctree::
    :maxdepth: 1
 
-   tinygp.solvers.quasisep.core
+   solvers.quasisep.core

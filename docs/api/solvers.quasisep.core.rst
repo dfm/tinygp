@@ -1,5 +1,5 @@
-tinygp.solvers.quasisep.core package
-====================================
+solvers.quasisep.core package
+=============================
 
 .. currentmodule:: tinygp.solvers.quasisep.core
 

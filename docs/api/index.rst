@@ -19,7 +19,7 @@ Subpackages
 .. toctree::
     :maxdepth: 1
 
-    tinygp.kernels
-    tinygp.means
-    tinygp.solvers
-    tinygp.transforms
+    kernels
+    means
+    solvers
+    transforms
