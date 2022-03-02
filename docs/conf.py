@@ -18,6 +18,7 @@ source_suffix = {
     ".ipynb": "myst-nb",
 }
 templates_path = ["_templates"]
+autodoc_inherit_docstrings = False
 
 # General information about the project.
 project = "tinygp"
@@ -48,7 +49,7 @@ html_theme_options = {
 }
 html_baseurl = "https://tinygp.readthedocs.io/en/latest/"
 jupyter_execute_notebooks = "auto"
-execution_excludepatterns = ["tutorials/benchmarks.ipynb"]
+execution_excludepatterns = ["benchmarks.ipynb"]
 execution_timeout = -1
 
 autodoc_type_aliases = {

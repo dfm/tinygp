@@ -9,6 +9,7 @@ tinygp.solvers package
    :toctree: _autosummary
 
    DirectSolver
+   QuasisepSolver
 
 
 Subpackages
@@ -17,4 +18,4 @@ Subpackages
 .. toctree::
    :maxdepth: 1
 
-   tinygp.solvers.quasisep
+   tinygp.solvers.quasisep.core

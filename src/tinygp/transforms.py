@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+In ``tinygp``, "transforms" are a powerful and relatively safe way to build
+extremely expressive kernels without resorting to writing a fully fledged custom
+kernel. More details can be found in the :ref:`transforms` tutorial.
+"""
 
 from __future__ import annotations
 
