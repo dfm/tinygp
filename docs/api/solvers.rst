@@ -18,4 +18,4 @@ Subpackages
 .. toctree::
    :maxdepth: 1
 
-   solvers.quasisep.core
+   solvers.quasisep

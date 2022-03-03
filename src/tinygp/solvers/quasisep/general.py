@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+"""
+While the usual definition of quasiseparable matrices is restricted to square
+matrices, it is useful for our purposes to also implement some algorithms for a
+somewhat more general class of rectangular quasiseparable matrices. These appear
+in the calculations for the conditional Gaussian Process when interpolating and
+extrapolating. We have not (yet?) worked through some of the more general
+operations (like scalable matrix multiplies), but those may be possible to
+derive.
+"""
 
 from __future__ import annotations
 

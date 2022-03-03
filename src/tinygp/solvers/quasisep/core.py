@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+The algorithms implemented in this subpackage are are mostly based on `Eidelman
+& Gohberg (1999) <https://link.springer.com/article/10.1007%2FBF01300581>`_ and
+`Foreman-Mackey et al. (2017) <https://arxiv.org/abs/1703.09710>`_.
+"""
 
 from __future__ import annotations
 
