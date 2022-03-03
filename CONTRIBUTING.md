@@ -31,10 +31,6 @@ Example](https://stackoverflow.com/help/minimal-reproducible-example).
 Feel free to request features on the [Issue
 Tracker](https://github.com/dfm/tinygp/issues).
 
-## How to set up your development environment
-
-TODO
-
 ## How to test the project
 
 ```bash
@@ -45,3 +41,35 @@ python -m tox
 ## How to submit changes
 
 Open a [Pull Request](https://github.com/dfm/tinygp/pulls).
+
+We use the [towncrier](https://github.com/twisted/towncrier) package to manage
+release notes, so you should include a "news fragment" in the `/news` directory
+describing your changes. We'll be happy to help on the pull request thread to
+format that appropriately.
+
+## Making a new release
+
+These are the steps that need to be run when minting a new release:
+
+1. Make sure that your local copy of main is up-to-date:
+
+   ```bash
+   git pull origin main
+   ```
+
+2. Check out a new branch:
+
+   ```bash
+   git checkout -b release
+   ```
+
+3. Update the release notes, using the version number that you're going to bump
+   to (try running with `--draft` first):
+
+   ```bash
+   python -m towncrier build --version THE_NEXT_VERSION
+   ```
+
+4. Open a PR with the new release notes and make sure that all the tests pass.
+5. Make a release on GitHub (it's good practice to make a release candidate
+   first, just to be safe) with the appropriate version number.
