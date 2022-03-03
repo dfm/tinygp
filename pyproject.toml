@@ -30,3 +30,10 @@ show_missing = true
 
 [tool.pycln]
 all = true
+
+[tool.towncrier]
+package = "tinygp"
+package_dir = "src"
+filename = "NEWS.rst"
+directory = "news/"
+issue_format = "`#{issue} <https://github.com/dfm/tinygp/issues/{issue}>`_"
