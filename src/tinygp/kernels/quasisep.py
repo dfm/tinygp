@@ -184,8 +184,8 @@ class Quasisep(Kernel, metaclass=ABCMeta):
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         """For quasiseparable kernels, the variance is simple to compute"""
-        h = jax.vmap(self.h)(X)
-        return jnp.sum(h @ self.Pinf() @ h, axis=1)
+        h = self.h(X)
+        return h @ self.Pinf() @ h
 
 
 class Sum(Quasisep):
