@@ -9,6 +9,7 @@ fundamental building blocks.
 """
 
 __all__ = [
+    "quasisep",
     "Distance",
     "L1Distance",
     "L2Distance",
@@ -30,6 +31,7 @@ __all__ = [
     "RationalQuadratic",
 ]
 
+from tinygp.kernels import quasisep
 from tinygp.kernels.base import (
     Conditioned,
     Constant,

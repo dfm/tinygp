@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 import jax
 
 from tinygp.helpers import JAXArray, dataclass
-from tinygp.kernels import Kernel
+from tinygp.kernels.base import Kernel
 
 
 @dataclass
