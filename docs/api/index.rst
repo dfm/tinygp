@@ -19,9 +19,10 @@ Primary Interface
 .. automodule:: tinygp
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
    GaussianProcess
+   gp.ConditionResult
 
 
 Subpackages

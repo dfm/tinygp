@@ -6,7 +6,7 @@ transforms package
 .. automodule:: tinygp.transforms
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
    Transform
    Linear

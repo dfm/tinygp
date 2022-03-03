@@ -6,7 +6,7 @@ means package
 .. automodule:: tinygp.means
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
    Mean
    Conditioned

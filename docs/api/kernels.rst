@@ -8,7 +8,7 @@ kernels package
 .. automodule:: tinygp.kernels
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
     Kernel
     Conditioned
@@ -28,7 +28,7 @@ Stationary Kernels
 .. automodule:: tinygp.kernels.stationary
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
     Stationary
     Exp
@@ -48,7 +48,7 @@ Distance Metrics
 .. automodule:: tinygp.kernels.distance
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
     Distance
     L1Distance

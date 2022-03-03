@@ -13,10 +13,10 @@ NAME = "tinygp"
 PACKAGES = find_packages(where="src")
 META_PATH = os.path.join("src", "tinygp", "__init__.py")
 CLASSIFIERS = [
-    # "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: BSD License",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",

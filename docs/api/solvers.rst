@@ -6,7 +6,7 @@ solvers package
 .. automodule:: tinygp.solvers
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
    DirectSolver
    QuasisepSolver

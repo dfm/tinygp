@@ -13,15 +13,25 @@ or this page to launch the notebook using [Binder](https://mybinder.org),
 [Colab](https://colab.research.google.com), or download the `.ipynb` file
 directly.
 
+## Introductory Topics
+
 ```{toctree}
 :maxdepth: 1
 
+tutorials/intro
 tutorials/quickstart
 tutorials/modeling
 tutorials/multivariate
-tutorials/geometry
-tutorials/transforms
 tutorials/kernels
+```
+
+## Advanced Topics
+
+```{toctree}
+:maxdepth: 1
+
+tutorials/transforms
+tutorials/geometry
 tutorials/derivative
 tutorials/likelihoods
 tutorials/mixture
