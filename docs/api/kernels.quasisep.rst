@@ -9,6 +9,9 @@ kernels.quasisep package
    :toctree: _autosummary
 
    Quasisep
+   Sum
+   Product
+   Scale
    Celerite
    SHO
    Exp
