@@ -18,7 +18,6 @@ source_suffix = {
     ".ipynb": "myst-nb",
 }
 templates_path = ["_templates"]
-autodoc_inherit_docstrings = False
 
 # General information about the project.
 project = "tinygp"

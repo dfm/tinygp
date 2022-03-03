@@ -30,7 +30,7 @@ class Mean:
 
     Args:
         value: Either a *scalar* constant, or a callable with the correct
-        signature.
+            signature.
     """
 
     value: Union[JAXArray, Callable[[JAXArray], JAXArray]]

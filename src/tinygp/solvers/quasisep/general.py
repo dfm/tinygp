@@ -7,6 +7,10 @@ in the calculations for the conditional Gaussian Process when interpolating and
 extrapolating. We have not (yet?) worked through some of the more general
 operations (like scalable matrix multiplies), but those may be possible to
 derive.
+
+This generalization isn't published anywhere as far as I know (please tell me if
+there is a reference that you know of!), and maybe someday I'll come up with
+notation that I'm satisfied with and try to write it up.
 """
 
 from __future__ import annotations
@@ -36,6 +40,17 @@ def handle_matvec_shapes(
 
 @dataclass
 class GeneralQSM:
+    """A rectangular ``(n1,n2)`` quasiseparable matrix with order ``m``
+
+    Args:
+        pl (n1, m): The lower left quasiseparable vectors.
+        ql (n2, m): The lower right quasiseparable vectors.
+        pu (n2, m): The upper right quasiseparable vectors.
+        qu (n1, m): The upper left quasiseparable vectors.
+        a (n1, m, m): The transition matrices.
+        idx (n1,): The indices of the diagonal.
+    """
+
     pl: JAXArray
     ql: JAXArray
     pu: JAXArray
@@ -50,11 +65,19 @@ class GeneralQSM:
 
     @property
     def shape(self) -> Tuple[int, int]:
+        """The shape of the matrix"""
         return (self.pl.shape[0], self.ql.shape[0])
 
     @jax.jit
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
+        """The dot product of this matrix with a dense vector or matrix
+
+        Args:
+            x (n2, ...): A matrix or vector with leading dimension matching this
+                matrix.
+        """
+
         # Use a forward pass to dot the "lower" matrix
         def forward(f, data):  # type: ignore
             q, a, x = data

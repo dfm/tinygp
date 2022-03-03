@@ -1,9 +1,9 @@
 solvers.quasisep package
 ========================
 
-.. currentmodule:: tinygp.solvers.quasisep.solver
+.. currentmodule:: tinygp.solvers.quasisep
 
-.. automodule:: tinygp.solvers.quasisep.solver
+.. automodule:: tinygp.solvers.quasisep
 
 
 Square Quasiseparable Matrices
@@ -16,6 +16,7 @@ Square Quasiseparable Matrices
 .. autosummary::
    :toctree: _autosummary
 
+   QSM
    DiagQSM
    StrictLowerTriQSM
    StrictUpperTriQSM
