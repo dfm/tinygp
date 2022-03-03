@@ -4,8 +4,10 @@ import tinygp
 
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
     "myst_nb",
 ]
 
@@ -15,6 +17,7 @@ source_suffix = {
     ".rst": "restructuredtext",
     ".ipynb": "myst-nb",
 }
+templates_path = ["_templates"]
 
 # General information about the project.
 project = "tinygp"
@@ -45,12 +48,11 @@ html_theme_options = {
 }
 html_baseurl = "https://tinygp.readthedocs.io/en/latest/"
 jupyter_execute_notebooks = "auto"
-execution_excludepatterns = ["tutorials/benchmarks.ipynb"]
+execution_excludepatterns = ["benchmarks.ipynb"]
 execution_timeout = -1
 
 autodoc_type_aliases = {
     "JAXArray": "tinygp.helpers.JAXArray",
     "Axis": "tinygp.kernels.Axis",
-    "Distance": "tinygp.kernels.Distance",
-    "Metric": "tinygp.metrics.Metric",
+    "Distance": "tinygp.kernels.distance.Distance",
 }

@@ -13,6 +13,5 @@ experience.
 motivation
 install
 troubleshooting
-tutorials/benchmarks
-api
+benchmarks
 ```

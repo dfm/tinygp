@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
+"""
+``tinygp`` is an extremely lightweight library for building Gaussian Process
+models in Python, built on top of `jax <https://github.com/google/jax>`_. The
+primary way that you will use to interact with ``tinygp`` is by constructing
+"kernel" functions using the building blocks provided in the ``kernels``
+subpackage (see :ref:`api-kernels`), and then passing that to a
+:class:`GaussianProcess` object to do all the computations. Check out the
+:ref:`tutorials` for a more complete introduction.
+"""
 
-__all__ = [
-    "__version__",
-    "kernels",
-    "solvers",
-    "transforms",
-    "GaussianProcess",
-]
+__all__ = ["kernels", "solvers", "transforms", "GaussianProcess"]
 
 from tinygp import kernels, solvers, transforms
 from tinygp.gp import GaussianProcess

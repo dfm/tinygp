@@ -21,9 +21,9 @@ import jax.numpy as jnp
 
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
+from tinygp.kernels.quasisep import Quasisep
 from tinygp.solvers import DirectSolver, QuasisepSolver
 from tinygp.solvers.quasisep.core import SymmQSM
-from tinygp.solvers.quasisep.kernels import Quasisep
 
 if TYPE_CHECKING:
     from tinygp.numpyro_support import TinyDistribution
@@ -151,12 +151,9 @@ class GaussianProcess:
         alpha, log_prob, mean_value = self._condition(
             y, X_test, include_mean, kernel
         )
-
         if kernel is None:
             kernel = self.kernel
-
         covariance_value = self.solver.condition(kernel, X_test, diag)
-
         if X_test is None:
             X_test = self.X
 

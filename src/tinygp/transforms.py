@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+In ``tinygp``, "transforms" are a powerful and relatively safe way to build
+extremely expressive kernels without resorting to writing a fully fledged custom
+kernel. More details can be found in the :ref:`transforms` tutorial.
+"""
 
 from __future__ import annotations
 
@@ -10,8 +15,8 @@ from typing import Any, Callable, Sequence, Union
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from tinygp.helpers import JAXArray, dataclass, field
-from tinygp.kernels import Kernel
+from tinygp.helpers import JAXArray, dataclass
+from tinygp.kernels.base import Kernel
 
 
 @dataclass

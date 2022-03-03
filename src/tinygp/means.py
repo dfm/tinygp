@@ -1,8 +1,17 @@
 # -*- coding: utf-8 -*-
+"""
+In ``tinygp``, the Gaussian process mean function can be defined using any
+callable object, but this submodule includes two helper classes for defining
+means. When defining your own mean function, it's important to remember that
+your callable should accept as input a single input coordinate (i.e. not a
+*vector* of coordinates), and return the scalar value of the mean at that
+coordinate. ``tinygp`` will handle all the relevant ``vmap``-ing and
+broadcasting.
+"""
 
 from __future__ import annotations
 
-__all__ = ["Mean"]
+__all__ = ["Mean", "Conditioned"]
 
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
@@ -21,7 +30,7 @@ class Mean:
 
     Args:
         value: Either a *scalar* constant, or a callable with the correct
-        signature.
+            signature.
     """
 
     value: Union[JAXArray, Callable[[JAXArray], JAXArray]]

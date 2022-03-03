@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+The algorithms implemented in this subpackage are are mostly based on `Eidelman
+& Gohberg (1999) <https://link.springer.com/article/10.1007%2FBF01300581>`_ and
+`Foreman-Mackey et al. (2017) <https://arxiv.org/abs/1703.09710>`_.
+"""
 
 from __future__ import annotations
 
@@ -37,6 +42,12 @@ def handle_matvec_shapes(
 
 
 class QSM(metaclass=ABCMeta):
+    """The base class for all square quasiseparable matrices
+
+    This class has blanket implementations of the standard operations that are
+    implemented for all QSMs, like addtion, subtraction, multiplication, and
+    matrix multiplication.
+    """
 
     # Must be higher than jax's
     __array_priority__ = 2000
@@ -47,25 +58,39 @@ class QSM(metaclass=ABCMeta):
 
     @abstractmethod
     def transpose(self) -> Any:
-        pass
+        """The matrix transpose as a QSM"""
+        raise NotImplementedError
 
     @abstractmethod
     def matmul(self, x: JAXArray) -> JAXArray:
-        pass
+        """The dot product of this matrix with a dense vector or matrix
+
+        Args:
+            x (n, ...): A matrix or vector with leading dimension matching this
+                matrix.
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def scale(self, other: JAXArray) -> "QSM":
-        pass
+        """The multiplication of this matrix times a scalar, as a QSM"""
+        raise NotImplementedError
 
     @property
     def T(self) -> Any:
         return self.transpose()
 
     def to_dense(self) -> JAXArray:
+        """Render this representation to a dense matrix
+
+        This implementation is not optimized and should really only ever be used
+        for testing purposes.
+        """
         return self.matmul(jnp.eye(self.shape[0]))
 
     @property
     def shape(self) -> Tuple[int, int]:
+        """The shape of the matrix"""
         n = self.diag.shape[0]  # type: ignore
         return (n, n)
 
@@ -115,6 +140,12 @@ class QSM(metaclass=ABCMeta):
 
 @dataclass
 class DiagQSM(QSM):
+    """A diagonal quasiseparable matrix
+
+    Args:
+        d (n,): The diagonal entries of the matrix as a 1-D array.
+    """
+
     d: JAXArray
 
     @property
@@ -133,9 +164,11 @@ class DiagQSM(QSM):
         return DiagQSM(d=self.d * other)
 
     def self_add(self, other: "DiagQSM") -> "DiagQSM":
+        """The sum of two :class:`DiagQSM` matrices"""
         return DiagQSM(d=self.d + other.d)
 
     def self_mul(self, other: "DiagQSM") -> "DiagQSM":
+        """The elementwise product of two :class:`DiagQSM` matrices"""
         return DiagQSM(d=self.d * other.d)
 
     def __neg__(self) -> "DiagQSM":
@@ -144,6 +177,14 @@ class DiagQSM(QSM):
 
 @dataclass
 class StrictLowerTriQSM(QSM):
+    """A strictly lower triangular order ``m`` quasiseparable matrix
+
+    Args:
+        p (n, m): The left quasiseparable elements.
+        q (n, m): The right quasiseparable elements.
+        a (n, m, m): The transition matrices.
+    """
+
     p: JAXArray
     q: JAXArray
     a: JAXArray
@@ -171,6 +212,8 @@ class StrictLowerTriQSM(QSM):
         return StrictLowerTriQSM(p=self.p * other, q=self.q, a=self.a)
 
     def self_add(self, other: "StrictLowerTriQSM") -> "StrictLowerTriQSM":
+        """The sum of two :class:`StrictLowerTriQSM` matrices"""
+
         @jax.vmap
         def impl(
             self: StrictLowerTriQSM, other: StrictLowerTriQSM
@@ -186,6 +229,7 @@ class StrictLowerTriQSM(QSM):
         return impl(self, other)
 
     def self_mul(self, other: "StrictLowerTriQSM") -> "StrictLowerTriQSM":
+        """The elementwise product of two :class:`StrictLowerTriQSM` matrices"""
         i, j = np.meshgrid(
             np.arange(self.p.shape[1]), np.arange(other.p.shape[1])
         )
@@ -204,6 +248,20 @@ class StrictLowerTriQSM(QSM):
 
 @dataclass
 class StrictUpperTriQSM(QSM):
+    """A strictly upper triangular order ``m`` quasiseparable matrix
+
+    The notation here is somewhat different from that in `Eidelman & Gohberg
+    (1999) <https://link.springer.com/article/10.1007%2FBF01300581>`_, because
+    we wanted to map ``StrictLowerTriQSM.transpose() -> StrictUpperTriQSM``
+    while retaining the same names for each component. Therefore, our ``p`` is
+    their ``h``, and our ``a`` is their ``b.T``.
+
+    Args:
+        p (n, m): The right quasiseparable elements.
+        q (n, m): The left quasiseparable elements.
+        a (n, m, m): The transition matrices.
+    """
+
     p: JAXArray
     q: JAXArray
     a: JAXArray
@@ -231,9 +289,11 @@ class StrictUpperTriQSM(QSM):
         return StrictUpperTriQSM(p=self.p, q=self.q * other, a=self.a)
 
     def self_add(self, other: "StrictUpperTriQSM") -> "StrictUpperTriQSM":
+        """The sum of two :class:`StrictUpperTriQSM` matrices"""
         return self.transpose().self_add(other.transpose()).transpose()
 
     def self_mul(self, other: "StrictUpperTriQSM") -> "StrictUpperTriQSM":
+        """The elementwise product of two :class:`StrictUpperTriQSM` matrices"""
         return self.transpose().self_mul(other.transpose()).transpose()
 
     def __neg__(self) -> "StrictUpperTriQSM":
@@ -242,6 +302,13 @@ class StrictUpperTriQSM(QSM):
 
 @dataclass
 class LowerTriQSM(QSM):
+    """A lower triangular quasiseparable matrix
+
+    Args:
+        diag: The diagonal elements.
+        lower: The strictly lower triangular elements.
+    """
+
     diag: DiagQSM
     lower: StrictLowerTriQSM
 
@@ -271,6 +338,16 @@ class LowerTriQSM(QSM):
     @jax.jit
     @handle_matvec_shapes
     def solve(self, y: JAXArray) -> JAXArray:
+        """Solve a linear system with this matrix
+
+        If this matrix is called ``L``, this solves ``L @ x = y`` for ``x``
+        given ``y``, using forward substitution.
+
+        Args:
+            y (n, ...): A matrix or vector with leading dimension matching this
+                matrix.
+        """
+
         def impl(fn, data):  # type: ignore
             ((cn,), (pn, wn, an)), yn = data
             xn = (yn - pn @ fn) / cn
@@ -286,6 +363,13 @@ class LowerTriQSM(QSM):
 
 @dataclass
 class UpperTriQSM(QSM):
+    """A upper triangular quasiseparable matrix
+
+    Args:
+        diag: The diagonal elements.
+        upper: The strictly upper triangular elements.
+    """
+
     diag: DiagQSM
     upper: StrictUpperTriQSM
 
@@ -307,6 +391,16 @@ class UpperTriQSM(QSM):
     @jax.jit
     @handle_matvec_shapes
     def solve(self, y: JAXArray) -> JAXArray:
+        """Solve a linear system with this matrix
+
+        If this matrix is called ``U``, this solves ``U @ x = y`` for ``x``
+        given ``y``, using backward substitution.
+
+        Args:
+            y (n, ...): A matrix or vector with leading dimension matching this
+                matrix.
+        """
+
         def impl(fn, data):  # type: ignore
             ((cn,), (pn, wn, an)), yn = data
             xn = (yn - wn @ fn) / cn
@@ -322,6 +416,14 @@ class UpperTriQSM(QSM):
 
 @dataclass
 class SquareQSM(QSM):
+    """A general square order ``(m1, m2)`` quasiseparable matrix
+
+    Args:
+        diag: The diagonal elements.
+        lower: The strictly lower triangular elements with order ``m1``.
+        upper: The strictly upper triangular elements with order ``m2``.
+    """
+
     diag: DiagQSM
     lower: StrictLowerTriQSM
     upper: StrictUpperTriQSM
@@ -347,13 +449,20 @@ class SquareQSM(QSM):
         )
 
     def gram(self) -> "SymmQSM":
+        """The inner product of this matrix with itself
+
+        If this matrix is called ``A``, the Gram matrix is ``A.T @ A``, and
+        that's what this method computes. The result is a :class:`SymmQSM`.
+        """
         # We know that this must result in symmetric matrix, but that won't be
-        # enforced; we make it so!
+        # enforced; we make it so! It might be possible to make this more
+        # efficient, but perhaps jax is clever enough?
         M = self.transpose() @ self
         return SymmQSM(diag=M.diag, lower=M.lower)
 
     @jax.jit
     def inv(self) -> "SquareQSM":
+        """The inverse of this matrix"""
         (d,) = self.diag
         p, q, a = self.lower
         h, g, b = self.upper
@@ -404,6 +513,13 @@ class SquareQSM(QSM):
 
 @dataclass
 class SymmQSM(QSM):
+    """A symmetric order ``m`` quasiseparable matrix
+
+    Args:
+        diag: The diagonal elements.
+        lower: The strictly lower triangular elements with order ``m``.
+    """
+
     diag: DiagQSM
     lower: StrictLowerTriQSM
 
@@ -425,6 +541,7 @@ class SymmQSM(QSM):
 
     @jax.jit
     def inv(self) -> "SymmQSM":
+        """The inverse of this matrix"""
         (d,) = self.diag
         p, q, a = self.lower
 
@@ -460,6 +577,11 @@ class SymmQSM(QSM):
 
     @jax.jit
     def cholesky(self) -> LowerTriQSM:
+        """The Cholesky decomposition of this matrix
+
+        If this matrix is called ``A``, this method returns the
+        :class:`LowerTriQSM` ``L`` such that ``L @ L.T = A``.
+        """
         (d,) = self.diag
         p, q, a = self.lower
 

@@ -5,10 +5,9 @@ import jax
 import numpy as np
 import pytest
 
-from tinygp import GaussianProcess
-from tinygp import kernels as base_kernels
+from tinygp import GaussianProcess, kernels
+from tinygp.kernels import quasisep
 from tinygp.solvers import DirectSolver, QuasisepSolver
-from tinygp.solvers.quasisep import kernels
 
 
 @pytest.fixture
@@ -27,20 +26,20 @@ def data(random):
 @pytest.fixture(
     params=[
         (
-            kernels.Matern32(sigma=1.8, scale=1.5),
-            1.8**2 * base_kernels.Matern32(1.5),
-        ),
-        (
+            quasisep.Matern32(sigma=1.8, scale=1.5),
             1.8**2 * kernels.Matern32(1.5),
-            1.8**2 * base_kernels.Matern32(1.5),
         ),
         (
-            kernels.Matern52(sigma=1.8, scale=1.5),
-            1.8**2 * base_kernels.Matern52(1.5),
+            1.8**2 * quasisep.Matern32(1.5),
+            1.8**2 * kernels.Matern32(1.5),
         ),
         (
-            kernels.Exp(sigma=1.8, scale=1.5),
-            1.8**2 * base_kernels.Exp(1.5),
+            quasisep.Matern52(sigma=1.8, scale=1.5),
+            1.8**2 * kernels.Matern52(1.5),
+        ),
+        (
+            quasisep.Exp(sigma=1.8, scale=1.5),
+            1.8**2 * kernels.Exp(1.5),
         ),
     ]
 )
@@ -49,7 +48,7 @@ def kernel_pair(request):
 
 
 def test_consistent_with_direct(kernel_pair, data):
-    kernel0 = kernels.Matern32(sigma=3.8, scale=4.5)
+    kernel0 = quasisep.Matern32(sigma=3.8, scale=4.5)
     kernel1, kernel2 = kernel_pair
     x, y, t = data
     gp1 = GaussianProcess(kernel1, x, diag=0.1, solver=QuasisepSolver)

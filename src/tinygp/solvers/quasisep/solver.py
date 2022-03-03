@@ -13,13 +13,23 @@ import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels import Kernel
+from tinygp.kernels.quasisep import Quasisep
 from tinygp.solvers.quasisep.core import DiagQSM, LowerTriQSM, SymmQSM
-from tinygp.solvers.quasisep.kernels import Quasisep
 from tinygp.solvers.solver import Solver
 
 
 @dataclass
 class QuasisepSolver(Solver):
+    """A scalable solver that uses quasiseparable matrices
+
+    Take a look at the documentation for the :ref:`api-solvers-quasisep`, for
+    more technical details.
+
+    You generally won't instantiate this object directly but, if you do, you'll
+    probably want to use the :func:`QuasisepSolver.init` method instead of the
+    usual constructor.
+    """
+
     X: JAXArray
     matrix: SymmQSM
     factor: LowerTriQSM
@@ -33,6 +43,17 @@ class QuasisepSolver(Solver):
         *,
         covariance: Optional[Any] = None,
     ) -> "QuasisepSolver":
+        """Build a :class:`QuasisepSolver` for a given kernel and coordinates
+
+        Args:
+            kernel: The kernel function. This must be an instance of a subclass
+                of :class:`tinygp.kernels.quasisep.Quasisep`.
+            X: The input coordinates.
+            diag: An extra diagonal component to add to the covariance matrix.
+            covariance: Optionally, a pre-computed
+                :class:`tinygp.solvers.quasisep.core.QSM` with the covariance
+                matrix.
+        """
         if covariance is None:
             assert isinstance(kernel, Quasisep)
             matrix = kernel.to_symm_qsm(X)
@@ -72,6 +93,23 @@ class QuasisepSolver(Solver):
         X_test: Optional[JAXArray],
         diag: Optional[JAXArray],
     ) -> Any:
+        """Compute the covariance matrix for a conditional GP
+
+        In the case where the prediction is made at the input coordinates with a
+        :class:`tinygp.kernels.quasisep.Quasisep` kernel, this will return the
+        quasiseparable representation of the conditional matrix. Otherwise, it
+        will use scalable methods where possible, but return a dense
+        representation of the covariance, so be careful when predicting at a
+        large number of test points!
+
+        Args:
+            kernel: The kernel for the covariance between the observed and
+                predicted data.
+            X_test: The coordinates of the predicted points. Defaults to the
+                input coordinates.
+            diag: Any extra variance to add to the diagonal of the predicted
+                model.
+        """
         # We can easily compute the conditional as a QSM in the special case
         # where we are predicting at the input coordinates and a Quasisep kernel
         if X_test is None and isinstance(kernel, Quasisep):

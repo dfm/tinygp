@@ -4,3 +4,4 @@
 .coverage*
 /*.ipynb
 *.DAT
+docs/api/_autosummary
