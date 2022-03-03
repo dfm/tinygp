@@ -17,6 +17,14 @@ from tinygp.solvers.solver import Solver
 
 @dataclass
 class DirectSolver(Solver):
+    """A direct solver that uses ``jax``'s built in Cholesky factorization
+
+    You generally won't instantiate this object directly but, if you do, you'll
+    probably want to use the :func:`DirectSolver.init` method instead of the
+    usual constructor.
+    """
+
+    kernel: kernels.Kernel
     X: JAXArray
     variance_value: JAXArray
     covariance_value: JAXArray
@@ -31,11 +39,22 @@ class DirectSolver(Solver):
         *,
         covariance: Optional[Any] = None,
     ) -> "DirectSolver":
+        """Build a :class:`DirectSolver` for a given kernel and coordinates
+
+        Args:
+            kernel: The kernel function.
+            X: The input coordinates.
+            diag: An extra diagonal component to add to the covariance matrix.
+            covariance: Optionally, a pre-computed array with the covariance
+                matrix. This should be equal to the result of calling ``kernel``
+                and adding ``diag``, but that is not checked.
+        """
         variance = kernel(X) + diag
         if covariance is None:
             covariance = construct_covariance(kernel, X, diag)
         scale_tril = linalg.cholesky(covariance, lower=True)
         return cls(
+            kernel=kernel,
             X=X,
             variance_value=variance,
             covariance_value=covariance,
@@ -68,17 +87,33 @@ class DirectSolver(Solver):
 
     def condition(
         self,
-        kernel: kernels.Kernel,
+        kernel: Optional[kernels.Kernel],
         X_test: Optional[JAXArray],
         diag: Optional[JAXArray],
     ) -> Any:
+        """Compute the covariance matrix for a conditional GP
+
+        Args:
+            kernel: The kernel for the covariance between the observed and
+                predicted data. Defaults to the original kernel.
+            X_test: The coordinates of the predicted points. Defaults to the
+                input coordinates.
+            diag: Any extra variance to add to the diagonal of the predicted
+                model.
+        """
         if X_test is None:
-            Ks = kernel(self.X, self.X)
+            Ks = (
+                self.covariance_value
+                if kernel is None
+                else kernel(self.X, self.X)
+            )
+            kernel = self.kernel if kernel is None else kernel
             if diag is None:
                 Kss = Ks
             else:
                 Kss = construct_covariance(kernel, self.X, diag)
         else:
+            kernel = self.kernel if kernel is None else kernel
             if diag is None:
                 Kss = kernel(X_test, X_test)
             else:

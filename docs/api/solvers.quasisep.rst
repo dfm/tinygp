@@ -1,3 +1,5 @@
+.. _api-solvers-quasisep:
+
 solvers.quasisep package
 ========================
 

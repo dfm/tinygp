@@ -27,7 +27,8 @@ follows:
 
     gp = tinygp.GaussianProcess(..., solver=tinygp.solvers.DirectSolver)
 
-The details for the included solvers are given below.
+The details for the included solvers are given below, but this is a pretty
+low-level feature and the details are definitely subject to change!
 """
 
 __all__ = ["DirectSolver", "QuasisepSolver"]
