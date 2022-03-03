@@ -71,7 +71,7 @@ class Solver(metaclass=ABCMeta):
     @abstractmethod
     def condition(
         self,
-        kernel: Optional[Kernel],
+        kernel: Kernel,
         X_test: Optional[JAXArray],
         diag: Optional[JAXArray],
     ) -> Any:

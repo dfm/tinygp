@@ -151,10 +151,9 @@ class GaussianProcess:
         alpha, log_prob, mean_value = self._condition(
             y, X_test, include_mean, kernel
         )
-        covariance_value = self.solver.condition(kernel, X_test, diag)
-
         if kernel is None:
             kernel = self.kernel
+        covariance_value = self.solver.condition(kernel, X_test, diag)
         if X_test is None:
             X_test = self.X
 

@@ -24,7 +24,6 @@ class DirectSolver(Solver):
     usual constructor.
     """
 
-    kernel: kernels.Kernel
     X: JAXArray
     variance_value: JAXArray
     covariance_value: JAXArray
@@ -54,7 +53,6 @@ class DirectSolver(Solver):
             covariance = construct_covariance(kernel, X, diag)
         scale_tril = linalg.cholesky(covariance, lower=True)
         return cls(
-            kernel=kernel,
             X=X,
             variance_value=variance,
             covariance_value=covariance,
@@ -87,7 +85,7 @@ class DirectSolver(Solver):
 
     def condition(
         self,
-        kernel: Optional[kernels.Kernel],
+        kernel: kernels.Kernel,
         X_test: Optional[JAXArray],
         diag: Optional[JAXArray],
     ) -> Any:
@@ -95,25 +93,19 @@ class DirectSolver(Solver):
 
         Args:
             kernel: The kernel for the covariance between the observed and
-                predicted data. Defaults to the original kernel.
+                predicted data.
             X_test: The coordinates of the predicted points. Defaults to the
                 input coordinates.
             diag: Any extra variance to add to the diagonal of the predicted
                 model.
         """
         if X_test is None:
-            Ks = (
-                self.covariance_value
-                if kernel is None
-                else kernel(self.X, self.X)
-            )
-            kernel = self.kernel if kernel is None else kernel
+            Ks = kernel(self.X, self.X)
             if diag is None:
                 Kss = Ks
             else:
                 Kss = construct_covariance(kernel, self.X, diag)
         else:
-            kernel = self.kernel if kernel is None else kernel
             if diag is None:
                 Kss = kernel(X_test, X_test)
             else:
