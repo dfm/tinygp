@@ -1,4 +1,4 @@
-name: Tests
+name: News
 
 on:
   pull_request:
