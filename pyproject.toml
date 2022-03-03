@@ -32,8 +32,10 @@ show_missing = true
 all = true
 
 [tool.towncrier]
+name = "tinygp"
 package = "tinygp"
 package_dir = "src"
-filename = "NEWS.rst"
+filename = "docs/news.rst"
 directory = "news/"
 issue_format = "`#{issue} <https://github.com/dfm/tinygp/issues/{issue}>`_"
+underlines = "-~~"

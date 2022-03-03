@@ -14,4 +14,5 @@ motivation
 install
 troubleshooting
 benchmarks
+news
 ```

@@ -1,0 +1,25 @@
+name: News
+
+on:
+  pull_request:
+    paths-ignore:
+      - ".pre-commit-config.yaml"
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          # FIXME: using github towncrier until next release
+          python -m pip install https://github.com/twisted/towncrier/archive/6b1527b6bf2cbb293ef411ac4f300bd50a5c98ae.zip
+      - name: Check for news
+        run: python -m towncrier check --compare-with origin/main
