@@ -8,7 +8,7 @@ kernels.quasisep package
 .. automodule:: tinygp.kernels.quasisep
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
    Quasisep
    Sum

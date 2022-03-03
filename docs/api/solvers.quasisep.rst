@@ -16,7 +16,7 @@ Square Quasiseparable Matrices
 .. automodule:: tinygp.solvers.quasisep.core
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
    QSM
    DiagQSM
@@ -36,6 +36,6 @@ Rectangular Quasiseparable Matrices
 .. automodule:: tinygp.solvers.quasisep.general
 
 .. autosummary::
-   :toctree: _autosummary
+   :toctree: summary
 
    GeneralQSM

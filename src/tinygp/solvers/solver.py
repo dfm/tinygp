@@ -8,7 +8,7 @@ from abc import ABCMeta, abstractmethod
 from typing import Any, Optional
 
 from tinygp.helpers import JAXArray
-from tinygp.kernels import Kernel
+from tinygp.kernels.base import Kernel
 
 
 class Solver(metaclass=ABCMeta):

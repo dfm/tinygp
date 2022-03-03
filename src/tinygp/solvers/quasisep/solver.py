@@ -12,8 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass
-from tinygp.kernels import Kernel
-from tinygp.kernels.quasisep import Quasisep
+from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, LowerTriQSM, SymmQSM
 from tinygp.solvers.solver import Solver
 
@@ -54,6 +53,8 @@ class QuasisepSolver(Solver):
                 :class:`tinygp.solvers.quasisep.core.QSM` with the covariance
                 matrix.
         """
+        from tinygp.kernels.quasisep import Quasisep
+
         if covariance is None:
             assert isinstance(kernel, Quasisep)
             matrix = kernel.to_symm_qsm(X)
@@ -110,6 +111,8 @@ class QuasisepSolver(Solver):
             diag: Any extra variance to add to the diagonal of the predicted
                 model.
         """
+        from tinygp.kernels.quasisep import Quasisep
+
         # We can easily compute the conditional as a QSM in the special case
         # where we are predicting at the input coordinates and a Quasisep kernel
         if X_test is None and isinstance(kernel, Quasisep):

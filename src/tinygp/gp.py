@@ -39,11 +39,19 @@ class GaussianProcess:
             data set.
         diag (JAXArray, optional): The value to add to the diagonal of the
             covariance matrix, often used to capture measurement uncertainty.
-            This should be a scalar or have the shape ``(N_data,)``.
+            This should be a scalar or have the shape ``(N_data,)``. If not
+            provided, this will default to the square root of machine epsilon
+            for the data type being used. This can sometimes be sufficient to
+            avoid numerical issues, but if you're getting NaNs, try increasing
+            this value.
         mean (Callable, optional): A callable or constant mean function that
             will be evaluated with the ``X`` as input: ``mean(X)``
         mean_value (JAXArray, optional): The mean precomputed at the location
             of the data.
+        covariance_value (JAXArray, optional): The covariance matrix precomputed
+            at the location of the data.
+        solver: The solver type to be used to execute the required linear
+            algebra.
     """
 
     def __init__(
@@ -59,18 +67,6 @@ class GaussianProcess:
     ):
         self.kernel = kernel
         self.X = X
-        self.diag = jnp.zeros(()) if diag is None else diag
-
-        if solver is None:
-            if isinstance(covariance_value, SymmQSM) or isinstance(
-                kernel, Quasisep
-            ):
-                solver = QuasisepSolver
-            else:
-                solver = DirectSolver
-        self.solver = solver.init(
-            kernel, self.X, self.diag, covariance=covariance_value
-        )
 
         if callable(mean):
             self.mean_function = mean
@@ -89,6 +85,18 @@ class GaussianProcess:
                 "Invalid mean shape: "
                 f"expected ndim = 1, got ndim={self.mean.ndim}"
             )
+
+        self.diag = _default_diag(self.mean) if diag is None else diag
+        if solver is None:
+            if isinstance(covariance_value, SymmQSM) or isinstance(
+                kernel, Quasisep
+            ):
+                solver = QuasisepSolver
+            else:
+                solver = DirectSolver
+        self.solver = solver.init(
+            kernel, self.X, self.diag, covariance=covariance_value
+        )
 
     @property
     def variance(self) -> JAXArray:
@@ -153,6 +161,8 @@ class GaussianProcess:
         )
         if kernel is None:
             kernel = self.kernel
+
+        diag = _default_diag(self.mean) if diag is None else diag
         covariance_value = self.solver.condition(kernel, X_test, diag)
         if X_test is None:
             X_test = self.X
@@ -319,11 +329,38 @@ class GaussianProcess:
 
             mean_value = kernel.matmul(X_test, self.X, alpha)
             if include_mean:
-                mean_value += self.mean_function(X_test)
+                mean_value += jax.vmap(self.mean_function)(X_test)
 
         return alpha, log_prob, mean_value
 
 
 class ConditionResult(NamedTuple):
+    """The result of conditioning a :class:`GaussianProcess` on data
+
+    This has two entries, ``log_probability`` and ``gp``, that are described
+    below.
+    """
+
     log_probability: JAXArray
+    """The log probability of the conditioned model
+
+    In other words, this is the marginal likelihood for the kernel parameters,
+    given the observed data, or the multivariate normal log probability
+    evaluated at the given data.
+    """
+
     gp: GaussianProcess
+    """A :class:`GaussianProcess` describing the conditional distribution
+
+    This will have a mean and covariance conditioned on the observed data, but
+    it is otherwise a fully functional GP that can sample from or condition
+    further (although that's probably not going to be very efficient).
+    """
+
+
+def _default_diag(reference: JAXArray) -> JAXArray:
+    """Default to adding some amount of jitter to the diagonal, just in case,
+    we use sqrt(eps) for the dtype of the mean function because that seems to
+    give sensible results in general.
+    """
+    return jnp.sqrt(jnp.finfo(reference).eps)  # type: ignore

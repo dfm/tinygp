@@ -1,0 +1,4 @@
+Added 3 new tutorials: (1) :ref:`intro`, giving a general introduction to
+``tinygp``, (2) :ref:`means`, showing how ``tinygp`` can be used with a
+non-trivial mean function, and (3) :ref:`quasisep`, introducing the scalable
+solver for quasiseparable kernels.
