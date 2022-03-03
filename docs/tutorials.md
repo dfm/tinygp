@@ -21,6 +21,7 @@ directly.
 tutorials/intro
 tutorials/quickstart
 tutorials/modeling
+tutorials/means
 tutorials/multivariate
 tutorials/kernels
 ```
@@ -35,4 +36,5 @@ tutorials/geometry
 tutorials/derivative
 tutorials/likelihoods
 tutorials/mixture
+tutorials/quasisep
 ```
