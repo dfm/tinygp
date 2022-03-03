@@ -329,7 +329,7 @@ class GaussianProcess:
 
             mean_value = kernel.matmul(X_test, self.X, alpha)
             if include_mean:
-                mean_value += self.mean_function(X_test)
+                mean_value += jax.vmap(self.mean_function)(X_test)
 
         return alpha, log_prob, mean_value
 

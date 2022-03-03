@@ -1,7 +1,7 @@
-default: dirhtml
+default: html
 
 # You can set these variables from the command line.
-SPHINXOPTS    = -D jupyter_execute_notebooks=off
+SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 BUILDDIR      = _build
 
@@ -15,7 +15,13 @@ clean:
 	rm -rf $(BUILDDIR)/* $(PAGES)
 
 .PHONY: html
-dirhtml: $(PAGES)
+html: $(PAGES)
+	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) -D jupyter_execute_notebooks=off $(BUILDDIR)/html
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+
+.PHONY: notebooks
+notebooks: $(PAGES)
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

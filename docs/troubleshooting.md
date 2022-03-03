@@ -19,8 +19,9 @@ docs](https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#
 and the way we do it in these docs is to add the following, when necessary:
 
 ```python
-from jax.config import config
-config.update("jax_enable_x64", True)
+import jax
+
+jax.config.update("jax_enable_x64", True)
 ```
 
 If enabling double precision doesn't do the trick, this often means that there's
