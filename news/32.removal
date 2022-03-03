@@ -1,0 +1,2 @@
+Breaking change: Removed existing ``condition`` method and deprected ``predict``
+method.

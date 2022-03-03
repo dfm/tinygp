@@ -1,3 +1,5 @@
+.. _api-kernels-quasisep:
+
 kernels.quasisep package
 ========================
 
