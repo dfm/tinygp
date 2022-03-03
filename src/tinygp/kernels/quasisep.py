@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-The kernels implemented in this submodule 
+The kernels implemented in this submodule
 """
 
 from __future__ import annotations
