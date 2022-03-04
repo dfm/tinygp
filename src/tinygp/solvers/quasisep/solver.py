@@ -4,7 +4,6 @@ from __future__ import annotations
 
 __all__ = ["QuasisepSolver"]
 
-from functools import partial
 from typing import Any, Optional
 
 import jax
@@ -87,7 +86,6 @@ class QuasisepSolver(Solver):
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return self.factor @ y
 
-    @partial(jax.jit, static_argnums=(1,))
     def condition(
         self,
         kernel: Kernel,
