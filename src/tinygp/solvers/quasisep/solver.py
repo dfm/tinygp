@@ -4,7 +4,6 @@ from __future__ import annotations
 
 __all__ = ["QuasisepSolver"]
 
-from functools import partial
 from typing import Any, Optional
 
 import jax
