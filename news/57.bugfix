@@ -1,0 +1,2 @@
+Fixed exception when conditioning with quasiseparable solver, since quasisep
+kernels are not hashable.
