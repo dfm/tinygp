@@ -21,6 +21,7 @@ __all__ = [
     "Exp",
     "Matern32",
     "Matern52",
+    "Cosine",
 ]
 
 from abc import ABCMeta, abstractmethod
@@ -499,3 +500,36 @@ class Matern52(Quasisep):
                 ],
             ]
         )
+
+
+@dataclass
+class Cosine(Quasisep):
+    r"""A scalable implementation of :class:`tinygp.kernels.stationary.Cosine`
+
+    This kernel takes the form:
+
+    .. math::
+
+        k(\tau)=\sigma^2\,\cos(-2\,\pi\,\tau/\ell)
+
+    for :math:`\tau = |x_i - x_j|`.
+
+    Args:
+        scale: The parameter :math:`\ell`.
+        sigma: The parameter :math:`\sigma`.
+    """
+    scale: JAXArray
+    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+
+    def Pinf(self) -> JAXArray:
+        return jnp.diag(jnp.array([1, 3 / jnp.square(self.scale)]))
+
+    def h(self, X: JAXArray) -> JAXArray:
+        return jnp.array([self.sigma, 0])
+
+    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        dt = X2 - X1
+        f = 2 * np.pi / self.scale
+        cos = jnp.cos(f * dt)
+        sin = jnp.sin(f * dt)
+        return jnp.array([[cos, -sin], [sin, cos]])

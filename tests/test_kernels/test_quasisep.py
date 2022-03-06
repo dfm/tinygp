@@ -35,6 +35,8 @@ def data(random):
         1.5 * quasisep.Matern52(1.5) + 0.3 * quasisep.Exp(1.5),
         quasisep.Matern52(1.5) * quasisep.SHO(omega=1.5, quality=0.1),
         1.5 * quasisep.Matern52(1.5) * quasisep.Celerite(1.1, 0.8, 0.9, 0.1),
+        quasisep.Cosine(sigma=1.8, scale=1.5),
+        1.8 * quasisep.Cosine(1.5),
     ]
 )
 def kernel(request):
