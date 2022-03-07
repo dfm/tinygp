@@ -186,9 +186,9 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         h1 = self.observation_model(X1)
         h2 = self.observation_model(X2)
         return jnp.where(
-            X1 < X2,
-            h1 @ Pinf @ self.transition_matrix(X1, X2) @ h2,
-            h2 @ Pinf @ self.transition_matrix(X2, X1) @ h1,
+            self.coord_to_sortable(X1) < self.coord_to_sortable(X2),
+            h2 @ Pinf @ self.transition_matrix(X1, X2) @ h1,
+            h1 @ Pinf @ self.transition_matrix(X2, X1) @ h2,
         )
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:

@@ -37,4 +37,5 @@ tutorials/derivative
 tutorials/likelihoods
 tutorials/mixture
 tutorials/quasisep
+tutorials/quasisep-custom
 ```
