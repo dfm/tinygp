@@ -3,6 +3,7 @@
 
 import numpy as np
 import pytest
+import jax.scipy as jsp
 
 from tinygp.kernels import quasisep
 
@@ -46,6 +47,14 @@ def kernel(request):
 def test_quasisep_kernels(data, kernel):
     x, y, t = data
     K = kernel(x, x)
+
+    # Test that to_dense and matmuls work as expected
     np.testing.assert_allclose(kernel.to_symm_qsm(x).to_dense(), K)
     np.testing.assert_allclose(kernel.matmul(x, y), K @ y)
     np.testing.assert_allclose(kernel.matmul(t, x, y), kernel(t, x) @ y)
+
+    # Test that F and are defined consistently
+    x1 = x[0]
+    x2 = x[1]
+    num_A = jsp.linalg.expm(kernel.F().T * (x2 - x1))
+    np.testing.assert_allclose(kernel.A(x1, x2), num_A)
