@@ -107,6 +107,9 @@ class Diagonal(Noise):
 class Dense(Noise):
     """A full rank observation noise model
 
+    .. warning:: This model cannot be used in conjunction with the
+        :class:`tinygp.solvers.QuasisepSolver` for scalable computations.
+
     Args:
         value: The N-by-N full rank observation model.
     """
