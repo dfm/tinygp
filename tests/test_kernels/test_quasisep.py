@@ -56,5 +56,5 @@ def test_quasisep_kernels(data, kernel):
     # Test that F and are defined consistently
     x1 = x[0]
     x2 = x[1]
-    num_A = jsp.linalg.expm(kernel.F().T * (x2 - x1))
-    np.testing.assert_allclose(kernel.A(x1, x2), num_A)
+    num_A = jsp.linalg.expm(kernel.design_matrix().T * (x2 - x1))
+    np.testing.assert_allclose(kernel.transition_matrix(x1, x2), num_A)
