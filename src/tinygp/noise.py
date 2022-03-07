@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-
+This subpackage provides the tools needed to build expressive observation
+processes for ``tinygp`` Gaussian process models. The most commonly used noise
+model is :class:`Diagonal`, which adds a constant diagonal matrix to the process
+covariance to represent per-observation noise. This subpackage also includes a
+:class:`Dense` model for adding a full rank observation model, and
+:class:`Banded` to capture noise that can be represented by a banded matrix.
 """
-
 
 from __future__ import annotations
 
-__all__ = ["Diagonal", "Banded", "Dense"]
+__all__ = ["Diagonal", "Dense", "Banded"]
 
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Any, Tuple, Union
@@ -21,13 +25,16 @@ if TYPE_CHECKING:
 
 
 class Noise(metaclass=ABCMeta):
-    __array_priority__ = 2000
+    """An abstract base class defining the noise model protocol"""
+
+    __array_priority__ = 2001
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
     @abstractmethod
     def diagonal(self) -> JAXArray:
+        """The diagonal elements of the noise model as an array"""
         raise NotImplementedError
 
     @abstractmethod
@@ -44,11 +51,21 @@ class Noise(metaclass=ABCMeta):
 
     @abstractmethod
     def to_qsm(self) -> Union["SymmQSM", "DiagQSM"]:
+        """This noise model represented as a quasiseparable matrix"""
         raise NotImplementedError
 
 
 @dataclass
 class Diagonal(Noise):
+    """A diagonal observation noise model
+
+    This represents the observation model using per-observation measurement
+    variances.
+
+    Args:
+        diag: The diagonal elements of the noise model.
+    """
+
     diag: JAXArray
 
     def __post_init__(self) -> None:
@@ -87,7 +104,76 @@ class Diagonal(Noise):
 
 
 @dataclass
+class Dense(Noise):
+    """A full rank observation noise model
+
+    Args:
+        value: The N-by-N full rank observation model.
+    """
+
+    value: JAXArray
+
+    def diagonal(self) -> JAXArray:
+        return jnp.diag(self.value)
+
+    def __add__(self, other: JAXArray) -> JAXArray:
+        return self.value + other
+
+    def __radd__(self, other: JAXArray) -> JAXArray:
+        return other + self.value
+
+    def __matmul__(self, other: JAXArray) -> JAXArray:
+        return self.value @ other
+
+    def to_qsm(self) -> Union["SymmQSM", "DiagQSM"]:
+        """This cannot be compactly represented as a quasiseparable matrix"""
+        raise NotImplementedError
+
+
+@dataclass
 class Banded(Noise):
+    r"""A banded observation noise model
+
+    This model captures noise that can be represented by a small number of
+    off-diagonal elements in the observation matrix. One practical example of
+    such an observation model is discussed by `Delisle et al. (2020)
+    <https://arxiv.org/abs/2004.10678>`_. This matrix is defined by two arrays:
+    ``diag`` and ``off_diags``, with shapes ``(N,)`` and ``(N, J)``
+    respectively, where ``N`` is the number of data points and ``J`` is the
+    number of non-zero off-diagonals required.
+
+    For example, the following matrix has ``N = 4`` and ``J = 2``:
+
+    .. math::
+
+        N = \left(\begin{array}{cccc}
+            n_{11} & n_{12} & n_{13} & 0      \\
+            n_{12} & n_{22} & n_{23} & n_{24} \\
+            n_{13} & n_{23} & n_{33} & n_{34} \\
+            0      & n_{24} & n_{34} & n_{44}
+        \end{array}\right)
+
+    and it would be represented by the following arrays:
+
+    .. code-block:: python
+
+        diag = [n11, n22, n33, n44]
+
+    and
+
+    .. code-block:: python
+
+        off_diags = [
+            [n12, n13],
+            [n23, n24],
+            [n34,  * ],
+            [ *,   * ],
+        ]
+
+
+    Where ``*`` represents an element that can have any arbitrary value, since it
+    won't ever be accessed.
+    """
     diag: JAXArray
     off_diags: JAXArray
 
@@ -158,23 +244,3 @@ class Banded(Noise):
             diag=core.DiagQSM(d=self.diag),
             lower=core.StrictLowerTriQSM(p=p, q=q, a=a),
         )
-
-
-@dataclass
-class Dense(Noise):
-    value: JAXArray
-
-    def diagonal(self) -> JAXArray:
-        return jnp.diag(self.value)
-
-    def __add__(self, other: JAXArray) -> JAXArray:
-        return self.value + other
-
-    def __radd__(self, other: JAXArray) -> JAXArray:
-        return other + self.value
-
-    def __matmul__(self, other: JAXArray) -> JAXArray:
-        return self.value @ other
-
-    def to_qsm(self) -> Union["SymmQSM", "DiagQSM"]:
-        raise NotImplementedError

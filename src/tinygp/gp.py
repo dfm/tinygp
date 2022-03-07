@@ -45,12 +45,12 @@ class GaussianProcess:
             for the data type being used. This can sometimes be sufficient to
             avoid numerical issues, but if you're getting NaNs, try increasing
             this value.
+        noise (Noise, optional): Used to implement more expressive observation
+            noise models than those supported by just ``diag``. This can be any
+            object that implements the :class:`tinygp.noise.Noise` protocol. If
+            this is provided, the ``diag`` parameter will be ignored.
         mean (Callable, optional): A callable or constant mean function that
             will be evaluated with the ``X`` as input: ``mean(X)``
-        mean_value (JAXArray, optional): The mean precomputed at the location
-            of the data.
-        covariance_value (JAXArray, optional): The covariance matrix precomputed
-            at the location of the data.
         solver: The solver type to be used to execute the required linear
             algebra.
     """
@@ -63,9 +63,9 @@ class GaussianProcess:
         diag: Optional[JAXArray] = None,
         noise: Optional[Noise] = None,
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
+        solver: Optional[Any] = None,
         mean_value: Optional[JAXArray] = None,
         covariance_value: Optional[Any] = None,
-        solver: Optional[Any] = None,
     ):
         self.kernel = kernel
         self.X = X
