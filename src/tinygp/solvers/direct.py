@@ -12,6 +12,7 @@ from jax.scipy import linalg
 
 from tinygp import kernels
 from tinygp.helpers import JAXArray, dataclass
+from tinygp.noise import Noise
 from tinygp.solvers.solver import Solver
 
 
@@ -34,7 +35,7 @@ class DirectSolver(Solver):
         cls,
         kernel: kernels.Kernel,
         X: JAXArray,
-        diag: JAXArray,
+        noise: Noise,
         *,
         covariance: Optional[Any] = None,
     ) -> "DirectSolver":
@@ -43,14 +44,14 @@ class DirectSolver(Solver):
         Args:
             kernel: The kernel function.
             X: The input coordinates.
-            diag: An extra diagonal component to add to the covariance matrix.
+            noise: The noise model for the process.
             covariance: Optionally, a pre-computed array with the covariance
                 matrix. This should be equal to the result of calling ``kernel``
                 and adding ``diag``, but that is not checked.
         """
-        variance = kernel(X) + diag
+        variance = kernel(X) + noise.diagonal()
         if covariance is None:
-            covariance = construct_covariance(kernel, X, diag)
+            covariance = kernel(X, X) + noise
         scale_tril = linalg.cholesky(covariance, lower=True)
         return cls(
             X=X,
@@ -84,10 +85,7 @@ class DirectSolver(Solver):
         return jnp.einsum("ij,j...->i...", self.scale_tril, y)
 
     def condition(
-        self,
-        kernel: kernels.Kernel,
-        X_test: Optional[JAXArray],
-        diag: Optional[JAXArray],
+        self, kernel: kernels.Kernel, X_test: Optional[JAXArray], noise: Noise
     ) -> Any:
         """Compute the covariance matrix for a conditional GP
 
@@ -96,29 +94,14 @@ class DirectSolver(Solver):
                 predicted data.
             X_test: The coordinates of the predicted points. Defaults to the
                 input coordinates.
-            diag: Any extra variance to add to the diagonal of the predicted
-                model.
+            noise: The noise model for the predicted process.
         """
         if X_test is None:
             Ks = kernel(self.X, self.X)
-            if diag is None:
-                Kss = Ks
-            else:
-                Kss = construct_covariance(kernel, self.X, diag)
+            Kss = Ks + noise
         else:
-            if diag is None:
-                Kss = kernel(X_test, X_test)
-            else:
-                Kss = construct_covariance(kernel, X_test, diag)
             Ks = kernel(self.X, X_test)
+            Kss = kernel(X_test, X_test) + noise
 
         A = self.solve_triangular(Ks)
         return Kss - A.transpose() @ A
-
-
-def construct_covariance(
-    kernel: kernels.Kernel, X: JAXArray, diag: JAXArray
-) -> JAXArray:
-    covariance = kernel(X, X)
-    covariance = covariance.at[jnp.diag_indices(covariance.shape[0])].add(diag)  # type: ignore
-    return covariance

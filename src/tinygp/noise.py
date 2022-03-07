@@ -6,16 +6,18 @@
 
 from __future__ import annotations
 
-__all__ = ["Diagonal", "Banded"]
+__all__ = ["Diagonal", "Banded", "Dense"]
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Tuple, Union
+from typing import TYPE_CHECKING, Any, Tuple, Union
 
 import jax.numpy as jnp
 import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass
-from tinygp.solvers.quasisep import core
+
+if TYPE_CHECKING:
+    from tinygp.solvers.quasisep.core import DiagQSM, SymmQSM
 
 
 class Noise(metaclass=ABCMeta):
@@ -23,6 +25,10 @@ class Noise(metaclass=ABCMeta):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass
+
+    @abstractmethod
+    def diagonal(self) -> JAXArray:
+        raise NotImplementedError
 
     @abstractmethod
     def __add__(self, other: JAXArray) -> JAXArray:
@@ -37,7 +43,7 @@ class Noise(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def to_qsm(self) -> Union[core.SymmQSM, core.DiagQSM]:
+    def to_qsm(self) -> Union["SymmQSM", "DiagQSM"]:
         raise NotImplementedError
 
 
@@ -51,6 +57,9 @@ class Diagonal(Noise):
                 "The diagonal for the noise model be the same shape as the data; "
                 "if passing a constant, it should be broadcasted first"
             )
+
+    def diagonal(self) -> JAXArray:
+        return self.diag
 
     def _add(self, other: JAXArray) -> JAXArray:
         return (
@@ -71,14 +80,19 @@ class Diagonal(Noise):
         else:
             return self.diag[:, None] * other
 
-    def to_qsm(self) -> core.DiagQSM:
-        return core.DiagQSM(d=self.diag)
+    def to_qsm(self) -> "DiagQSM":
+        from tinygp.solvers.quasisep.core import DiagQSM
+
+        return DiagQSM(d=self.diag)
 
 
 @dataclass
 class Banded(Noise):
     diag: JAXArray
     off_diags: JAXArray
+
+    def diagonal(self) -> JAXArray:
+        return self.diag
 
     def _indices(
         self,
@@ -133,7 +147,9 @@ class Banded(Noise):
     def __matmul__(self, other: JAXArray) -> JAXArray:
         return self.to_qsm() @ other
 
-    def to_qsm(self) -> core.SymmQSM:
+    def to_qsm(self) -> "SymmQSM":
+        from tinygp.solvers.quasisep import core
+
         N, J = jnp.shape(self.off_diags)
         p = jnp.repeat(jnp.eye(1, J), N, axis=0)
         q = self.off_diags
@@ -148,6 +164,9 @@ class Banded(Noise):
 class Dense(Noise):
     value: JAXArray
 
+    def diagonal(self) -> JAXArray:
+        return jnp.diag(self.value)
+
     def __add__(self, other: JAXArray) -> JAXArray:
         return self.value + other
 
@@ -157,5 +176,5 @@ class Dense(Noise):
     def __matmul__(self, other: JAXArray) -> JAXArray:
         return self.value @ other
 
-    def to_qsm(self) -> Union[core.SymmQSM, core.DiagQSM]:
+    def to_qsm(self) -> Union["SymmQSM", "DiagQSM"]:
         raise NotImplementedError

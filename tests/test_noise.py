@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
-import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 import tinygp
 
 
 def check_noise_model(noise, dense_rep):
     random = np.random.default_rng(6675)
+
+    np.testing.assert_allclose(noise.diagonal(), jnp.diag(dense_rep))
     np.testing.assert_allclose(noise + np.zeros_like(dense_rep), dense_rep)
 
     y1 = random.normal(size=dense_rep.shape)
