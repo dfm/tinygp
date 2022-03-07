@@ -151,6 +151,9 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         return Sum(self, other)
 
     def __radd__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+        # We'll hit this first branch when using the `sum` function
+        if other == 0:
+            return self
         if not isinstance(other, Quasisep):
             raise ValueError(
                 "Quasisep kernels can only be added to other Quasisep kernels"

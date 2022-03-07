@@ -11,6 +11,7 @@ kernels.quasisep package
    :toctree: summary
 
    Quasisep
+   Wrapper
    Sum
    Product
    Scale
