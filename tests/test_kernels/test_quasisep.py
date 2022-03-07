@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
+import jax.scipy as jsp
 import numpy as np
 import pytest
-import jax.scipy as jsp
 
 from tinygp.kernels import quasisep
 
