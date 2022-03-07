@@ -33,5 +33,6 @@ Subpackages
 
     kernels
     means
+    noise
     solvers
     transforms

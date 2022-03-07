@@ -22,6 +22,7 @@ import jax.numpy as jnp
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
 from tinygp.kernels.quasisep import Quasisep
+from tinygp.noise import Diagonal, Noise
 from tinygp.solvers import DirectSolver, QuasisepSolver
 from tinygp.solvers.quasisep.core import SymmQSM
 
@@ -44,12 +45,12 @@ class GaussianProcess:
             for the data type being used. This can sometimes be sufficient to
             avoid numerical issues, but if you're getting NaNs, try increasing
             this value.
+        noise (Noise, optional): Used to implement more expressive observation
+            noise models than those supported by just ``diag``. This can be any
+            object that implements the :class:`tinygp.noise.Noise` protocol. If
+            this is provided, the ``diag`` parameter will be ignored.
         mean (Callable, optional): A callable or constant mean function that
             will be evaluated with the ``X`` as input: ``mean(X)``
-        mean_value (JAXArray, optional): The mean precomputed at the location
-            of the data.
-        covariance_value (JAXArray, optional): The covariance matrix precomputed
-            at the location of the data.
         solver: The solver type to be used to execute the required linear
             algebra.
     """
@@ -60,10 +61,11 @@ class GaussianProcess:
         X: JAXArray,
         *,
         diag: Optional[JAXArray] = None,
+        noise: Optional[Noise] = None,
         mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
+        solver: Optional[Any] = None,
         mean_value: Optional[JAXArray] = None,
         covariance_value: Optional[Any] = None,
-        solver: Optional[Any] = None,
     ):
         self.kernel = kernel
         self.X = X
@@ -86,7 +88,11 @@ class GaussianProcess:
                 f"expected ndim = 1, got ndim={self.mean.ndim}"
             )
 
-        self.diag = _default_diag(self.mean) if diag is None else diag
+        if noise is None:
+            diag = _default_diag(self.mean) if diag is None else diag
+            noise = Diagonal(diag=jnp.broadcast_to(diag, self.mean.shape))
+        self.noise = noise
+
         if solver is None:
             if isinstance(covariance_value, SymmQSM) or isinstance(
                 kernel, Quasisep
@@ -95,7 +101,7 @@ class GaussianProcess:
             else:
                 solver = DirectSolver
         self.solver = solver.init(
-            kernel, self.X, self.diag, covariance=covariance_value
+            kernel, self.X, self.noise, covariance=covariance_value
         )
 
     @property
@@ -126,6 +132,7 @@ class GaussianProcess:
         X_test: Optional[JAXArray] = None,
         *,
         diag: Optional[JAXArray] = None,
+        noise: Optional[Noise] = None,
         include_mean: bool = True,
         kernel: Optional[kernels.Kernel] = None,
     ) -> ConditionResult:
@@ -162,8 +169,11 @@ class GaussianProcess:
         if kernel is None:
             kernel = self.kernel
 
-        diag = _default_diag(self.mean) if diag is None else diag
-        covariance_value = self.solver.condition(kernel, X_test, diag)
+        if noise is None:
+            diag = _default_diag(mean_value) if diag is None else diag
+            noise = Diagonal(diag=jnp.broadcast_to(diag, mean_value.shape))
+
+        covariance_value = self.solver.condition(kernel, X_test, noise)
         if X_test is None:
             X_test = self.X
 
@@ -173,7 +183,7 @@ class GaussianProcess:
         gp = GaussianProcess(
             kernels.Conditioned(self.X, self.solver, kernel),
             X_test,
-            diag=diag,
+            noise=noise,
             mean=means.Conditioned(
                 self.X,
                 alpha,
@@ -313,7 +323,7 @@ class GaussianProcess:
             # points, using the original kernel), the mean is especially fast to
             # compute; so let's use that calculation here.
             if kernel is None:
-                delta = self.diag * alpha
+                delta = self.noise @ alpha
                 mean_value = y - delta
                 if not include_mean:
                     mean_value -= self.loc

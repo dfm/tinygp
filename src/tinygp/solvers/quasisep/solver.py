@@ -12,7 +12,8 @@ import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass
 from tinygp.kernels.base import Kernel
-from tinygp.solvers.quasisep.core import DiagQSM, LowerTriQSM, SymmQSM
+from tinygp.noise import Noise
+from tinygp.solvers.quasisep.core import LowerTriQSM, SymmQSM
 from tinygp.solvers.solver import Solver
 
 
@@ -37,7 +38,7 @@ class QuasisepSolver(Solver):
         cls,
         kernel: Kernel,
         X: JAXArray,
-        diag: JAXArray,
+        noise: Noise,
         *,
         covariance: Optional[Any] = None,
     ) -> "QuasisepSolver":
@@ -47,7 +48,7 @@ class QuasisepSolver(Solver):
             kernel: The kernel function. This must be an instance of a subclass
                 of :class:`tinygp.kernels.quasisep.Quasisep`.
             X: The input coordinates.
-            diag: An extra diagonal component to add to the covariance matrix.
+            noise: The noise model for the process.
             covariance: Optionally, a pre-computed
                 :class:`tinygp.solvers.quasisep.core.QSM` with the covariance
                 matrix.
@@ -57,7 +58,7 @@ class QuasisepSolver(Solver):
         if covariance is None:
             assert isinstance(kernel, Quasisep)
             matrix = kernel.to_symm_qsm(X)
-            matrix += DiagQSM(d=jnp.broadcast_to(diag, matrix.diag.d.shape))
+            matrix += noise.to_qsm()
         else:
             assert isinstance(covariance, SymmQSM)
             matrix = covariance
@@ -87,10 +88,7 @@ class QuasisepSolver(Solver):
         return self.factor @ y
 
     def condition(
-        self,
-        kernel: Kernel,
-        X_test: Optional[JAXArray],
-        diag: Optional[JAXArray],
+        self, kernel: Kernel, X_test: Optional[JAXArray], noise: Noise
     ) -> Any:
         """Compute the covariance matrix for a conditional GP
 
@@ -106,8 +104,7 @@ class QuasisepSolver(Solver):
                 predicted data.
             X_test: The coordinates of the predicted points. Defaults to the
                 input coordinates.
-            diag: Any extra variance to add to the diagonal of the predicted
-                model.
+            noise: The noise model for the predicted process.
         """
         from tinygp.kernels.quasisep import Quasisep
 
@@ -116,8 +113,7 @@ class QuasisepSolver(Solver):
         if X_test is None and isinstance(kernel, Quasisep):
             M = kernel.to_symm_qsm(self.X)
             delta = (self.factor.inv() @ M).gram()
-            if diag is not None:
-                M += DiagQSM(d=jnp.broadcast_to(diag, M.diag.d.shape))
+            M += noise.to_qsm()
             return M - delta
 
         # Otherwise fall back on the slow method for now :(
