@@ -9,9 +9,9 @@ subpackage (see :ref:`api-kernels`), and then passing that to a
 :ref:`tutorials` for a more complete introduction.
 """
 
-__all__ = ["kernels", "solvers", "transforms", "GaussianProcess"]
+__all__ = ["kernels", "noise", "solvers", "transforms", "GaussianProcess"]
 
-from tinygp import kernels, solvers, transforms
+from tinygp import kernels, noise, solvers, transforms
 from tinygp.gp import GaussianProcess
 from tinygp.tinygp_version import version as __version__
 

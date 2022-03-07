@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
+from tinygp.noise import Noise
 
 
 class Solver(metaclass=ABCMeta):
@@ -20,7 +21,7 @@ class Solver(metaclass=ABCMeta):
         cls,
         kernel: Kernel,
         X: JAXArray,
-        diag: JAXArray,
+        noise: Noise,
         *,
         covariance: Optional[Any] = None,
     ) -> "Solver":
@@ -70,9 +71,6 @@ class Solver(metaclass=ABCMeta):
 
     @abstractmethod
     def condition(
-        self,
-        kernel: Kernel,
-        X_test: Optional[JAXArray],
-        diag: Optional[JAXArray],
+        self, kernel: Kernel, X_test: Optional[JAXArray], noise: Noise
     ) -> Any:
         raise NotImplementedError
