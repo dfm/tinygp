@@ -20,3 +20,4 @@ kernels.quasisep package
    Exp
    Matern32
    Matern52
+   Cosine
