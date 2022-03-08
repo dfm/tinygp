@@ -11,6 +11,7 @@ kernels.quasisep package
    :toctree: summary
 
    Quasisep
+   Wrapper
    Sum
    Product
    Scale
@@ -19,3 +20,4 @@ kernels.quasisep package
    Exp
    Matern32
    Matern52
+   Cosine

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 __all__ = [
     "Quasisep",
+    "Wrapper",
     "Sum",
     "Product",
     "Scale",
@@ -21,6 +22,7 @@ __all__ = [
     "Exp",
     "Matern32",
     "Matern52",
+    "Cosine",
 ]
 
 from abc import ABCMeta, abstractmethod
@@ -55,18 +57,23 @@ class Quasisep(Kernel, metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def Pinf(self) -> JAXArray:
+    def design_matrix(self) -> JAXArray:
+        """The design matrix for the process"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def stationary_covariance(self) -> JAXArray:
         """The stationary covariance of the process"""
         raise NotImplementedError
 
     @abstractmethod
-    def h(self, X: JAXArray) -> JAXArray:
-        """The 'observation model' for the process"""
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        """The observation model for the process"""
         raise NotImplementedError
 
     @abstractmethod
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        """The transition matrix between two neighboring coordinates"""
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        """The transition matrix between two coordinates"""
         raise NotImplementedError
 
     def coord_to_sortable(self, X: JAXArray) -> JAXArray:
@@ -80,11 +87,11 @@ class Quasisep(Kernel, metaclass=ABCMeta):
 
     def to_symm_qsm(self, X: JAXArray) -> SymmQSM:
         """The symmetric quasiseparable representation of this kernel"""
-        Pinf = self.Pinf()
-        a = jax.vmap(self.A)(
+        Pinf = self.stationary_covariance()
+        a = jax.vmap(self.transition_matrix)(
             jax.tree_util.tree_map(lambda y: jnp.append(y[0], y[:-1]), X), X
         )
-        h = jax.vmap(self.h)(X)
+        h = jax.vmap(self.observation_model)(X)
         q = h
         p = h @ Pinf
         d = jnp.sum(p * q, axis=1)
@@ -99,10 +106,10 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         idx = jnp.searchsorted(sortable(X2), sortable(X1), side="right") - 1
 
         Xs = jax.tree_util.tree_map(lambda x: np.append(x[0], x[:-1]), X2)
-        Pinf = self.Pinf()
-        a = jax.vmap(self.A)(Xs, X2)
-        h1 = jax.vmap(self.h)(X1)
-        h2 = jax.vmap(self.h)(X2)
+        Pinf = self.stationary_covariance()
+        a = jax.vmap(self.transition_matrix)(Xs, X2)
+        h1 = jax.vmap(self.observation_model)(X1)
+        h2 = jax.vmap(self.observation_model)(X2)
 
         ql = h2
         pl = h1 @ Pinf
@@ -111,11 +118,11 @@ class Quasisep(Kernel, metaclass=ABCMeta):
 
         i = jnp.clip(idx, 0, ql.shape[0] - 1)
         Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
-        pl = jax.vmap(jnp.dot)(pl, jax.vmap(self.A)(Xi, X1))
+        pl = jax.vmap(jnp.dot)(pl, jax.vmap(self.transition_matrix)(Xi, X1))
 
         i = jnp.clip(idx + 1, 0, pu.shape[0] - 1)
         Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
-        qu = jax.vmap(jnp.dot)(jax.vmap(self.A)(X1, Xi), qu)
+        qu = jax.vmap(jnp.dot)(jax.vmap(self.transition_matrix)(X1, Xi), qu)
 
         return GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)
 
@@ -125,7 +132,6 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         X2: Optional[JAXArray] = None,
         y: Optional[JAXArray] = None,
     ) -> JAXArray:
-
         if y is None:
             assert X2 is not None
             y = X2
@@ -145,6 +151,9 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         return Sum(self, other)
 
     def __radd__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+        # We'll hit this first branch when using the `sum` function
+        if other == 0:
+            return self
         if not isinstance(other, Quasisep):
             raise ValueError(
                 "Quasisep kernels can only be added to other Quasisep kernels"
@@ -159,7 +168,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
                 "Quasisep kernels can only be multiplied by scalars and other "
                 "Quasisep kernels"
             )
-        return Scale(other, self)
+        return Scale(kernel=self, scale=other)
 
     def __rmul__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
         if isinstance(other, Quasisep):
@@ -169,86 +178,120 @@ class Quasisep(Kernel, metaclass=ABCMeta):
                 "Quasisep kernels can only be multiplied by scalars and other "
                 "Quasisep kernels"
             )
-        return Scale(other, self)
+        return Scale(kernel=self, scale=other)
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         """The kernel evaluated via the quasiseparable representation"""
-        Pinf = self.Pinf()
-        h1 = self.h(X1)
-        h2 = self.h(X2)
+        Pinf = self.stationary_covariance()
+        h1 = self.observation_model(X1)
+        h2 = self.observation_model(X2)
         return jnp.where(
-            X1 < X2,
-            h1 @ Pinf @ self.A(X1, X2) @ h2,
-            h2 @ Pinf @ self.A(X2, X1) @ h1,
+            self.coord_to_sortable(X1) < self.coord_to_sortable(X2),
+            h2 @ Pinf @ self.transition_matrix(X1, X2) @ h1,
+            h1 @ Pinf @ self.transition_matrix(X2, X1) @ h2,
         )
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         """For quasiseparable kernels, the variance is simple to compute"""
-        h = self.h(X)
-        return h @ self.Pinf() @ h
+        h = self.observation_model(X)
+        return h @ self.stationary_covariance() @ h
 
 
+@dataclass
+class Wrapper(Quasisep, metaclass=ABCMeta):
+    """A base class for wrapping kernels with some custom implementations"""
+
+    kernel: Quasisep
+
+    def design_matrix(self) -> JAXArray:
+        return self.kernel.design_matrix()
+
+    def stationary_covariance(self) -> JAXArray:
+        return self.kernel.stationary_covariance()
+
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        return self.kernel.observation_model(self.coord_to_sortable(X))
+
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.kernel.transition_matrix(
+            self.coord_to_sortable(X1), self.coord_to_sortable(X2)
+        )
+
+
+@dataclass
 class Sum(Quasisep):
     """A helper to represent the sum of two quasiseparable kernels"""
 
-    def __init__(self, kernel1: Quasisep, kernel2: Quasisep):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Quasisep
+    kernel2: Quasisep
 
-    def Pinf(self) -> JAXArray:
-        return block_diag(self.kernel1.Pinf(), self.kernel2.Pinf())
+    def design_matrix(self) -> JAXArray:
+        return block_diag(
+            self.kernel1.design_matrix(), self.kernel2.design_matrix()
+        )
 
-    def h(self, X: JAXArray) -> JAXArray:
-        return jnp.concatenate((self.kernel1.h(X), self.kernel2.h(X)))
+    def stationary_covariance(self) -> JAXArray:
+        return block_diag(
+            self.kernel1.stationary_covariance(),
+            self.kernel2.stationary_covariance(),
+        )
 
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return block_diag(self.kernel1.A(X1, X2), self.kernel2.A(X1, X2))
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        return jnp.concatenate(
+            (
+                self.kernel1.observation_model(X),
+                self.kernel2.observation_model(X),
+            )
+        )
+
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return block_diag(
+            self.kernel1.transition_matrix(X1, X2),
+            self.kernel2.transition_matrix(X1, X2),
+        )
 
 
-def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
-    i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
-    i = i.flatten()
-    j = j.flatten()
-    if a1.ndim == 1:
-        return a1[i] * a2[j]
-    elif a1.ndim == 2:
-        return a1[i[:, None], i[None, :]] * a2[j[:, None], j[None, :]]
-    else:
-        raise NotImplementedError
-
-
+@dataclass
 class Product(Quasisep):
     """A helper to represent the product of two quasiseparable kernels"""
 
-    def __init__(self, kernel1: Quasisep, kernel2: Quasisep):
-        self.kernel1 = kernel1
-        self.kernel2 = kernel2
+    kernel1: Quasisep
+    kernel2: Quasisep
 
-    def Pinf(self) -> JAXArray:
-        return _prod_helper(self.kernel1.Pinf(), self.kernel2.Pinf())
+    def design_matrix(self) -> JAXArray:
+        F1 = self.kernel1.design_matrix()
+        F2 = self.kernel2.design_matrix()
+        return _prod_helper(F1, jnp.eye(F2.shape[0])) + _prod_helper(
+            jnp.eye(F1.shape[0]), F2
+        )
 
-    def h(self, X: JAXArray) -> JAXArray:
-        return _prod_helper(self.kernel1.h(X), self.kernel2.h(X))
+    def stationary_covariance(self) -> JAXArray:
+        return _prod_helper(
+            self.kernel1.stationary_covariance(),
+            self.kernel2.stationary_covariance(),
+        )
 
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return _prod_helper(self.kernel1.A(X1, X2), self.kernel2.A(X1, X2))
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        return _prod_helper(
+            self.kernel1.observation_model(X),
+            self.kernel2.observation_model(X),
+        )
+
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return _prod_helper(
+            self.kernel1.transition_matrix(X1, X2),
+            self.kernel2.transition_matrix(X1, X2),
+        )
 
 
-class Scale(Quasisep):
+@dataclass
+class Scale(Wrapper):
     """The product of a scalar and a quasiseparable kernel"""
 
-    def __init__(self, scale: JAXArray, kernel: Quasisep):
-        self.scale = scale
-        self.kernel = kernel
+    scale: JAXArray
 
-    def Pinf(self) -> JAXArray:
-        return self.scale * self.kernel.Pinf()
-
-    def h(self, X: JAXArray) -> JAXArray:
-        return self.kernel.h(X)
-
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.kernel.A(X1, X2)
+    def stationary_covariance(self) -> JAXArray:
+        return self.scale * self.kernel.stationary_covariance()
 
 
 @dataclass
@@ -274,7 +317,10 @@ class Celerite(Quasisep):
     c: JAXArray
     d: JAXArray
 
-    def Pinf(self) -> JAXArray:
+    def design_matrix(self) -> JAXArray:
+        return jnp.array([[-self.c, -self.d], [self.d, -self.c]])
+
+    def stationary_covariance(self) -> JAXArray:
         a = self.a
         b = self.b
         c = self.c
@@ -290,14 +336,14 @@ class Celerite(Quasisep):
             ]
         )
 
-    def h(self, X: JAXArray) -> JAXArray:
+    def observation_model(self, X: JAXArray) -> JAXArray:
         return jnp.array([1.0, 0.0])
 
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
         cos = jnp.cos(self.d * dt)
         sin = jnp.sin(self.d * dt)
-        return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]])
+        return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]]).T
 
 
 @dataclass
@@ -331,20 +377,25 @@ class SHO(Quasisep):
     quality: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
-    def Pinf(self) -> JAXArray:
+    def design_matrix(self) -> JAXArray:
+        return jnp.array(
+            [[0, 1], [-jnp.square(self.omega), -self.omega / self.quality]]
+        )
+
+    def stationary_covariance(self) -> JAXArray:
         return jnp.diag(jnp.array([1, jnp.square(self.omega)]))
 
-    def h(self, X: JAXArray) -> JAXArray:
+    def observation_model(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma, 0])
 
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
         w = self.omega
         q = self.quality
 
         def critical(dt: JAXArray) -> JAXArray:
             return jnp.exp(-w * dt) * jnp.array(
-                [[1 + w * dt, dt], [-jnp.square(w) * dt, 1 - w * dt]]
+                [[1 + w * dt, -jnp.square(w) * dt], [dt, 1 - w * dt]]
             )
 
         def underdamped(dt: JAXArray) -> JAXArray:
@@ -354,8 +405,8 @@ class SHO(Quasisep):
             cos = jnp.cos(arg)
             return jnp.exp(-0.5 * w * dt / q) * jnp.array(
                 [
-                    [cos + sin / f, 2 * q * sin / (w * f)],
-                    [-2 * q * w * sin / f, cos - sin / f],
+                    [cos + sin / f, -2 * q * w * sin / f],
+                    [2 * q * sin / (w * f), cos - sin / f],
                 ]
             )
 
@@ -366,8 +417,8 @@ class SHO(Quasisep):
             cosh = jnp.cosh(arg)
             return jnp.exp(-0.5 * w * dt / q) * jnp.array(
                 [
-                    [cosh + sinh / f, 2 * q * sinh / (w * f)],
-                    [-2 * q * w * sinh / f, cosh - sinh / f],
+                    [cosh + sinh / f, -2 * q * w * sinh / f],
+                    [2 * q * sinh / (w * f), cosh - sinh / f],
                 ]
             )
 
@@ -399,13 +450,16 @@ class Exp(Quasisep):
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
-    def Pinf(self) -> JAXArray:
+    def design_matrix(self) -> JAXArray:
+        return jnp.array([[-1 / self.scale]])
+
+    def stationary_covariance(self) -> JAXArray:
         return jnp.ones((1, 1))
 
-    def h(self, X: JAXArray) -> JAXArray:
+    def observation_model(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma])
 
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
         return jnp.exp(-dt[None, None] / self.scale)
 
@@ -429,17 +483,21 @@ class Matern32(Quasisep):
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
-    def Pinf(self) -> JAXArray:
+    def design_matrix(self) -> JAXArray:
+        f = np.sqrt(3) / self.scale
+        return jnp.array([[0, 1], [-jnp.square(f), -2 * f]])
+
+    def stationary_covariance(self) -> JAXArray:
         return jnp.diag(jnp.array([1, 3 / jnp.square(self.scale)]))
 
-    def h(self, X: JAXArray) -> JAXArray:
+    def observation_model(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma, 0])
 
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
         f = np.sqrt(3) / self.scale
         return jnp.exp(-f * dt) * jnp.array(
-            [[1 + f * dt, -dt], [jnp.square(f) * dt, 1 - f * dt]]
+            [[1 + f * dt, -jnp.square(f) * dt], [dt, 1 - f * dt]]
         )
 
 
@@ -464,7 +522,12 @@ class Matern52(Quasisep):
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
-    def Pinf(self) -> JAXArray:
+    def design_matrix(self) -> JAXArray:
+        f = np.sqrt(5) / self.scale
+        f2 = jnp.square(f)
+        return jnp.array([[0, 1, 0], [0, 0, 1], [-f2 * f, -3 * f2, -3 * f]])
+
+    def stationary_covariance(self) -> JAXArray:
         f = np.sqrt(5) / self.scale
         f2 = jnp.square(f)
         f2o3 = f2 / 3
@@ -472,10 +535,10 @@ class Matern52(Quasisep):
             [[1, 0, -f2o3], [0, f2o3, 0], [-f2o3, 0, jnp.square(f2)]]
         )
 
-    def h(self, X: JAXArray) -> JAXArray:
+    def observation_model(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma, 0, 0])
 
-    def A(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
         f = np.sqrt(5) / self.scale
         f2 = jnp.square(f)
@@ -499,3 +562,52 @@ class Matern52(Quasisep):
                 ],
             ]
         )
+
+
+@dataclass
+class Cosine(Quasisep):
+    r"""A scalable implementation of :class:`tinygp.kernels.stationary.Cosine`
+
+    This kernel takes the form:
+
+    .. math::
+
+        k(\tau)=\sigma^2\,\cos(-2\,\pi\,\tau/\ell)
+
+    for :math:`\tau = |x_i - x_j|`.
+
+    Args:
+        scale: The parameter :math:`\ell`.
+        sigma: The parameter :math:`\sigma`.
+    """
+    scale: JAXArray
+    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+
+    def design_matrix(self) -> JAXArray:
+        f = 2 * np.pi / self.scale
+        return jnp.array([[0, -f], [f, 0]])
+
+    def stationary_covariance(self) -> JAXArray:
+        return jnp.eye(2)
+
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        return jnp.array([self.sigma, 0])
+
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        dt = X2 - X1
+        f = 2 * np.pi / self.scale
+        cos = jnp.cos(f * dt)
+        sin = jnp.sin(f * dt)
+        return jnp.array([[cos, sin], [-sin, cos]])
+
+
+def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
+    i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
+    i = i.flatten()
+    j = j.flatten()
+    if a1.ndim == 1:
+        return a1[i] * a2[j]
+    elif a1.ndim == 2:
+        return a1[i[:, None], i[None, :]] * a2[j[:, None], j[None, :]]
+    else:
+        raise NotImplementedError

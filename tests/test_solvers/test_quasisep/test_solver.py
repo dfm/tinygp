@@ -41,6 +41,10 @@ def data(random):
             quasisep.Exp(sigma=1.8, scale=1.5),
             1.8**2 * kernels.Exp(1.5),
         ),
+        (
+            quasisep.Cosine(sigma=1.8, scale=1.5),
+            1.8**2 * kernels.Cosine(1.5),
+        ),
     ]
 )
 def kernel_pair(request):
