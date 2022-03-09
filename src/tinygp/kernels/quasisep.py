@@ -602,8 +602,6 @@ class Cosine(Quasisep):
         return jnp.array([[cos, sin], [-sin, cos]])
 
 
-
-
 @dataclass
 class CARMA(Quasisep):
     r"""A continuous autoregressive moving average (CARMA) process
