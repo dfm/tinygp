@@ -659,7 +659,28 @@ class CARMA(Quasisep):
         proj_inv = jnp.linalg.inv(proj)
 
         # Compute the stationary covariance - there is almost certainly a more
-        # elegant way, but this works!
+        # elegant way, but this works! I worked this out kind of by trial and
+        # error using sympy. There is a lot of known structure in the P_inf
+        # matrix that can be exploited to "simplify" this calculation.
+        # Specifically, there are only `p` degrees of freedom, and P_inf has the
+        # following structure:
+        #
+        #   P_inf = [
+        #     [ p0   0   -p1   0    p2 ]
+        #     [ 0    p1   0   -p2   0  ]
+        #     [-p1   0    p2   0   -p3 ]
+        #     [ 0   -p2   0    p3   0  ]
+        #     [ p2   0   -p3   0    p4 ]
+        #   ]
+        #
+        # Using this structure, we get can solve the usual:
+        #
+        #  A @ P + P @ A.T + L @ L.T = 0
+        #
+        # for `P`, and we get something like the following. Kelly et al. (2104)
+        # also have an expression for this (their V_{ij}), but I prefer to use
+        # this since it is probably roughly just as fast to compute, and it is
+        # strictly real-valued.
         f = 2 * ((np.arange(2 * p) // 2) % 2) - 1
         x = f * jnp.append(alpha_ext, jnp.zeros(p - 1))
         params = jnp.stack([np.roll(x, k)[::2] for k in range(p)], axis=0)
