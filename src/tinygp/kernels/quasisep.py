@@ -602,7 +602,6 @@ class Cosine(Quasisep):
         return jnp.array([[cos, sin], [-sin, cos]])
 
 
-from typing import Any
 
 
 @dataclass
