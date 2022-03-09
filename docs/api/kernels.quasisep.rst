@@ -21,3 +21,4 @@ kernels.quasisep package
    Matern32
    Matern52
    Cosine
+   CARMA
