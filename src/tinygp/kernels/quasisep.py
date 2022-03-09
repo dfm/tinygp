@@ -607,6 +607,24 @@ from typing import Any
 
 @dataclass
 class CARMA(Quasisep):
+    r"""A continuous autoregressive moving average (CARMA) process
+
+    This process has the power spectrum
+
+    .. math::
+
+        P(\omega) = \sigma^2\,\frac{\sum_{q} \beta_q\,(i\,\omega)^q}{\sum_{p}
+            \alpha_p\,(i\,\omega)^p}
+
+    defined following `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_.
+
+    Unlike other kernels, this *must* be instatiated using the :func:`init`
+    method instead of the usual constructor:
+
+    .. code-block:: python
+
+        kernel = CARMA.init(alpha=..., beta=..., sigma=...)
+    """
     alpha: JAXArray
     beta: JAXArray
     sigma: JAXArray
@@ -619,6 +637,15 @@ class CARMA(Quasisep):
     def init(
         cls, alpha: JAXArray, beta: JAXArray, sigma: Optional[JAXArray] = None
     ) -> "CARMA":
+        r"""Construct a CARMA kernel
+
+        Args:
+            alpha: The parameter :math:`\alpha` in the definition above. This
+                should be an array of length ``p``.
+            beta: The parameter :math:`\beta` in the definition above. This
+                should be an array of length ``q``, where ``q <= p``.
+            sigma: The parameter :math:`\sigma` in the definition above.
+        """
         sigma = jnp.ones(()) if sigma is None else sigma
         alpha = jnp.atleast_1d(alpha)
         beta = jnp.atleast_1d(beta)
