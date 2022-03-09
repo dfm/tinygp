@@ -23,6 +23,7 @@ __all__ = [
     "Matern32",
     "Matern52",
     "Cosine",
+    "CARMA",
 ]
 
 from abc import ABCMeta, abstractmethod
@@ -30,8 +31,8 @@ from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 import numpy as np
-from jax.scipy.linalg import block_diag
 
 from tinygp.helpers import JAXArray, dataclass, field
 from tinygp.kernels.base import Kernel
@@ -226,12 +227,12 @@ class Sum(Quasisep):
     kernel2: Quasisep
 
     def design_matrix(self) -> JAXArray:
-        return block_diag(
+        return jsp.linalg.block_diag(
             self.kernel1.design_matrix(), self.kernel2.design_matrix()
         )
 
     def stationary_covariance(self) -> JAXArray:
-        return block_diag(
+        return jsp.linalg.block_diag(
             self.kernel1.stationary_covariance(),
             self.kernel2.stationary_covariance(),
         )
@@ -245,7 +246,7 @@ class Sum(Quasisep):
         )
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return block_diag(
+        return jsp.linalg.block_diag(
             self.kernel1.transition_matrix(X1, X2),
             self.kernel2.transition_matrix(X1, X2),
         )
@@ -599,6 +600,84 @@ class Cosine(Quasisep):
         cos = jnp.cos(f * dt)
         sin = jnp.sin(f * dt)
         return jnp.array([[cos, sin], [-sin, cos]])
+
+
+from typing import Any
+
+
+@dataclass
+class CARMA(Quasisep):
+    alpha: JAXArray
+    beta: JAXArray
+    sigma: JAXArray
+    roots: JAXArray
+    proj: JAXArray
+    proj_inv: JAXArray
+    stn: JAXArray
+
+    @classmethod
+    def init(
+        cls, alpha: JAXArray, beta: JAXArray, sigma: Optional[JAXArray] = None
+    ) -> "CARMA":
+        sigma = jnp.ones(()) if sigma is None else sigma
+        alpha = jnp.atleast_1d(alpha)
+        beta = jnp.atleast_1d(beta)
+        assert alpha.ndim == 1
+        assert beta.ndim == 1
+        p = alpha.shape[0]
+        assert beta.shape[0] <= p
+
+        # We find the roots of the autoregressive polynomial as a means to find
+        # the eigendecomposition of the design matrix.
+        alpha_ext = jnp.append(alpha, 1.0)
+        roots = jnp.roots(alpha_ext[::-1])
+        proj = roots[:, None] ** jnp.arange(p)[None, :]
+        proj_inv = jnp.linalg.inv(proj)
+
+        # Compute the stationary covariance - there is almost certainly a more
+        # elegant way, but this works!
+        f = 2 * ((np.arange(2 * p) // 2) % 2) - 1
+        x = f * jnp.append(alpha_ext, jnp.zeros(p - 1))
+        params = jnp.stack([np.roll(x, k)[::2] for k in range(p)], axis=0)
+        params = jnp.linalg.solve(
+            params, 0.5 * sigma**2 * jnp.eye(p, 1, k=-p + 1)
+        )[:, 0]
+        stn = []
+        for j in range(p):
+            stn.append([jnp.zeros(()) for _ in range(p)])
+            for n, k in enumerate(range(j - 2, -1, -2)):
+                stn[-1][k] = (2 * (n % 2) - 1) * params[j - n - 1]
+            for n, k in enumerate(range(j, p, 2)):
+                stn[-1][k] = (1 - 2 * (n % 2)) * params[n + j]
+        stn = jnp.array(list(map(jnp.stack, stn)))
+
+        return cls(
+            sigma=sigma,
+            alpha=alpha,
+            beta=beta,
+            roots=roots,
+            proj=proj,
+            proj_inv=proj_inv,
+            stn=stn,
+        )
+
+    def design_matrix(self) -> JAXArray:
+        p = self.alpha.shape[0]
+        return jnp.concatenate((jnp.eye(p - 1, p, k=1), -self.alpha[None]))
+
+    def stationary_covariance(self) -> JAXArray:
+        return self.stn
+
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        return jnp.append(
+            self.beta, jnp.zeros(self.alpha.shape[0] - self.beta.shape[0])
+        )
+
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        dt = X2 - X1
+        return (
+            self.proj_inv @ (jnp.exp(self.roots * dt)[:, None] * self.proj)
+        ).real
 
 
 def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
