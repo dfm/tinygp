@@ -312,6 +312,10 @@ class Celerite(Quasisep):
         k(\tau)=\exp(-c\,\tau)\,\left[a\,\cos(d\,\tau)+b\,\sin(d\,\tau)\right]
 
     for :math:`\tau = |x_i - x_j|`.
+
+    In order to be positive definite, the parameters of this kernel must satisfy
+    :math:`a\,c - b\,d > 0`, and you will see NaNs if you use parameters that
+    don't satisfy this relationship.
     """
     a: JAXArray
     b: JAXArray
@@ -322,23 +326,24 @@ class Celerite(Quasisep):
         return jnp.array([[-self.c, -self.d], [self.d, -self.c]])
 
     def stationary_covariance(self) -> JAXArray:
-        a = self.a
-        b = self.b
         c = self.c
         d = self.d
-        diff = jnp.square(c) - jnp.square(d)
         return jnp.array(
             [
-                [a, b],
-                [
-                    b * diff + 2 * a * c * d,
-                    -self.a * diff + 2 * b * c * d,
-                ],
+                [1, -c / d],
+                [-c / d, 1 + 2 * jnp.square(c) / jnp.square(d)],
             ]
         )
 
     def observation_model(self, X: JAXArray) -> JAXArray:
-        return jnp.array([1.0, 0.0])
+        a = self.a
+        b = self.b
+        c = self.c
+        d = self.d
+        s = jnp.square(c) + jnp.square(d)
+        f = jnp.sqrt(a * c + b * d)
+        g = jnp.sqrt((a * c - b * d) * s)
+        return jnp.array([d * f, c * f - g]) / jnp.sqrt(2 * c * s)
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
@@ -483,6 +488,10 @@ class Matern32(Quasisep):
     """
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+
+    def noise(self) -> JAXArray:
+        f = np.sqrt(3) / self.scale
+        return 4 * f**3
 
     def design_matrix(self) -> JAXArray:
         f = np.sqrt(3) / self.scale
