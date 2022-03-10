@@ -20,6 +20,6 @@ differentiation.
 
 Check out the docs for more info: [tinygp.readthedocs.io][docs]
 
-[api-ref]: https://tinygp.readthedocs.io/en/latest/api.html
-[benchmarks]: https://tinygp.readthedocs.io/en/latest/tutorials/benchmarks.html
+[api-ref]: https://tinygp.readthedocs.io/en/latest/api/index.html
+[benchmarks]: https://tinygp.readthedocs.io/en/latest/benchmarks.html
 [docs]: https://tinygp.readthedocs.io
