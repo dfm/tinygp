@@ -34,7 +34,7 @@ Tracker](https://github.com/dfm/tinygp/issues).
 ## How to test the project
 
 ```bash
-python -m pip instal tox
+python -m pip install tox
 python -m tox
 ```
 
