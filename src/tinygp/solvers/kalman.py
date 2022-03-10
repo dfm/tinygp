@@ -4,16 +4,16 @@ from __future__ import annotations
 
 __all__ = ["kalman_filter"]
 
-from typing import Tuple, Optional, Any
+from typing import Any, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 from tinygp.helpers import JAXArray, dataclass
-from tinygp.solvers.solver import Solver
 from tinygp.kernels.base import Kernel
-from tinygp.noise import Noise, Diagonal
+from tinygp.noise import Diagonal, Noise
+from tinygp.solvers.solver import Solver
 
 
 @dataclass

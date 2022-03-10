@@ -8,8 +8,8 @@ import pytest
 
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
-from tinygp.solvers.kalman import kalman_gains, kalman_filter, KalmanSolver
 from tinygp.solvers import QuasisepSolver
+from tinygp.solvers.kalman import KalmanSolver, kalman_filter, kalman_gains
 
 
 @pytest.fixture
