@@ -274,7 +274,7 @@ class GaussianProcess:
         """Get the numpyro MultivariateNormal distribution for this process"""
         from tinygp.numpyro_support import TinyDistribution
 
-        return TinyDistribution(self, **kwargs)  # type: ignore
+        return TinyDistribution(self, **kwargs)
 
     @partial(jax.jit, static_argnums=(0, 2))
     def _sample(
@@ -373,4 +373,4 @@ def _default_diag(reference: JAXArray) -> JAXArray:
     we use sqrt(eps) for the dtype of the mean function because that seems to
     give sensible results in general.
     """
-    return jnp.sqrt(jnp.finfo(reference).eps)  # type: ignore
+    return jnp.sqrt(jnp.finfo(reference).eps)

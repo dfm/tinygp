@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-# mypy: ignore-errors
 
 from __future__ import annotations
 
-__all__ = ["qsm", "JAXArray"]
+__all__ = ["JAXArray", "dataclass", "field"]
 
 import dataclasses
-from typing import Any, Callable, Tuple, TypeVar, Union
+from typing import Any, Callable, Tuple, Type, TypeVar, Union
 
 import jax
 import jax.numpy as jnp
@@ -38,8 +37,7 @@ def __dataclass_transform__(
 
 
 @__dataclass_transform__()
-def dataclass(clz: _T) -> _T:
-    # workaround for pytype not recognizing __dataclass_fields__
+def dataclass(clz: Type[Any]) -> Type[Any]:
     data_clz: Any = dataclasses.dataclass(frozen=True)(clz)
     meta_fields = []
     data_fields = []
@@ -50,17 +48,17 @@ def dataclass(clz: _T) -> _T:
         else:
             meta_fields.append(name)
 
-    def replace(self, **updates):
+    def replace(self: Any, **updates: _T) -> _T:
         return dataclasses.replace(self, **updates)
 
     data_clz.replace = replace
 
-    def iterate_clz(x):
+    def iterate_clz(x: Any) -> Tuple[Tuple[Any, ...], Tuple[Any, ...]]:
         meta = tuple(getattr(x, name) for name in meta_fields)
         data = tuple(getattr(x, name) for name in data_fields)
         return data, meta
 
-    def clz_from_iterable(meta, data):
+    def clz_from_iterable(meta: Tuple[Any, ...], data: Tuple[Any, ...]) -> Any:
         meta_args = tuple(zip(meta_fields, meta))
         data_args = tuple(zip(data_fields, data))
         kwargs = dict(meta_args + data_args)
