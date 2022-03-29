@@ -12,7 +12,7 @@ repos:
         additional_dependencies: [toml]
         exclude: docs/tutorials
   - repo: https://github.com/psf/black
-    rev: "22.1.0"
+    rev: "22.3.0"
     hooks:
       - id: black-jupyter
   - repo: https://github.com/kynan/nbstripout
@@ -24,7 +24,8 @@ repos:
     rev: "v1.2.5"
     hooks:
       - id: pycln
+        additional_dependencies: ["click<8.1.0"]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v0.941"
+    rev: "v0.942"
     hooks:
       - id: mypy
