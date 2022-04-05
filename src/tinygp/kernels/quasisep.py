@@ -106,7 +106,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         sortable = jax.vmap(self.coord_to_sortable)
         idx = jnp.searchsorted(sortable(X2), sortable(X1), side="right") - 1
 
-        Xs = jax.tree_util.tree_map(lambda x: np.append(x[0], x[:-1]), X2)
+        Xs = jax.tree_util.tree_map(lambda x: jnp.append(x[0], x[:-1]), X2)
         Pinf = self.stationary_covariance()
         a = jax.vmap(self.transition_matrix)(Xs, X2)
         h1 = jax.vmap(self.observation_model)(X1)
