@@ -5,3 +5,5 @@
 /*.ipynb
 *.DAT
 docs/api/summary
+__pycache__
+*.egg-info
