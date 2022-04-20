@@ -1,1 +1,0 @@
-Fixed dangling ``numpy`` operation in quasiseparable tree map.
