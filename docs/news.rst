@@ -5,6 +5,15 @@ Release Notes
 
 .. towncrier release notes start
 
+tinygp 0.2.2 (2022-04-20)
+-------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Fixed dangling ``numpy`` operation in quasiseparable tree map. (`#81 <https://github.com/dfm/tinygp/issues/81>`_)
+
+
 tinygp 0.2.1 (2022-03-28)
 -------------------------
 
