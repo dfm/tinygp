@@ -61,3 +61,20 @@ def test_quasisep_kernels(data, kernel):
     x2 = x[1]
     num_A = jsp.linalg.expm(kernel.design_matrix().T * (x2 - x1))
     np.testing.assert_allclose(kernel.transition_matrix(x1, x2), num_A)
+
+
+def test_celerite(data):
+    a, b, c, d = 1.1, 0.8, 0.9, 0.1
+    kernel = quasisep.Celerite(a, b, c, d)
+
+    x, _, t = data
+
+    calc = kernel(x, x)
+    tau = np.abs(x[:, None] - x[None, :])
+    expect = np.exp(-c * tau) * (a * np.cos(d * tau) + b * np.sin(d * tau))
+    np.testing.assert_allclose(calc, expect)
+
+    calc = kernel(x, t)
+    tau = np.abs(x[:, None] - t[None, :])
+    expect = np.exp(-c * tau) * (a * np.cos(d * tau) + b * np.sin(d * tau))
+    np.testing.assert_allclose(calc, expect)

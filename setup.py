@@ -23,7 +23,7 @@ CLASSIFIERS = [
 ]
 INSTALL_REQUIRES = ["jax", "jaxlib"]
 EXTRA_REQUIRE = {
-    "test": ["pytest>=3.6", "george"],
+    "test": ["pytest>=3.6", "george", "celerite"],
     "docs": [
         "sphinx>=3.3",
         "sphinx-book-theme",

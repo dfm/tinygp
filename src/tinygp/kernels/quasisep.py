@@ -340,10 +340,13 @@ class Celerite(Quasisep):
         b = self.b
         c = self.c
         d = self.d
-        s = jnp.square(c) + jnp.square(d)
-        f = jnp.sqrt(a * c + b * d)
-        g = jnp.sqrt((a * c - b * d) * s)
-        return jnp.array([d * f, c * f - g]) / jnp.sqrt(2 * c * s)
+        c2 = jnp.square(c)
+        d2 = jnp.square(d)
+        s2 = c2 + d2
+        h2_2 = d2 * (a * c - b * d) / (2 * c * s2)
+        h2 = jnp.sqrt(h2_2)
+        h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / d
+        return jnp.array([h1, h2])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
