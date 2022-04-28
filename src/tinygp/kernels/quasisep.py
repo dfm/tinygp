@@ -39,7 +39,7 @@ from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 eta = 1e-20  # avoid nan
 
 
