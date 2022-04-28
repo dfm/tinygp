@@ -39,7 +39,8 @@ from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
-eta = 1e-20  # avoid nan for carma kernel
+jax.config.update("jax_enable_x64", True)
+eta = 1e-20  # avoid nan
 
 
 class Quasisep(Kernel, metaclass=ABCMeta):

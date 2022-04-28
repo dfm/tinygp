@@ -66,3 +66,14 @@ def test_filter(kernel, data):
     logp = -0.5 * jnp.sum(jnp.square(v) / s + jnp.log(2 * jnp.pi * s))
 
     np.testing.assert_allclose(logp, logp0)
+
+
+def test_consistent_with_direct(kernel, data):
+    x, y = data
+    gp1 = GaussianProcess(kernel, x, diag=0.1, solver=KalmanSolver)
+    gp2 = GaussianProcess(kernel, x, diag=0.1, solver=QuasisepSolver)
+
+    np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
+    np.testing.assert_allclose(
+        gp1.solver.normalization(), gp2.solver.normalization()
+    )
