@@ -809,6 +809,7 @@ class carma(Quasisep):
         # find acf
         arroots = jnp.roots(jnp.append(alpha, 1.0)[::-1], strip_zeros=False)
         acf = carma.carma_acf(arroots, alpha, beta)
+        # masks for selecting entries in matrixes
         real_mask = jnp.where(arroots.imag == 0, jnp.ones(p), jnp.zeros(p))
         complex_mask = -real_mask + 1
         complex_idx = jnp.cumsum(-real_mask + 1) * complex_mask
@@ -822,7 +823,6 @@ class carma(Quasisep):
             -arroots.real * complex_mask,
             -arroots.imag * complex_mask,
         )
-
         c2 = jnp.square(c)
         d2 = jnp.square(d)
         s2 = c2 + d2
@@ -849,7 +849,7 @@ class carma(Quasisep):
     @jax.jit
     def carma_acf(arroots, arparam, maparam):
         """Get ACVF coefficients given CARMA parameters
-        The CARMA noation (index) folows that in Brockwell et al. (2001).
+
         Args:
             arroots (array(complex)): AR roots in a numpy array
             arparam (array(float)): AR parameters in a numpy array
