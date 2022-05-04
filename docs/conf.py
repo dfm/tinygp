@@ -47,9 +47,9 @@ html_theme_options = {
     "use_download_button": True,
 }
 html_baseurl = "https://tinygp.readthedocs.io/en/latest/"
-jupyter_execute_notebooks = "auto"
-execution_excludepatterns = ["benchmarks.ipynb"]
-execution_timeout = -1
+nb_execution_mode = "auto"
+nb_execution_excludepatterns = ["benchmarks.ipynb"]
+nb_execution_timeout = -1
 
 autodoc_type_aliases = {
     "JAXArray": "tinygp.helpers.JAXArray",
