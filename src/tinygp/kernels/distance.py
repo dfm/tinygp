@@ -48,7 +48,7 @@ class L1Distance(Distance):
 
 @dataclass
 class L2Distance(Distance):
-    """The L2 or Euclidean distance bettwen two coordaintes"""
+    """The L2 or Euclidean distance between two coordinates"""
 
     def distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return jnp.sqrt(self.squared_distance(X1, X2))
