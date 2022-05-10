@@ -1,7 +1,7 @@
 # mypy: ignore-errors
 
-import jax.scipy as jsp
 import jax
+import jax.scipy as jsp
 import numpy as np
 import pytest
 
