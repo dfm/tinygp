@@ -155,3 +155,40 @@ def test_carma2(data):
         np.testing.assert_allclose(
             gp1.solver.normalization(), gp2.solver.normalization()
         )
+
+
+def test_carma_jit1(data):
+    x, y, t = data
+
+    def build_gp(params):
+        carma_kernel = quasisep.CARMA.init(
+            alpha=params["alpha"], beta=params["beta"]
+        )
+        return GaussianProcess(carma_kernel, x, diag=0.01, mean=0.0)
+
+    @jax.jit
+    def loss(params):
+        gp = build_gp(params)
+        return -gp.log_probability(y)
+
+    params = {"alpha": [1.0, 1.2], "beta": [1.0, 3.0]}
+    loss(params)
+
+
+def test_carma_jit2(data):
+    x, y, t = data
+
+    def build_gp(params):
+        carma_kernel = quasisep.carma.init(
+            alpha=params["alpha"],
+            beta=params["beta"],
+        )
+        return GaussianProcess(carma_kernel, x, diag=0.01, mean=0.0)
+
+    @jax.jit
+    def loss(params):
+        gp = build_gp(params)
+        return -gp.log_probability(y)
+
+    params = {"alpha": [1.0, 1.2], "beta": [1.0, 3.0]}
+    loss(params)
