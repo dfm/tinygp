@@ -39,13 +39,6 @@ def data(random):
         quasisep.CARMA.init(
             alpha=np.array([1.4, 2.3, 1.5]), beta=np.array([0.1, 0.5])
         ),
-        quasisep.CARMA.init(
-            alpha=np.array([1, 1.2]), beta=np.array([1.0, 3.0])
-        ),
-        quasisep.CARMA.init(
-            alpha=np.array([0.1, 1.1]), beta=np.array([1.0, 3.0])
-        ),
-        quasisep.CARMA.init(alpha=np.array([1.0 / 100]), beta=np.array([0.3])),
     ]
 )
 def kernel(request):
