@@ -790,7 +790,7 @@ class carma(Quasisep):
     obsmodel: JAXArray
 
     @classmethod
-    def init(cls, log_alpha: JAXArray, log_beta: JAXArray) -> "carma":
+    def init(cls, alpha: JAXArray, beta: JAXArray) -> "carma":
         """Construct a CARMA kernel
 
         Args:
@@ -800,8 +800,8 @@ class carma(Quasisep):
                 definition above. This should be an array of length ``q``,
                 where ``q <= p``.
         """
-        alpha = jnp.exp(log_alpha)
-        beta = jnp.exp(log_beta)
+        alpha = jnp.atleast_1d(alpha)
+        beta = jnp.atleast_1d(beta)
         p = alpha.shape[0]
         q = beta.shape[0] - 1
         assert q < p
@@ -907,7 +907,6 @@ class carma(Quasisep):
         )
         c_over_d = self.arroots.real / (self.arroots.imag + eta)
         sc_complex_u = jnp.diag((-c_over_d * self.complex_select)[:-1], k=1)
-        sc_complex_l = sc_complex_u.T
 
         return diag + diag_complex + sc_complex_u + sc_complex_u.T
 
@@ -927,7 +926,7 @@ class carma(Quasisep):
             (decay * sin * self.complex_select)[:-1],
             k=1,
         )
-        # tm_complex_l = -tm_complex_u.T
+
         return tm_real + tm_complex_diag + -tm_complex_u.T + tm_complex_u
 
 
