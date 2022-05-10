@@ -8,6 +8,8 @@ import pytest
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
 
+jax.config.update("jax_enable_x64", True)
+
 
 @pytest.fixture
 def random():
@@ -49,16 +51,10 @@ def data(random):
             alpha=np.array([0.1, 1.1]), beta=np.array([1.0, 3.0])
         ),
         quasisep.CARMA.init(alpha=np.array([1.0 / 100]), beta=np.array([0.3])),
-        quasisep.carma.init(
-            alpha=np.array([1.4, 2.3, 1.5]), beta=np.array([0.1, 0.5])
-        ),
-        quasisep.carma.init(
-            alpha=np.array([1, 1.2]), beta=np.array([1.0, 3.0])
-        ),
-        quasisep.carma.init(
-            alpha=np.array([0.1, 1.1]), beta=np.array([1.0, 3.0])
-        ),
-        quasisep.carma.init(alpha=np.array([1.0 / 100]), beta=np.array([0.3])),
+        quasisep.carma.init(alpha=[1.4, 2.3, 1.5], beta=[0.1, 0.5]),
+        quasisep.carma.init(alpha=[1, 1.2], beta=[1.0, 3.0]),
+        quasisep.carma.init(alpha=[0.1, 1.1], beta=[1.0, 3.0]),
+        quasisep.carma.init(alpha=[1.0 / 100], beta=[0.3]),
     ]
 )
 def kernel(request):

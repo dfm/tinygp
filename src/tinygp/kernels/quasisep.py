@@ -778,10 +778,11 @@ class carma(Quasisep):
 
     .. code-block:: python
 
-        kernel = CARMA2.init(log_alpha=..., log_beta=...)
+        kernel = CARMA.init(alpha=..., beta=...)
     """
     alpha: JAXArray
     beta: JAXArray
+    sigma: JAXArray
     arroots: JAXArray
     acf: JAXArray
     real_mask: JAXArray
@@ -790,25 +791,29 @@ class carma(Quasisep):
     obsmodel: JAXArray
 
     @classmethod
-    def init(cls, alpha: JAXArray, beta: JAXArray) -> "carma":
+    def init(
+        cls, alpha: JAXArray, beta: JAXArray, sigma: Optional[JAXArray] = None
+    ) -> "carma":
         """Construct a CARMA kernel
 
         Args:
-            log_alpha: The parameter :math:`\alpha` in natural log in the
-                definition above. This should be an array of length ``p``.
-            log_beta: The parameter :math:`\beta` in natural log in the
-                definition above. This should be an array of length ``q``,
-                where ``q <= p``.
+            alpha: The parameter :math:`\alpha` in the definition above. This
+                should be an array of length ``p``.
+            beta: The parameter :math:`\beta` in the definition above. This
+                should be an array of length ``q``, where ``q <= p``.
+            sigma: The parameter :math:`\sigma` in the definition above.
         """
+        sigma = jnp.ones(()) if sigma is None else sigma
         alpha = jnp.atleast_1d(alpha)
         beta = jnp.atleast_1d(beta)
+        assert alpha.ndim == 1
+        assert beta.ndim == 1
         p = alpha.shape[0]
-        q = beta.shape[0] - 1
-        assert q < p
+        assert beta.shape[0] <= p
 
         # find acf
         arroots = jnp.roots(jnp.append(alpha, 1.0)[::-1], strip_zeros=False)
-        acf = carma.carma_acf(arroots, alpha, beta)
+        acf = carma.carma_acf(arroots, alpha, beta * sigma)
         # masks for selecting entries in matrixes
         real_mask = jnp.where(arroots.imag == 0, jnp.ones(p), jnp.zeros(p))
         complex_mask = -real_mask + 1
@@ -837,6 +842,7 @@ class carma(Quasisep):
         return cls(
             alpha=alpha,
             beta=beta,
+            sigma=sigma,
             arroots=arroots,
             acf=acf,
             real_mask=real_mask,
@@ -888,7 +894,7 @@ class carma(Quasisep):
         dm_complex_u = jnp.diag(
             (self.arroots.imag * self.complex_select)[:-1], k=1
         )
-        # dm_complex_l = -dm_complex_u.T
+
         return dm_real + dm_complex_diag + -dm_complex_u.T + dm_complex_u
 
     def stationary_covariance(self) -> JAXArray:
