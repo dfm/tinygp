@@ -188,3 +188,18 @@ def test_carma_jit2(data):
 
     params = {"alpha": [1.0, 1.2], "beta": [1.0, 3.0]}
     loss(params)
+
+
+def test_carma_fpoly():
+    alpha=np.array([1.4, 2.3, 1.5])
+    beta=np.array([0.1, 0.5])
+    alpha_fpoly, alpha_mult = quasisep.carma.poly2fpoly(np.append(alpha, 1.))
+    beta_fpoly, beta_mult = quasisep.carma.poly2fpoly(beta)
+
+    carma31 = quasisep.carma.init(alpha=alpha, beta=beta)
+    carma31_fpoly = quasisep.carma.from_fpoly(alpha_fpoly=alpha_fpoly, beta_fpoly=beta_fpoly, beta_mult=beta_mult)
+    
+    # if two constructor give the same model
+    assert np.allclose(carma31.arroots, carma31_fpoly.arroots)
+    assert np.allclose(carma31.acf, carma31_fpoly.acf)
+    assert np.allclose(carma31.obsmodel, carma31_fpoly.obsmodel)

@@ -793,8 +793,8 @@ class carma(Quasisep):
     @classmethod
     def init(
         cls, alpha: JAXArray, beta: JAXArray, sigma: Optional[JAXArray] = None
-    ) -> "carma":
-        """Construct a CARMA kernel
+    ) -> "CARMA":
+        """Construct a CARMA kernel using the alpha, beta parameters
 
         Args:
             alpha: The parameter :math:`\alpha` in the definition above. This
@@ -812,10 +812,10 @@ class carma(Quasisep):
         assert beta.shape[0] <= p
 
         # find acf
-        arroots = jnp.roots(jnp.append(alpha, 1.0)[::-1], strip_zeros=False)
+        arroots = carma.roots(jnp.append(alpha, 1.0))
         acf = carma.carma_acf(arroots, alpha, beta * sigma)
         # masks for selecting entries in matrixes
-        real_mask = jnp.where(arroots.imag == 0, jnp.ones(p), jnp.zeros(p))
+        real_mask = jnp.where(arroots.imag == 0.0, jnp.ones(p), jnp.zeros(p))
         complex_mask = -real_mask + 1
         complex_idx = jnp.cumsum(-real_mask + 1) * complex_mask
         complex_select = complex_mask * complex_idx % 2
@@ -851,8 +851,103 @@ class carma(Quasisep):
             obsmodel=obsmodel,
         )
 
+    @classmethod
+    def from_fpoly(
+        cls, alpha_fpoly: JAXArray, beta_fpoly: JAXArray, beta_mult: JAXArray
+    ) -> "CARMA":
+        """Construct a CARMA kernel using the roots of the characteristic polynomials
+
+        The roots can be re-parameterized as the coefficients of a product 
+        of qudractic equations each with the second-order term set to 1. The 
+        input for this constructor are said coefficients. See Equation 30 in 
+        the paper linked above for a reference.
+
+
+        Args:
+            alpha_fpoly: The coefficients of the autogressive quadratic
+                equations corresponding to the alpha parameters.
+            beta_fpoly: The coefficients of the moving-average quadratic
+                equations corresponding to the beta parameters.
+            beta_mult: Equivalent to beta[-1] use in the init constructor.
+        """
+
+        alpha_fpoly = jnp.atleast_1d(alpha_fpoly)
+        beta_fpoly = jnp.atleast_1d(beta_fpoly)
+        beta_mult = jnp.atleast_1d(beta_mult)
+
+        alpha = carma.fpoly2poly(jnp.append(alpha_fpoly, jnp.array([1.])))[:-1]
+        beta = carma.fpoly2poly(jnp.append(beta_fpoly, beta_mult))
+
+        return carma.init(alpha, beta)
+
     @staticmethod
     @jax.jit
+    def roots(poly_coeffs):
+        roots = jnp.roots(poly_coeffs[::-1], strip_zeros=False)
+        return roots[jnp.argsort(roots.real)]
+
+    @staticmethod
+    @jax.jit
+    def fpoly2poly(fpoly_coeffs):
+        """Expand the factoreized characteristic polynomial"""
+
+        size = fpoly_coeffs.shape[0] - 1
+        remain = size % 2
+        nPair = size // 2
+        mult_f = fpoly_coeffs[-1:]  # The coeff of highest order term in the output
+
+        poly = jax.lax.cond(
+            remain == 1,
+            lambda x: jnp.array([1.0, x]),
+            lambda x: jnp.array([0.0, 1.0]),
+            fpoly_coeffs[-2],
+        )
+        poly = poly[-remain+1:]
+
+        for p in jnp.arange(nPair):
+            poly = jnp.convolve(
+                poly,
+                jnp.append(
+                    jnp.array([fpoly_coeffs[p * 2], fpoly_coeffs[p * 2 + 1]]),
+                    jnp.ones((1,)),
+                )[::-1],
+            )
+
+        # the returned is low->high following Kelly+14
+        return poly[::-1] * mult_f
+
+    @staticmethod
+    def poly2fpoly(poly_coeffs):
+        """Factorize a polynomial into product of quadratic equations"""
+
+        fpoly = jnp.empty((0))
+        mult_f = poly_coeffs[-1]
+        roots = carma.roots(poly_coeffs / mult_f)
+        odd = bool(len(roots) & 0x1)
+
+        rootsComp = roots[roots.imag != 0]
+        rootsReal = roots[roots.imag == 0]
+        nCompPair = len(rootsComp) // 2
+        nRealPair = len(rootsReal) // 2
+
+        for i in range(nCompPair):
+            root1 = rootsComp[i]
+            root2 = rootsComp[i + 1]
+            fpoly = jnp.append(fpoly, (root1 * root2).real)
+            fpoly = jnp.append(fpoly, -(root1.real + root2.real))
+
+        for i in range(nRealPair):
+            root1 = rootsReal[i]
+            root2 = rootsReal[i + 1]
+            fpoly = jnp.append(fpoly, (root1 * root2).real)
+            fpoly = jnp.append(fpoly, -(root1.real + root2.real))
+
+        if odd:
+            fpoly = jnp.append(fpoly, -rootsReal[-1].real)
+
+        return fpoly, jnp.array(mult_f)
+
+    @staticmethod
     def carma_acf(arroots, arparam, maparam):
         """Get ACVF coefficients given CARMA parameters
 
@@ -934,7 +1029,6 @@ class carma(Quasisep):
         )
 
         return tm_real + tm_complex_diag + -tm_complex_u.T + tm_complex_u
-
 
 def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
     i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
