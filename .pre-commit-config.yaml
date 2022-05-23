@@ -21,7 +21,7 @@ repos:
       - id: nbstripout
         exclude: docs/benchmarks.ipynb
   - repo: https://github.com/hadialqattan/pycln
-    rev: "v1.3.2"
+    rev: "v1.3.3"
     hooks:
       - id: pycln
         additional_dependencies: ["click<8.1.0"]
