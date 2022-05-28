@@ -31,6 +31,7 @@ tutorials/kernels
 ```{toctree}
 :maxdepth: 1
 
+tutorials/classification
 tutorials/transforms
 tutorials/geometry
 tutorials/derivative
