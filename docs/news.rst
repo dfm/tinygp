@@ -5,6 +5,46 @@ Release Notes
 
 .. towncrier release notes start
 
+tinygp 0.2.2 (2022-04-20)
+-------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Fixed dangling ``numpy`` operation in quasiseparable tree map. (`#81 <https://github.com/dfm/tinygp/issues/81>`_)
+
+
+tinygp 0.2.1 (2022-03-28)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Renamed elements of quasiseparable kernels, and added support for modeling
+  derivative observations with these kernels. (`#58 <https://github.com/dfm/tinygp/issues/58>`_)
+- Added more flexible noise models: diagonal, banded, or dense. (`#59 <https://github.com/dfm/tinygp/issues/59>`_)
+- Added :class:`tinygp.kernels.quasisep.CARMA` kernel to implement CARMA models. (`#60 <https://github.com/dfm/tinygp/issues/60>`_)
+- Added a minimal solver based on Kalman filtering to use as a baseline for
+  checking the performance of the :class:`tinygp.solvers.QuasisepSolver`. (`#67 <https://github.com/dfm/tinygp/issues/67>`_)
+
+
+Bugfixes
+~~~~~~~~
+
+- Fixed exception when conditioning with quasiseparable solver, since quasisep
+  kernels are not hashable. (`#57 <https://github.com/dfm/tinygp/issues/57>`_)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Added a new tutorial describing how to model multiband and derivative
+  observations using quasiseparable kernels. (`#58 <https://github.com/dfm/tinygp/issues/58>`_)
+- Add more details to Deep Kernel learning tutorial,
+  showing comparison with Matern-3/2 kernel
+  and the transformed features. (`#70 <https://github.com/dfm/tinygp/issues/70>`_)
+
+
 tinygp 0.2.0 (2022-03-03)
 -------------------------
 

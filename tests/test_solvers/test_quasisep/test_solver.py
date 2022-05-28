@@ -9,6 +9,11 @@ from tinygp import GaussianProcess, kernels
 from tinygp.kernels import quasisep
 from tinygp.solvers import DirectSolver, QuasisepSolver
 
+try:
+    import celerite
+except ImportError:
+    celerite = None
+
 
 @pytest.fixture
 def random():
@@ -100,3 +105,23 @@ def test_consistent_with_direct(kernel_pair, data):
     np.testing.assert_allclose(
         gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7
     )
+
+
+@pytest.mark.skipif(celerite is None, reason="'celerite' must be installed")
+def test_celerite(data):
+    x, y, t = data
+    yerr = 0.1
+
+    a, b, c, d = 1.1, 0.8, 0.9, 0.1
+    celerite_kernel = celerite.terms.ComplexTerm(
+        np.log(a), np.log(b), np.log(c), np.log(d)
+    )
+    celerite_gp = celerite.GP(celerite_kernel)
+    celerite_gp.compute(x, yerr)
+    expected = celerite_gp.log_likelihood(y)
+
+    kernel = quasisep.Celerite(a, b, c, d)
+    gp = GaussianProcess(kernel, x, diag=yerr**2)
+    calc = gp.log_probability(y)
+
+    np.testing.assert_allclose(calc, expected)

@@ -10,6 +10,9 @@
   <a href="https://tinygp.readthedocs.io">
     <img alt="Read the Docs" src="https://img.shields.io/readthedocs/tinygp">
   </a>
+  <a href="https://doi.org/10.5281/zenodo.6389737">
+    <img alt="Zenodo DOI" src="https://zenodo.org/badge/DOI/10.5281/zenodo.6389737.svg">
+  </a>
 </p>
 
 `tinygp` is an extremely lightweight library for building Gaussian Process (GP)

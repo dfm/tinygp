@@ -106,7 +106,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         sortable = jax.vmap(self.coord_to_sortable)
         idx = jnp.searchsorted(sortable(X2), sortable(X1), side="right") - 1
 
-        Xs = jax.tree_util.tree_map(lambda x: np.append(x[0], x[:-1]), X2)
+        Xs = jax.tree_util.tree_map(lambda x: jnp.append(x[0], x[:-1]), X2)
         Pinf = self.stationary_covariance()
         a = jax.vmap(self.transition_matrix)(Xs, X2)
         h1 = jax.vmap(self.observation_model)(X1)
@@ -312,6 +312,10 @@ class Celerite(Quasisep):
         k(\tau)=\exp(-c\,\tau)\,\left[a\,\cos(d\,\tau)+b\,\sin(d\,\tau)\right]
 
     for :math:`\tau = |x_i - x_j|`.
+
+    In order to be positive definite, the parameters of this kernel must satisfy
+    :math:`a\,c - b\,d > 0`, and you will see NaNs if you use parameters that
+    don't satisfy this relationship.
     """
     a: JAXArray
     b: JAXArray
@@ -322,23 +326,27 @@ class Celerite(Quasisep):
         return jnp.array([[-self.c, -self.d], [self.d, -self.c]])
 
     def stationary_covariance(self) -> JAXArray:
-        a = self.a
-        b = self.b
         c = self.c
         d = self.d
-        diff = jnp.square(c) - jnp.square(d)
         return jnp.array(
             [
-                [a, b],
-                [
-                    b * diff + 2 * a * c * d,
-                    -self.a * diff + 2 * b * c * d,
-                ],
+                [1, -c / d],
+                [-c / d, 1 + 2 * jnp.square(c) / jnp.square(d)],
             ]
         )
 
     def observation_model(self, X: JAXArray) -> JAXArray:
-        return jnp.array([1.0, 0.0])
+        a = self.a
+        b = self.b
+        c = self.c
+        d = self.d
+        c2 = jnp.square(c)
+        d2 = jnp.square(d)
+        s2 = c2 + d2
+        h2_2 = d2 * (a * c - b * d) / (2 * c * s2)
+        h2 = jnp.sqrt(h2_2)
+        h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / d
+        return jnp.array([h1, h2])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
@@ -483,6 +491,10 @@ class Matern32(Quasisep):
     """
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+
+    def noise(self) -> JAXArray:
+        f = np.sqrt(3) / self.scale
+        return 4 * f**3
 
     def design_matrix(self) -> JAXArray:
         f = np.sqrt(3) / self.scale
