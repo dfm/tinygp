@@ -7,3 +7,4 @@
 docs/api/summary
 __pycache__
 *.egg-info
+build
