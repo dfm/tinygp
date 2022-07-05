@@ -12,7 +12,7 @@ repos:
         additional_dependencies: [toml]
         exclude: docs/tutorials
   - repo: https://github.com/psf/black
-    rev: "22.3.0"
+    rev: "22.6.0"
     hooks:
       - id: black-jupyter
   - repo: https://github.com/kynan/nbstripout
@@ -21,7 +21,7 @@ repos:
       - id: nbstripout
         exclude: docs/benchmarks.ipynb
   - repo: https://github.com/hadialqattan/pycln
-    rev: "v1.3.3"
+    rev: "v1.3.5"
     hooks:
       - id: pycln
         additional_dependencies: ["click<8.1.0"]
