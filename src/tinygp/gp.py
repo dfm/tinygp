@@ -34,7 +34,8 @@ class GaussianProcess:
     """An interface for designing a Gaussian Process regression model
 
     Args:
-        kernel (Kernel): The kernel function X (JAXArray): The input
+        kernel (Kernel): The kernel function
+        X (JAXArray): The input
             coordinates. This can be any PyTree that is compatible with
             ``kernel`` where the zeroth dimension is ``N_data``, the size of the
             data set.
