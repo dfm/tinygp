@@ -118,11 +118,11 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         pu = h2 @ Pinf
 
         i = jnp.clip(idx, 0, ql.shape[0] - 1)
-        Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
+        Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
         pl = jax.vmap(jnp.dot)(pl, jax.vmap(self.transition_matrix)(Xi, X1))
 
         i = jnp.clip(idx + 1, 0, pu.shape[0] - 1)
-        Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
+        Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
         qu = jax.vmap(jnp.dot)(jax.vmap(self.transition_matrix)(X1, Xi), qu)
 
         return GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)
