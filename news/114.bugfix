@@ -1,0 +1,1 @@
+Fixed ``FutureWarning`` by updating ``tree_map`` to ``tree_util.tree_map``.
