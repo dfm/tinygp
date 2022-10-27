@@ -78,7 +78,6 @@ class L2Distance(Distance):
             return primal_out, tangent_out
 
         return impl(X1, X2)
-        # return jnp.sqrt(self.squared_distance(X1, X2))
 
     def squared_distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return jnp.sum(jnp.square(X1 - X2))
