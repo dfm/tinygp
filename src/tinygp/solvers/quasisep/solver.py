@@ -4,9 +4,9 @@ from __future__ import annotations
 
 __all__ = ["QuasisepSolver"]
 
-from typing import Any, Optional
+from functools import wraps
+from typing import Any, Callable, Optional
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -15,6 +15,21 @@ from tinygp.kernels.base import Kernel
 from tinygp.noise import Noise
 from tinygp.solvers.quasisep.core import LowerTriQSM, SymmQSM
 from tinygp.solvers.solver import Solver
+
+
+def handle_sorting(func: Callable[..., JAXArray]) -> Callable[..., JAXArray]:
+    @wraps(func)
+    def wrapped(
+        self: "QuasisepSolver", y: JAXArray, *args: Any, **kwargs: Any
+    ) -> JAXArray:
+        if self.inds_to_sorted is not None:
+            y = y[self.inds_to_sorted]
+        r = func(self, y, *args, **kwargs)
+        if self.sorted_to_inds is not None:
+            return r[self.sorted_to_inds]
+        return r
+
+    return wrapped
 
 
 @dataclass
@@ -32,6 +47,8 @@ class QuasisepSolver(Solver):
     X: JAXArray
     matrix: SymmQSM
     factor: LowerTriQSM
+    inds_to_sorted: Optional[JAXArray]
+    sorted_to_inds: Optional[JAXArray]
 
     @classmethod
     def init(
@@ -41,6 +58,7 @@ class QuasisepSolver(Solver):
         noise: Noise,
         *,
         covariance: Optional[Any] = None,
+        sort: bool = True,
     ) -> "QuasisepSolver":
         """Build a :class:`QuasisepSolver` for a given kernel and coordinates
 
@@ -55,27 +73,55 @@ class QuasisepSolver(Solver):
         """
         from tinygp.kernels.quasisep import Quasisep
 
+        inds_to_sorted = None
+        sorted_to_inds = None
         if covariance is None:
             assert isinstance(kernel, Quasisep)
+
+            if sort:
+                inds_to_sorted = jnp.argsort(kernel.coord_to_sortable(X))
+                sorted_to_inds = (
+                    jnp.empty_like(inds_to_sorted)
+                    .at[inds_to_sorted]
+                    .set(jnp.arange(len(inds_to_sorted)))
+                )
+                X = X[inds_to_sorted]
+
             matrix = kernel.to_symm_qsm(X)
             matrix += noise.to_qsm()
+
         else:
             assert isinstance(covariance, SymmQSM)
             matrix = covariance
+
         factor = matrix.cholesky()
-        return cls(X=X, matrix=matrix, factor=factor)
+        return cls(
+            X=X,
+            matrix=matrix,
+            factor=factor,
+            inds_to_sorted=inds_to_sorted,
+            sorted_to_inds=sorted_to_inds,
+        )
 
     def variance(self) -> JAXArray:
         return self.matrix.diag.d
+        if self.sorted_to_inds is None:
+            return self.matrix.diag.d
+        return self.matrix.diag.d[self.sorted_to_inds]
 
     def covariance(self) -> JAXArray:
-        return self.matrix.to_dense()
+        cov = self.matrix.to_dense()
+        return cov
+        if self.sorted_to_inds is None:
+            return cov
+        return cov[self.sorted_to_inds[:, None], self.sorted_to_inds[None, :]]
 
     def normalization(self) -> JAXArray:
         return jnp.sum(jnp.log(self.factor.diag.d)) + 0.5 * self.factor.shape[
             0
         ] * np.log(2 * np.pi)
 
+    @handle_sorting
     def solve_triangular(
         self, y: JAXArray, *, transpose: bool = False
     ) -> JAXArray:
@@ -84,6 +130,7 @@ class QuasisepSolver(Solver):
         else:
             return self.factor.solve(y)
 
+    @handle_sorting
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return self.factor @ y
 
