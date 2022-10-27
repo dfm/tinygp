@@ -33,7 +33,7 @@ class Transform(Kernel):
     kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.kernel.evaluate(self.transform(X1), self.transform(X2))  # type: ignore
+        return self.kernel.evaluate(self.transform(X1), self.transform(X2))
 
 
 @dataclass
