@@ -197,6 +197,11 @@ class GaussianProcess:
 
         return ConditionResult(log_prob, gp)
 
+    @partial(
+        jax.jit,
+        static_argnums=(0,),
+        static_argnames=("include_mean", "return_var", "return_cov"),
+    )
     def predict(
         self,
         y: JAXArray,
@@ -234,14 +239,6 @@ class GaussianProcess:
             returned with shape ``(N_test,)`` or ``(N_test, N_test)``
             respectively.
         """
-        import warnings
-
-        warnings.warn(
-            "The 'predict' method is deprecated and 'condition' should be preferred",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
         _, cond = self.condition(
             y, X_test, kernel=kernel, include_mean=include_mean
         )
