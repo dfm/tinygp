@@ -3,8 +3,8 @@
 
 import jax
 import jax.numpy as jnp
-from jax.test_util import check_grads
 import numpy as np
+from jax.test_util import check_grads
 
 from tinygp.kernels import distance
 
