@@ -53,31 +53,11 @@ class L2Distance(Distance):
     """The L2 or Euclidean distance between two coordinates"""
 
     def distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        # We provide a custom JVP implementation here so that it is zero-safe
-        @jax.custom_jvp
-        def impl(X1: JAXArray, X2: JAXArray) -> JAXArray:
-            return jnp.sqrt(self.squared_distance(X1, X2))
-
-        @impl.defjvp
-        def _(
-            primals: Tuple[JAXArray, JAXArray],
-            tangents: Tuple[JAXArray, JAXArray],
-        ) -> Tuple[JAXArray, JAXArray]:
-            X1, X2 = primals
-            X1_dot, X2_dot = tangents
-            primal_out = jnp.sqrt(self.squared_distance(X1, X2))
-
-            select = jax.lax.eq(primal_out, jnp.zeros_like(primal_out))
-            denom = jnp.where(select, jnp.ones_like(primal_out), primal_out)
-            tangent_out = jnp.where(
-                select,
-                jnp.zeros_like(denom),
-                jnp.sum((X1 - X2) * (X1_dot - X2_dot)) / denom,
-            )
-
-            return primal_out, tangent_out
-
-        return impl(X1, X2)
+        r1 = L1Distance().distance(X1, X2)
+        r2 = self.squared_distance(X1, X2)
+        zeros = jnp.equal(r2, 0)
+        r2 = jnp.where(zeros, jnp.ones_like(r2), r2)
+        return jnp.where(zeros, r1, jnp.sqrt(r2))
 
     def squared_distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return jnp.sum(jnp.square(X1 - X2))

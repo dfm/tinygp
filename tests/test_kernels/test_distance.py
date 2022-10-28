@@ -15,7 +15,7 @@ def check(comp, expect, args, order=2, **kwargs):
     check_grads(comp, args, order=order, **kwargs)
 
 
-def test_l2_custom_jvp():
+def test_l2_distance_grad_at_zero():
     expect = lambda x1, x2: jnp.sqrt(jnp.sum(jnp.square(x1 - x2)))
     comp = distance.L2Distance().distance
 
@@ -30,4 +30,3 @@ def test_l2_custom_jvp():
     g = jax.grad(comp)(x1, x1)
     np.testing.assert_allclose(expect(x1, x1), comp(x1, x1))
     assert np.all(np.isfinite(g))
-    np.testing.assert_allclose(g, jnp.zeros(2))
