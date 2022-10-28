@@ -10,7 +10,6 @@ tutorial.
 
 from __future__ import annotations
 
-
 __all__ = ["Distance", "L1Distance", "L2Distance"]
 
 from abc import ABCMeta, abstractmethod
