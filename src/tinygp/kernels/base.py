@@ -118,8 +118,6 @@ class Kernel(metaclass=ABCMeta):
         # We'll hit this first branch when using the `sum` function
         if other == 0:
             return self
-        if isinstance(other, Kernel):
-            return Sum(other, self)
         return Sum(Constant(other), self)
 
     def __mul__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
@@ -128,8 +126,6 @@ class Kernel(metaclass=ABCMeta):
         return Product(self, Constant(other))
 
     def __rmul__(self, other: Any) -> "Kernel":
-        if isinstance(other, Kernel):
-            return Product(other, self)
         return Product(Constant(other), self)
 
 

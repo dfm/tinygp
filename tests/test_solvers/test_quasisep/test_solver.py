@@ -125,3 +125,37 @@ def test_celerite(data):
     calc = gp.log_probability(y)
 
     np.testing.assert_allclose(calc, expected)
+
+
+def test_unsorted(data):
+    random = np.random.default_rng(0)
+    inds = random.permutation(len(data[0]))
+    inds_t = random.permutation(len(data[2]))
+    x_ = data[0][inds]
+    y_ = data[1][inds]
+    t_ = data[2][inds_t]
+
+    kernel = quasisep.Matern32(sigma=1.8, scale=1.5)
+    gp = GaussianProcess(kernel, data[0], diag=0.1)
+    gp_ = GaussianProcess(kernel, x_, diag=0.1)
+    assert isinstance(gp_.solver, QuasisepSolver)
+
+    assert np.isfinite(gp_.log_probability(y_))
+    np.testing.assert_allclose(
+        gp_.log_probability(y_), gp.log_probability(data[1])
+    )
+
+    np.testing.assert_allclose(
+        gp_.solver.solve_triangular(y_),
+        gp.solver.solve_triangular(data[1])[inds],
+    )
+
+    cond = gp.condition(data[1]).gp
+    cond_ = gp_.condition(y_).gp
+    np.testing.assert_allclose(cond_.loc, cond.loc[inds])
+    np.testing.assert_allclose(cond_.variance, cond.variance[inds])
+
+    cond = gp.condition(data[1], data[2]).gp
+    cond_ = gp_.condition(y_, t_).gp
+    np.testing.assert_allclose(cond_.loc, cond.loc[inds_t])
+    np.testing.assert_allclose(cond_.variance, cond.variance[inds_t])
