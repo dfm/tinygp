@@ -10,7 +10,6 @@ tutorial.
 
 from __future__ import annotations
 
-from typing import Tuple
 
 __all__ = ["Distance", "L1Distance", "L2Distance"]
 
