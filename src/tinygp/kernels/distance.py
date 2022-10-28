@@ -15,7 +15,6 @@ __all__ = ["Distance", "L1Distance", "L2Distance"]
 
 from abc import ABCMeta, abstractmethod
 
-import jax
 import jax.numpy as jnp
 
 from tinygp.helpers import JAXArray, dataclass
