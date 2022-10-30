@@ -4,7 +4,7 @@ from __future__ import annotations
 
 __all__ = ["QuasisepSolver"]
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import jax
 import jax.numpy as jnp
@@ -41,6 +41,7 @@ class QuasisepSolver(Solver):
         noise: Noise,
         *,
         covariance: Optional[Any] = None,
+        assume_sorted: bool = False,
     ) -> "QuasisepSolver":
         """Build a :class:`QuasisepSolver` for a given kernel and coordinates
 
@@ -52,15 +53,24 @@ class QuasisepSolver(Solver):
             covariance: Optionally, a pre-computed
                 :class:`tinygp.solvers.quasisep.core.QSM` with the covariance
                 matrix.
+            assume_sorted: If ``True``, assume that the input coordinates are
+                sorted. If ``False``, check that they are sorted and throw an
+                error if they are not. This can introduce a runtime overhead,
+                and you can pass ``assume_sorted=True`` to get the best
+                performance.
         """
         from tinygp.kernels.quasisep import Quasisep
 
         if covariance is None:
-            assert isinstance(kernel, Quasisep)
+            if TYPE_CHECKING:
+                assert isinstance(kernel, Quasisep)
+            if not assume_sorted:
+                jax.debug.callback(_check_sorted, kernel.coord_to_sortable(X))
             matrix = kernel.to_symm_qsm(X)
             matrix += noise.to_qsm()
         else:
-            assert isinstance(covariance, SymmQSM)
+            if TYPE_CHECKING:
+                assert isinstance(covariance, SymmQSM)
             matrix = covariance
         factor = matrix.cholesky()
         return cls(X=X, matrix=matrix, factor=factor)
@@ -125,3 +135,10 @@ class QuasisepSolver(Solver):
 
         A = self.solve_triangular(Ks)
         return Kss - A.transpose() @ A
+
+
+def _check_sorted(X: JAXArray) -> None:
+    if np.any(np.diff(X) < 0.0):
+        raise ValueError(
+            "Input coordinates must be sorted in order to use the QuasisepSolver"
+        )
