@@ -66,6 +66,7 @@ class GaussianProcess:
         solver: Optional[Any] = None,
         mean_value: Optional[JAXArray] = None,
         covariance_value: Optional[Any] = None,
+        **solver_kwargs: Any,
     ):
         self.kernel = kernel
         self.X = X
@@ -101,7 +102,11 @@ class GaussianProcess:
             else:
                 solver = DirectSolver
         self.solver = solver.init(
-            kernel, self.X, self.noise, covariance=covariance_value
+            kernel,
+            self.X,
+            self.noise,
+            covariance=covariance_value,
+            **solver_kwargs,
         )
 
     @property

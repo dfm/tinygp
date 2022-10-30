@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 from abc import ABCMeta, abstractmethod
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -151,7 +151,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
             )
         return Sum(self, other)
 
-    def __radd__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __radd__(self, other: Any) -> "Kernel":
         # We'll hit this first branch when using the `sum` function
         if other == 0:
             return self
@@ -171,7 +171,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
             )
         return Scale(kernel=self, scale=other)
 
-    def __rmul__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __rmul__(self, other: Any) -> "Kernel":
         if isinstance(other, Quasisep):
             return Product(other, self)
         if isinstance(other, Kernel) or jnp.ndim(other) != 0:
@@ -699,14 +699,14 @@ class CARMA(Quasisep):
         params = jnp.linalg.solve(
             params, 0.5 * sigma**2 * jnp.eye(p, 1, k=-p + 1)
         )[:, 0]
-        stn = []
+        stn_ = []
         for j in range(p):
-            stn.append([jnp.zeros(()) for _ in range(p)])
+            stn_.append([jnp.zeros(()) for _ in range(p)])
             for n, k in enumerate(range(j - 2, -1, -2)):
-                stn[-1][k] = (2 * (n % 2) - 1) * params[j - n - 1]
+                stn_[-1][k] = (2 * (n % 2) - 1) * params[j - n - 1]
             for n, k in enumerate(range(j, p, 2)):
-                stn[-1][k] = (1 - 2 * (n % 2)) * params[n + j]
-        stn = jnp.array(list(map(jnp.stack, stn)))
+                stn_[-1][k] = (1 - 2 * (n % 2)) * params[n + j]
+        stn = jnp.array(list(map(jnp.stack, stn_)))
 
         return cls(
             sigma=sigma,

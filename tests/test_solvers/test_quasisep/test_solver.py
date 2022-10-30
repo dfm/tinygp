@@ -109,7 +109,7 @@ def test_consistent_with_direct(kernel_pair, data):
 
 @pytest.mark.skipif(celerite is None, reason="'celerite' must be installed")
 def test_celerite(data):
-    x, y, t = data
+    x, y, _ = data
     yerr = 0.1
 
     a, b, c, d = 1.1, 0.8, 0.9, 0.1
@@ -125,3 +125,22 @@ def test_celerite(data):
     calc = gp.log_probability(y)
 
     np.testing.assert_allclose(calc, expected)
+
+
+def test_unsorted(data):
+    random = np.random.default_rng(0)
+    inds = random.permutation(len(data[0]))
+    x_ = data[0][inds]
+    y_ = data[1][inds]
+
+    kernel = quasisep.Matern32(sigma=1.8, scale=1.5)
+    with pytest.raises(ValueError):
+        GaussianProcess(kernel, x_, diag=0.1)
+
+    @jax.jit
+    def impl(X, y):
+        return GaussianProcess(kernel, X, diag=0.1).log_probability(y)
+
+    with pytest.raises(jax.lib.xla_extension.XlaRuntimeError) as exc_info:
+        impl(x_, y_).block_until_ready()
+    assert exc_info.match(r"Input coordinates must be sorted")
