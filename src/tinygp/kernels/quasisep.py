@@ -204,6 +204,9 @@ class Wrapper(Quasisep, metaclass=ABCMeta):
 
     kernel: Quasisep
 
+    def coord_to_sortable(self, X: JAXArray) -> JAXArray:
+        return self.kernel.coord_to_sortable(X)
+
     def design_matrix(self) -> JAXArray:
         return self.kernel.design_matrix()
 
@@ -225,6 +228,10 @@ class Sum(Quasisep):
 
     kernel1: Quasisep
     kernel2: Quasisep
+
+    def coord_to_sortable(self, X: JAXArray) -> JAXArray:
+        """We assume that both kernels use the same coordinates"""
+        return self.kernel1.coord_to_sortable(X)
 
     def design_matrix(self) -> JAXArray:
         return jsp.linalg.block_diag(
@@ -258,6 +265,10 @@ class Product(Quasisep):
 
     kernel1: Quasisep
     kernel2: Quasisep
+
+    def coord_to_sortable(self, X: JAXArray) -> JAXArray:
+        """We assume that both kernels use the same coordinates"""
+        return self.kernel1.coord_to_sortable(X)
 
     def design_matrix(self) -> JAXArray:
         F1 = self.kernel1.design_matrix()
