@@ -676,7 +676,7 @@ class CARMA(Quasisep):
     def init(
         cls, alpha: JAXArray, beta: JAXArray, sigma: Optional[JAXArray] = None
     ) -> "CARMA":
-        """Construct a CARMA kernel using the alpha, beta parameters
+        r"""Construct a CARMA kernel using the alpha, beta parameters
 
         Args:
             alpha: The parameter :math:`\alpha` in the definition above. This
@@ -740,13 +740,13 @@ class CARMA(Quasisep):
         """Construct a CARMA kernel using the roots of the characteristic polynomials
 
         The roots can be re-parameterized as the coefficients of a product
-        of qudractic equations each with the second-order term set to 1. The
+        of quadratic equations each with the second-order term set to 1. The
         input for this constructor are said coefficients. See Equation 30 in
         the paper linked above for a reference.
 
 
         Args:
-            alpha_fpoly: The coefficients of the autogressive quadratic
+            alpha_fpoly: The coefficients of the auto-regressive quadratic
                 equations corresponding to the alpha parameters.
             beta_fpoly: The coefficients of the moving-average quadratic
                 equations corresponding to the beta parameters.
@@ -803,7 +803,7 @@ class CARMA(Quasisep):
         return poly[::-1] * mult_f
 
     @staticmethod
-    def poly2fpoly(poly_coeffs: JAXArray) -> Tuple:
+    def poly2fpoly(poly_coeffs: JAXArray) -> Tuple[JAXArray, JAXArray]:
         """Factorize a polynomial into product of quadratic equations"""
 
         fpoly = jnp.empty((0))
