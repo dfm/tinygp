@@ -234,6 +234,8 @@ class DotProduct(Kernel):
     """
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        if jnp.ndim(X1) == 0:
+            return X1 * X2
         return X1 @ X2
 
 
