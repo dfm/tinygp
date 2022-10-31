@@ -1,2 +1,0 @@
-Fixed bug where the gradient of the L2 distance would return NaN when the
-distance was zero.
