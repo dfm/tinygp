@@ -1,2 +1,0 @@
-Fixed issue when tree structure and shape of ``X_test`` input to ``condition``
-was incompatible with the initial input.

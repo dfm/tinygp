@@ -1,1 +1,0 @@
-Fixed behavior of DotProduct kernel on scalar inputs.
