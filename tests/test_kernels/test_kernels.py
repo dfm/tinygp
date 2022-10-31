@@ -82,3 +82,12 @@ def test_conditioned(data):
             cond(x1, x2),
             k2(x1, x2) - k2(x1, x1) @ jnp.linalg.solve(K, k2(x1, x2)),
         )
+
+
+def test_dot_product(data):
+    x1, x2 = data
+    kernel = kernels.DotProduct()
+    np.testing.assert_allclose(kernel(x1, x2), jnp.dot(x1, x2.T))
+    np.testing.assert_allclose(
+        kernel(x1[:, 0], x2[:, 0]), x1[:, 0][:, None] * x2[:, 0][None]
+    )
