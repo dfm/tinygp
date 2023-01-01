@@ -5,7 +5,7 @@
   <br>
   <br>
   <a href="https://github.com/dfm/tinygp/actions/workflows/tests.yml">
-    <img alt="GitHub Workflow Status" src="https://img.shields.io/github/workflow/status/dfm/tinygp/Tests">
+    <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/dfm/tinygp/tests.yml?branch=main">
   </a>
   <a href="https://tinygp.readthedocs.io">
     <img alt="Read the Docs" src="https://img.shields.io/readthedocs/tinygp">
