@@ -9,6 +9,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "myst_nb",
+    "IPython.sphinxext.ipython_console_highlighting",
 ]
 
 myst_enable_extensions = ["dollarmath", "colon_fence"]
