@@ -58,7 +58,7 @@ class Stationary(Kernel):
     scale: JAXArray = field(default_factory=lambda: jnp.ones(()))
     distance: Distance = L1Distance()
 
-    def __static_evaluate_check__(self):
+    def __static_evaluate_check__(self) -> None:
         if jnp.ndim(self.scale):
             raise ValueError(
                 "Only scalar scales are permitted for stationary kernels; use"

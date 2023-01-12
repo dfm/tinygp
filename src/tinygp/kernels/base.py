@@ -41,7 +41,7 @@ class Kernel(metaclass=ABCMeta):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    def __static_evaluate_check__(self):
+    def __static_evaluate_check__(self) -> None:
         pass
 
     @abstractmethod
