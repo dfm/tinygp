@@ -44,7 +44,7 @@ class Kernel(metaclass=ABCMeta):
     def __static_evaluate_check__(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         pass
 
