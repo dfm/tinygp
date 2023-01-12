@@ -28,7 +28,6 @@ __all__ = [
 ]
 
 from typing import Optional
-import functools
 
 import jax.numpy as jnp
 import numpy as np
