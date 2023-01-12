@@ -25,8 +25,7 @@ INSTALL_REQUIRES = ["jax", "jaxlib"]
 EXTRA_REQUIRE = {
     "test": ["pytest>=3.6", "george", "celerite"],
     "docs": [
-        "sphinx>=3.3",
-        "sphinx-book-theme",
+        "sphinx-book-theme @ git+https://github.com/executablebooks/sphinx-book-theme.git@0c404524aed8f1e0009fc03a0f7e04282fd238ab#egg=sphinx-book-theme",
         "myst-nb",
         "matplotlib",
         "statsmodels",
@@ -35,7 +34,7 @@ EXTRA_REQUIRE = {
         "flax",
         "optax",
         "jaxopt",
-        "ipython==7.31.0",
+        "ipython",
     ],
 }
 EXTRA_REQUIRE["coverage"] = EXTRA_REQUIRE["test"] + ["pytest-cov"]
