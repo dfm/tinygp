@@ -48,7 +48,6 @@ class Kernel(metaclass=ABCMeta):
     def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         pass
 
-    @abstractmethod
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         """Evaluate the kernel at a pair of input coordinates
 
