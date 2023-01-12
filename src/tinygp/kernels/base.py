@@ -41,11 +41,17 @@ class Kernel(metaclass=ABCMeta):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
+    def __static_evaluate_check__(self) -> None:
+        pass
+
     @abstractmethod
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        pass
+
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         """Evaluate the kernel at a pair of input coordinates
 
-        This should be overridden be subclasses to return the kernel-specific
+        `cls.__evaluate__` should be overridden by subclasses to return the kernel-specific
         value. Two things to note:
 
         1. Users shouldn't generally call :func:`Kernel.evaluate`. Instead,
@@ -59,7 +65,8 @@ class Kernel(metaclass=ABCMeta):
            ``(n_data, n_dim)``, and you should let the :class:`Kernel` ``vmap``
            magic handle all the broadcasting for you.
         """
-        raise NotImplementedError
+        self.__static_evaluate_check__()
+        return self.__evaluate__(X1, X2)
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
         """Evaluate the kernel on its diagonal
@@ -149,7 +156,7 @@ class Conditioned(Kernel):
     solver: Solver
     kernel: Kernel
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         kernel_vec = jax.vmap(self.kernel.evaluate, in_axes=(0, None))
         K1 = self.solver.solve_triangular(kernel_vec(self.X, X1))
         K2 = self.solver.solve_triangular(kernel_vec(self.X, X2))
@@ -172,7 +179,7 @@ class Custom(Kernel):
 
     function: Callable[[Any, Any], Any]
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.function(X1, X2)
 
 
@@ -183,7 +190,7 @@ class Sum(Kernel):
     kernel1: Kernel
     kernel2: Kernel
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) + self.kernel2.evaluate(X1, X2)
 
 
@@ -194,7 +201,7 @@ class Product(Kernel):
     kernel1: Kernel
     kernel2: Kernel
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel1.evaluate(X1, X2) * self.kernel2.evaluate(X1, X2)
 
 
@@ -214,11 +221,11 @@ class Constant(Kernel):
 
     value: JAXArray
 
-    def __post_init__(self) -> None:
+    def __static_evaluate_check__(self) -> None:
         if jnp.ndim(self.value) != 0:
             raise ValueError("The value of a constant kernel must be a scalar")
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.value
 
 
@@ -233,7 +240,7 @@ class DotProduct(Kernel):
     with no parameters.
     """
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         if jnp.ndim(X1) == 0:
             return X1 * X2
         return X1 @ X2
@@ -258,7 +265,7 @@ class Polynomial(Kernel):
     scale: JAXArray = field(default_factory=lambda: jnp.ones(()))
     sigma: JAXArray = field(default_factory=lambda: jnp.zeros(()))
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return (
             (X1 / self.scale) @ (X2 / self.scale) + jnp.square(self.sigma)
         ) ** self.order

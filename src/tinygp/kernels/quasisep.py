@@ -181,7 +181,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
             )
         return Scale(kernel=self, scale=other)
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __evaluate__(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         """The kernel evaluated via the quasiseparable representation"""
         Pinf = self.stationary_covariance()
         h1 = self.observation_model(X1)
