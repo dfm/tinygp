@@ -685,7 +685,7 @@ class CARMA(Quasisep):
         alpha: JAXArray,
         beta: JAXArray,
         sigma: Optional[JAXArray] = None,
-        eta=1e-30,
+        eta: Optional[JAXArray] = 1e-30,
     ) -> "CARMA":
         r"""Construct a CARMA kernel using the alpha, beta parameters
 
