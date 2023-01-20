@@ -697,7 +697,7 @@ class CARMA(Quasisep):
             sigma: The parameter :math:`\sigma` in the definition above.
                 Defaults to 1.
             eta: A tiny number to avoid division by zero error when computing
-                non-essential components. Defaults to 1e-30. Update this number if running with float16. 
+                non-essential components. Defaults to 1e-30. Update this number if running with float16.
         """
         sigma = jnp.ones(()) if sigma is None else sigma
         alpha = jnp.atleast_1d(alpha)
