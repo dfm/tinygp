@@ -39,6 +39,7 @@ from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
+
 class Quasisep(Kernel, metaclass=ABCMeta):
     """The base class for all quasiseparable kernels
 
@@ -653,7 +654,7 @@ class CARMA(Quasisep):
         \begin{aligned}
         \frac{d^p y(t)}{d t^p} & +\alpha_{p-1} \frac{d^{p-1} y(t)}{d t^{p-1}}+\cdots+\alpha_0 y(t) \\
         & =\beta_q \frac{d^q \epsilon(t)}{d t^q}+\beta_{q-1} \frac{d^{q-1} \epsilon(t)}{d t^{q-1}}+\cdots+\epsilon(t)
-        \end{aligned}            
+        \end{aligned}
 
     where y(t) is the generated time series. See `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_ for more details.
 
@@ -665,7 +666,7 @@ class CARMA(Quasisep):
         kernel = CARMA.init(alpha=..., beta=...)
 
     .. note::
-        To construct a stationary CARMA model/process, the roots of the characteristic polynomial on both sides of the SDE must have negative real parts. 
+        To construct a stationary CARMA model/process, the roots of the characteristic polynomial on both sides of the SDE must have negative real parts.
     """
     alpha: JAXArray
     beta: JAXArray
@@ -676,22 +677,27 @@ class CARMA(Quasisep):
     complex_mask: JAXArray
     complex_select: JAXArray
     obsmodel: JAXArray
-    
-    eta = 1e-20  # avoid nan in computing something not needed
+    _eta: JAXArray
 
     @classmethod
     def init(
-        cls, alpha: JAXArray, beta: JAXArray, sigma: Optional[JAXArray] = None
+        cls,
+        alpha: JAXArray,
+        beta: JAXArray,
+        sigma: Optional[JAXArray] = None,
+        eta=1e-30,
     ) -> "CARMA":
         r"""Construct a CARMA kernel using the alpha, beta parameters
 
         Args:
-            alpha: The parameter :math:`\alpha` in the definition above. This 
+            alpha: The parameter :math:`\alpha` in the definition above. This
                 should be an array of length ``p``.
             beta: The parameter :math:`\beta` in the definition above. This
                 should be an array of length ``q``, where ``q <= p``.
-            sigma: The parameter :math:`\sigma` in the definition above. 
+            sigma: The parameter :math:`\sigma` in the definition above.
                 Defaults to 1.
+            eta: A tiny number to avoid division by zero error when computing
+                non-essential components. Defaults to 1e-30.
         """
         sigma = jnp.ones(()) if sigma is None else sigma
         alpha = jnp.atleast_1d(alpha)
@@ -701,21 +707,19 @@ class CARMA(Quasisep):
         p = alpha.shape[0]
         assert beta.shape[0] <= p
 
-        # find acvf => Eqn. 4 in Kelly+14
+        ## find acvf => Eqn. 4 in Kelly+14
         arroots = CARMA.roots(jnp.append(alpha, 1.0))
         acf = CARMA.carma_acvf(arroots, alpha, beta * sigma)
-        
-        # masks for selecting entries in obs model matrix
-        # that correspond to real vs. complex exponetial components
+
+        ## mask and index for real/complex components in the obs model matrix
         real_mask = jnp.where(arroots.imag == 0.0, jnp.ones(p), jnp.zeros(p))
         complex_mask = -real_mask + 1
-        # get index for the complex components
         complex_idx = jnp.cumsum(-real_mask + 1) * complex_mask
         complex_select = complex_mask * complex_idx % 2
 
-        # construct obs model => seperate for real and complex compoents 
-        # then merge at the end
+        ## construct obs model => real + complex
         om_real = jnp.sqrt(jnp.abs(acf.real))
+
         a, b, c, d = (
             2 * acf.real * complex_mask,
             2 * acf.imag * complex_mask,
@@ -729,10 +733,12 @@ class CARMA(Quasisep):
         h2 = jnp.sqrt(h2_2)
         h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / (d + eta * real_mask)
         om_complex = jnp.array([h1, h2])
+
         obsmodel = (om_real * real_mask) + jnp.ravel(om_complex)[
             ::2
         ] * complex_mask
 
+        ## return class
         return cls(
             alpha=alpha,
             beta=beta,
@@ -743,6 +749,7 @@ class CARMA(Quasisep):
             complex_mask=complex_mask,
             complex_select=complex_select,
             obsmodel=obsmodel,
+            _eta=eta,
         )
 
     @classmethod
@@ -757,7 +764,7 @@ class CARMA(Quasisep):
 
         Args:
             alpha_quads: Coefficients of the auto-regressive (AR) quadratic
-                equations corresponding to the :math:`\alpha` parameters. 
+                equations corresponding to the :math:`\alpha` parameters.
             beta_quads: Coefficients of the moving-average (MA) quadratic
                 equations corresponding to the :math:`\beta` parameters.
             beta_mult: Equivalent to beta[-1] used in the init constructor.
@@ -784,13 +791,13 @@ class CARMA(Quasisep):
     @jax.jit
     def quads2poly(quads_coeffs: JAXArray) -> JAXArray:
         """Expand the product of quadractic equations into one polynomial
-        
+
         Args:
-            quads_coeffs: The 0th and 1st order coefficients of the quadractic 
+            quads_coeffs: The 0th and 1st order coefficients of the quadractic
                 equations. The last entry should a scaling factor, which corresponds to the coefficient of the highest order term in the output full polynomial.
 
         Returns:
-            poly_coeffs: Coefficients of the full polynomial. The first entry 
+            poly_coeffs: Coefficients of the full polynomial. The first entry
                 corresponds to the lowest order term.
         """
 
@@ -824,14 +831,14 @@ class CARMA(Quasisep):
     @staticmethod
     def poly2quads(poly_coeffs: JAXArray) -> Tuple[JAXArray, JAXArray]:
         """Factorize a polynomial into the product of quadratic equations
-        
+
         Args:
-            poly_coeffs: Coefficients of the input characteristic polynomial. 
+            poly_coeffs: Coefficients of the input characteristic polynomial.
                 The first entry corresponds to the lowest order term.
 
         Returns:
-            quads_coeffs: The 0th and 1st order coefficients of the quadractic 
-                equations. The last entry should a scaling factor, which corresponds to the coefficient of the highest order term in the full polynomial.                
+            quads_coeffs: The 0th and 1st order coefficients of the quadractic
+                equations. The last entry should a scaling factor, which corresponds to the coefficient of the highest order term in the full polynomial.
         """
 
         quads = jnp.empty((0))
@@ -867,15 +874,15 @@ class CARMA(Quasisep):
     ) -> JAXArray:
         """Compute the coefficient of each term in the autocovariance function (ACVF) given CARMA parameters
 
-        Args:
-            arroots (array(complex)): The roots of the autoregressive 
-                polynomial.
-            arparam (array(float)): :math:`\alpha` parameters
-            maparam (array(float)): :math:`\beta` parameters
-       
-       Returns:
-            array(complex): ACVF coefficients, each element correspond to a 
-                root.
+         Args:
+             arroots (array(complex)): The roots of the autoregressive
+                 polynomial.
+             arparam (array(float)): :math:`\alpha` parameters
+             maparam (array(float)): :math:`\beta` parameters
+
+        Returns:
+             array(complex): ACVF coefficients, each element correspond to a
+                 root.
         """
         arparam = jnp.atleast_1d(arparam)
         maparam = jnp.atleast_1d(maparam)
@@ -905,7 +912,7 @@ class CARMA(Quasisep):
     def design_matrix(self) -> JAXArray:
         ## for real exponential components
         dm_real = jnp.diag(self.arroots.real * self.real_mask)
-        
+
         ## for complex exponential components
         dm_complex_diag = jnp.diag(self.arroots.real * self.complex_mask)
         # upper triangle entries
@@ -925,15 +932,17 @@ class CARMA(Quasisep):
 
         ## for complex exponential components
         diag_complex = jnp.diag(
-            (
-                2
-                * jnp.square(-self.arroots.real)
-                / jnp.square(-self.arroots.imag + eta)
+            2
+            * jnp.square(
+                (
+                    self.arroots.real
+                    / (self.arroots.imag + self._eta)
+                    * jnp.roll(self.complex_select, 1)
+                    * self.complex_mask
+                )
             )
-            * jnp.roll(self.complex_select, 1)
-            * self.complex_mask
         )
-        c_over_d = self.arroots.real / (self.arroots.imag + eta)
+        c_over_d = self.arroots.real / (self.arroots.imag + self._eta)
         # upper triangular entries
         sc_complex_u = jnp.diag((-c_over_d * self.complex_select)[:-1], k=1)
 
