@@ -214,11 +214,9 @@ class Constant(Kernel):
 
     value: JAXArray
 
-    def __post_init__(self) -> None:
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         if jnp.ndim(self.value) != 0:
             raise ValueError("The value of a constant kernel must be a scalar")
-
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.value
 
 
