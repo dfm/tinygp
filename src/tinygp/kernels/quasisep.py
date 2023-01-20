@@ -651,10 +651,8 @@ class CARMA(Quasisep):
 
     .. math::
 
-        \begin{aligned}
-        \frac{d^p y(t)}{d t^p} & +\alpha_{p-1} \frac{d^{p-1} y(t)}{d t^{p-1}}+\cdots+\alpha_0 y(t) \\
-        & =\beta_q \frac{d^q \epsilon(t)}{d t^q}+\beta_{q-1} \frac{d^{q-1} \epsilon(t)}{d t^{q-1}}+\cdots+\epsilon(t)
-        \end{aligned}
+        \frac{d^p y(t)}{d t^p} & +\alpha_{p-1} \frac{d^{p-1} y(t)}{d t^{p-1}}+\cdots+\alpha_0 y(t)
+        =\beta_q \frac{d^q \epsilon(t)}{d t^q}+\beta_{q-1} \frac{d^{q-1} \epsilon(t)}{d t^{q-1}}+\cdots+\epsilon(t)
 
     where y(t) is the generated time series. See `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_ for more details.
 
