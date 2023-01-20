@@ -132,18 +132,23 @@ def test_carma_jit(data):
     loss(params)
 
 
-def test_carma_fpoly():
+def test_carma_quads():
     alpha = np.array([1.4, 2.3, 1.5])
     beta = np.array([0.1, 0.5])
-    alpha_fpoly, alpha_mult = quasisep.CARMA.poly2fpoly(np.append(alpha, 1.0))
-    beta_fpoly, beta_mult = quasisep.CARMA.poly2fpoly(beta)
+    alpha_quads = quasisep.CARMA.poly2quads(np.append(alpha, 1.0))
+    beta_quads = quasisep.CARMA.poly2quads(beta)
+
+    # seperate quad coeffs from mult_f
+    alpha_quads = alpha_quads[:-1]
+    beta_mult = beta_quads[-1]
+    beta_quads = beta_quads[:-1]
 
     carma31 = quasisep.CARMA.init(alpha=alpha, beta=beta)
-    carma31_fpoly = quasisep.CARMA.from_fpoly(
-        alpha_fpoly=alpha_fpoly, beta_fpoly=beta_fpoly, beta_mult=beta_mult
+    carma31_quads = quasisep.CARMA.from_quads(
+        alpha_quads=alpha_quads, beta_quads=beta_quads, beta_mult=beta_mult
     )
 
     # if two constructor give the same model
-    assert np.allclose(carma31.arroots, carma31_fpoly.arroots)
-    assert np.allclose(carma31.acf, carma31_fpoly.acf)
-    assert np.allclose(carma31.obsmodel, carma31_fpoly.obsmodel)
+    assert np.allclose(carma31.arroots, carma31_quads.arroots)
+    assert np.allclose(carma31.acf, carma31_quads.acf)
+    assert np.allclose(carma31.obsmodel, carma31_quads.obsmodel)

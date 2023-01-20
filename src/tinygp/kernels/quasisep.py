@@ -39,9 +39,6 @@ from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
-eta = 1e-20  # avoid nan
-
-
 class Quasisep(Kernel, metaclass=ABCMeta):
     """The base class for all quasiseparable kernels
 
@@ -679,6 +676,8 @@ class CARMA(Quasisep):
     complex_mask: JAXArray
     complex_select: JAXArray
     obsmodel: JAXArray
+    
+    eta = 1e-20  # avoid nan in computing something not needed
 
     @classmethod
     def init(
@@ -710,10 +709,12 @@ class CARMA(Quasisep):
         # that correspond to real vs. complex exponetial components
         real_mask = jnp.where(arroots.imag == 0.0, jnp.ones(p), jnp.zeros(p))
         complex_mask = -real_mask + 1
+        # get index for the complex components
         complex_idx = jnp.cumsum(-real_mask + 1) * complex_mask
         complex_select = complex_mask * complex_idx % 2
 
-        # construct obs model
+        # construct obs model => seperate for real and complex compoents 
+        # then merge at the end
         om_real = jnp.sqrt(jnp.abs(acf.real))
         a, b, c, d = (
             2 * acf.real * complex_mask,
