@@ -144,7 +144,7 @@ class Matern52(Stationary):
     .. math::
 
         k(\mathbf{x}_i,\,\mathbf{x}_j) = (1 + \sqrt{5}\,r +
-            5\,r^2/\sqrt{3})\,\exp(-\sqrt{5}\,r)
+            5\,r^2/3)\,\exp(-\sqrt{5}\,r)
 
     where, by default,
 
