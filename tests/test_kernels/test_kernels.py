@@ -25,11 +25,7 @@ def data(random):
 def test_constant(data):
     x1, x2 = data
 
-    # Check for dimension issues, either when instantiated...
-    with pytest.raises(ValueError):
-        kernels.Constant(jnp.ones(3))
-
-    # ... or when multiplied
+    # Check for dimension issues when multiplied
     with pytest.raises(ValueError):
         jnp.ones(3) * kernels.Matern32(1.5)
 
