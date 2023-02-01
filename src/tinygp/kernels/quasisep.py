@@ -640,23 +640,16 @@ class Cosine(Quasisep):
 class CARMA(Quasisep):
     r"""A continuous-time autoregressive moving average (CARMA) process
 
-    This process has the power spectrum
+    This process has the power spectrum density (PSD)
 
     .. math::
 
         P(\omega) = \sigma^2\,\frac{\sum_{q} \beta_q\,(i\,\omega)^q}{\sum_{p}
             \alpha_p\,(i\,\omega)^p}
 
-    defined following the stochastic differential equation (SDE)
+    defined following Equation 1 in `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_, in which `\beta_0` is fixed at 1.
 
-    .. math::
-
-        \frac{d^p y(t)}{d t^p} & +\alpha_{p-1} \frac{d^{p-1} y(t)}{d t^{p-1}}+\cdots+\alpha_0 y(t)
-        =\beta_q \frac{d^q \epsilon(t)}{d t^q}+\beta_{q-1} \frac{d^{q-1} \epsilon(t)}{d t^{q-1}}+\cdots+\epsilon(t)
-
-    where y(t) is the generated time series. See `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_ for more details.
-
-    Unlike other kernels, this *must* be instatiated using the :func:`init`
+    Unlike other kernels, this *must* be instantiated using the :func:`init`
     method instead of the usual constructor:
 
     .. code-block:: python
@@ -666,6 +659,7 @@ class CARMA(Quasisep):
     .. note::
         To construct a stationary CARMA model/process, the roots of the characteristic polynomial on both sides of the SDE must have negative real parts.
     """
+
     alpha: JAXArray
     beta: JAXArray
     sigma: JAXArray
@@ -682,7 +676,6 @@ class CARMA(Quasisep):
         cls,
         alpha: JAXArray,
         beta: JAXArray,
-        sigma: Optional[JAXArray] = None,
         eta: Optional[JAXArray] = 1e-30,
     ) -> "CARMA":
         r"""Construct a CARMA kernel using the alpha, beta parameters
@@ -690,14 +683,13 @@ class CARMA(Quasisep):
         Args:
             alpha: The parameter :math:`\alpha` in the definition above. This
                 should be an array of length ``p``.
-            beta: The parameter :math:`\beta` in the definition above. This
-                should be an array of length ``q``, where ``q <= p``.
-            sigma: The parameter :math:`\sigma` in the definition above.
-                Defaults to 1.
+            beta: The product of :math:`\beta` and :math:`\sigma` in the
+                definition above. Given that by definition `\beta_0 = 1`, beta[0] = `\sigma`. This should be an array of length ``q+1``, where ``q+1 <= p``.
             eta: A tiny number to avoid division by zero error when computing
                 non-essential components. Defaults to 1e-30. Update this number if running with float16.
         """
-        sigma = jnp.ones(()) if sigma is None else sigma
+
+        sigma = jnp.ones(())
         alpha = jnp.atleast_1d(alpha)
         beta = jnp.atleast_1d(beta)
         assert alpha.ndim == 1
