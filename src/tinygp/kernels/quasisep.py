@@ -686,7 +686,7 @@ class CARMA(Quasisep):
             beta: The product of :math:`\beta` and :math:`\sigma` in the
                 definition above. Given that by definition `\beta_0 = 1`, beta[0] = `\sigma`. This should be an array of length ``q+1``, where ``q+1 <= p``.
             eta: A tiny number to avoid division by zero error when computing
-                non-essential components. Defaults to 1e-30. Update this number if running with float16.
+                non-essential components. Defaults to 1e-30. Only update this if the internal numerical precision < float16. 
         """
 
         sigma = jnp.ones(())
