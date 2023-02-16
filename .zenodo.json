@@ -1,0 +1,12 @@
+{
+  "creators": [
+    {
+      "orcid": "0000-0002-9328-5652",
+      "affiliation": "Center for Computational Astrophysics, Flatiron Institute, New York, NY, USA",
+      "name": "Foreman-Mackey, Daniel"
+    }
+  ],
+  "license": "MIT",
+  "title": "dfm/tinygp: The tiniest of Gaussian Process libraries",
+  "description": "tinygp is an extremely lightweight library for building Gaussian Process (GP) models in Python, built on top of JAX. It has a nice interface, and it's pretty fast. Thanks to JAX, tinygp supports things like GPU acceleration and automatic differentiation.\n\nCheck out the docs for more info: https://tinygp.readthedocs.io"
+}
