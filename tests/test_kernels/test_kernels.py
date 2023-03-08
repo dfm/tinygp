@@ -25,9 +25,16 @@ def data(random):
 def test_constant(data):
     x1, x2 = data
 
-    # Check for dimension issues when multiplied
+    # Check for dimension issues when evaluated
     with pytest.raises(ValueError):
-        jnp.ones(3) * kernels.Matern32(1.5)
+        k1 = kernels.Constant(jnp.ones(3))
+        v = jnp.ones(3)
+        k1.evaluate(v, v)
+
+    # Check for dimension issues when multiplied and evaluated.
+    with pytest.raises(ValueError):
+        k = jnp.ones(3) * kernels.Matern32(1.5)
+        k.evaluate(v, v)
 
     # Check that multiplication has the expected behavior
     factor = 2.5
