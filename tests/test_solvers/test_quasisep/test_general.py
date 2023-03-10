@@ -14,7 +14,7 @@ def test_matmul():
     x2 = np.sort(random.uniform(2, 8, 75))
     kernel = quasisep.Matern52(sigma=1.5, scale=3.4)
 
-    for (x1, x2) in [(x1, x2), (x1, x1), (x2, x1)]:
+    for x1, x2 in [(x1, x2), (x1, x1), (x2, x1)]:
         y = np.sin(x2)[:, None]
         K = kernel(x1, x2)
         mat = kernel.to_general_qsm(x1, x2)

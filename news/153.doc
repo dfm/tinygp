@@ -1,0 +1,2 @@
+Unpinned the docs theme version to fix release compatibility with recent
+versions of setuptools.
