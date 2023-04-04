@@ -15,7 +15,7 @@ repos:
         additional_dependencies: [toml]
         exclude: docs/tutorials
   - repo: https://github.com/psf/black
-    rev: "23.1.0"
+    rev: "23.3.0"
     hooks:
       - id: black-jupyter
   - repo: https://github.com/kynan/nbstripout
@@ -28,6 +28,6 @@ repos:
     hooks:
       - id: pycln
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v1.0.1"
+    rev: "v1.1.1"
     hooks:
       - id: mypy
