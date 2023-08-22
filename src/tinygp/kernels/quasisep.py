@@ -379,10 +379,10 @@ class SHO(Quasisep):
     Args:
         omega: The parameter :math:`\omega`.
         quality: The parameter :math:`Q`.
-        sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
-        1. Specifying the explicit value here provides a slight performance
-        boost compared to independently multiplying the kernel with a 
-        prefactor. 
+            sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
+            1. Specifying the explicit value here provides a slight performance
+            boost compared to independently multiplying the kernel with a
+            prefactor.
     """
 
     omega: JAXArray
@@ -457,9 +457,9 @@ class Exp(Quasisep):
     Args:
         scale: The parameter :math:`\ell`.
         sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
-        1. Specifying the explicit value here provides a slight performance
-        boost compared to independently multiplying the kernel with a 
-        prefactor. 
+            1. Specifying the explicit value here provides a slight performance
+            boost compared to independently multiplying the kernel with a
+            prefactor.
     """
 
     scale: JAXArray
@@ -494,9 +494,9 @@ class Matern32(Quasisep):
     Args:
         scale: The parameter :math:`\ell`.
         sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
-        1. Specifying the explicit value here provides a slight performance
-        boost compared to independently multiplying the kernel with a 
-        prefactor. 
+            1. Specifying the explicit value here provides a slight performance
+            boost compared to independently multiplying the kernel with a
+            prefactor.
     """
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
@@ -539,9 +539,9 @@ class Matern52(Quasisep):
     Args:
         scale: The parameter :math:`\ell`.
         sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
-        1. Specifying the explicit value here provides a slight performance
-        boost compared to independently multiplying the kernel with a 
-        prefactor. 
+            1. Specifying the explicit value here provides a slight performance
+            boost compared to independently multiplying the kernel with a
+            prefactor.
     """
 
     scale: JAXArray
@@ -604,9 +604,9 @@ class Cosine(Quasisep):
     Args:
         scale: The parameter :math:`\ell`.
         sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
-        1. Specifying the explicit value here provides a slight performance
-        boost compared to independently multiplying the kernel with a 
-        prefactor. 
+            1. Specifying the explicit value here provides a slight performance
+            boost compared to independently multiplying the kernel with a
+            prefactor.
     """
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
