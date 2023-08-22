@@ -1,0 +1,46 @@
+{
+  "creators": [
+    {
+      "orcid": "0000-0002-9328-5652",
+      "affiliation": "Center for Computational Astrophysics, Flatiron Institute, New York, NY, USA",
+      "name": "Foreman-Mackey, Daniel"
+    },
+    {
+      "orcid": "0000-0003-0048-1118",
+      "affiliation": "Indian Institute of Technology Gandhinagar: Gandhinagar, Gujarat, IN",
+      "name": "Yadav, Sachin"
+    },
+    {
+      "orcid": "0009-0000-1930-8150",
+      "affiliation": "Massachusetts Institute of Technology, Probabilistic Computing Project, Cambridge, MA, USA",
+      "name": "Becker, McCoy Reynolds"
+    },
+    {
+      "orcid": "0000-0002-0440-9597",
+      "name": "Killestein, Thomas",
+      "affiliation": "Department of Physics, University of Warwick, Coventry, UK"
+    },
+    {
+      "affiliation": "School of Public Health, Imperial College London, UK",
+      "name": "Rashid, Theo"
+    },
+    {
+      "orcid": "0000-0003-1354-0578",
+      "affiliation": "Helmholtz-Zentrum Dresden-Rossendorf e.V.",
+      "name": "Schmerler, Steve"
+    },
+    {
+      "orcid": "0000-0003-1001-0707",
+      "affiliation": "Department of Physics and Astronomy, Aarhus University, DK",
+      "name": "Tronsgaard, René"
+    },
+    {
+      "orcid": "0000-0003-3287-5250",
+      "affiliation": "Department of Astronomy and the DiRAC Institute, University of Washington, Seattle, WA, USA",
+      "name": "Caplar, Neven"
+    }
+  ],
+  "license": "MIT",
+  "title": "dfm/tinygp: The tiniest of Gaussian Process libraries",
+  "description": "tinygp is an extremely lightweight library for building Gaussian Process (GP) models in Python, built on top of JAX. It has a nice interface, and it's pretty fast. Thanks to JAX, tinygp supports things like GPU acceleration and automatic differentiation.\n\nCheck out the docs for more info: https://tinygp.readthedocs.io"
+}
