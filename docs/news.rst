@@ -5,6 +5,30 @@ Release Notes
 
 .. towncrier release notes start
 
+tinygp 0.2.3 (2022-10-31)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Removed deprecation warning from ``predict`` method and wrapped it in a
+  ``jax.jit`` in order to support interactive use. (`#120 <https://github.com/dfm/tinygp/issues/120>`_)
+- Added check for sorted input coordinates when using the ``QuasisepSolver``;
+  a ``ValueError`` is thrown if they are not. (`#123 <https://github.com/dfm/tinygp/issues/123>`_)
+
+
+Bugfixes
+~~~~~~~~
+
+- Fixed incorrect definition of ``observation_model`` for ``Celerite`` kernel. (`#88 <https://github.com/dfm/tinygp/issues/88>`_)
+- Fixed ``FutureWarning`` by updating ``tree_map`` to ``tree_util.tree_map``. (`#114 <https://github.com/dfm/tinygp/issues/114>`_)
+- Fixed issue when tree structure and shape of ``X_test`` input to ``condition``
+  was incompatible with the initial input. (`#119 <https://github.com/dfm/tinygp/issues/119>`_)
+- Fixed bug where the gradient of the L2 distance would return NaN when the
+  distance was zero. (`#121 <https://github.com/dfm/tinygp/issues/121>`_)
+- Fixed behavior of DotProduct kernel on scalar inputs. (`#124 <https://github.com/dfm/tinygp/issues/124>`_)
+
+
 tinygp 0.2.2 (2022-04-20)
 -------------------------
 

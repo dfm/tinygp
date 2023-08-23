@@ -57,3 +57,28 @@ def test_means(data):
     np.testing.assert_allclose(gp1.mean, gp3.mean)
     np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
     np.testing.assert_allclose(gp1.log_probability(y), gp3.log_probability(y))
+
+
+@pytest.mark.parametrize("tree", [True, False])
+def test_condition_shape_error(data, tree):
+    if tree:
+
+        class CustomDistance(kernels.Distance):
+            def distance(self, X1, X2):
+                return kernels.L2Distance().distance(X1["x"], X2["x"])
+
+        distance = CustomDistance()
+    else:
+        distance = kernels.L2Distance()
+
+    X, y = data
+    kernel = kernels.ExpSquared(distance=distance)
+    gp = GaussianProcess(kernel, {"x": X} if tree else X, diag=0.1)
+    gp.condition(y, {"x": X[0][None]} if tree else X[0][None])
+
+    with pytest.raises(ValueError):
+        gp.condition(y, X[0])
+
+    if tree:
+        with pytest.raises(ValueError):
+            gp.condition(y, {"x": X[0]})

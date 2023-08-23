@@ -4,7 +4,7 @@ This submodule defines a set of distance metrics that can be used when working
 with multivariate data. By default, all
 :class:`tinygp.kernels.stationary.Stationary` kernels will use either an
 :class:`L1Distance` or :class:`L2Distance`, when applied in multiple dimensions,
-but it is possible to define custom metrics, as dicussed in the :ref:`geometry`
+but it is possible to define custom metrics, as discussed in the :ref:`geometry`
 tutorial.
 """
 
@@ -48,10 +48,14 @@ class L1Distance(Distance):
 
 @dataclass
 class L2Distance(Distance):
-    """The L2 or Euclidean distance bettwen two coordaintes"""
+    """The L2 or Euclidean distance between two coordinates"""
 
     def distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jnp.sqrt(self.squared_distance(X1, X2))
+        r1 = L1Distance().distance(X1, X2)
+        r2 = self.squared_distance(X1, X2)
+        zeros = jnp.equal(r2, 0)
+        r2 = jnp.where(zeros, jnp.ones_like(r2), r2)
+        return jnp.where(zeros, r1, jnp.sqrt(r2))
 
     def squared_distance(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return jnp.sum(jnp.square(X1 - X2))

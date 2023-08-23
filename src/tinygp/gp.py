@@ -34,10 +34,10 @@ class GaussianProcess:
     """An interface for designing a Gaussian Process regression model
 
     Args:
-        kernel (Kernel): The kernel function X (JAXArray): The input
-            coordinates. This can be any PyTree that is compatible with
-            ``kernel`` where the zeroth dimension is ``N_data``, the size of the
-            data set.
+        kernel (Kernel): The kernel function
+        X (JAXArray): The input coordinates. This can be any PyTree that is
+            compatible with ``kernel`` where the zeroth dimension is ``N_data``,
+            the size of the data set.
         diag (JAXArray, optional): The value to add to the diagonal of the
             covariance matrix, often used to capture measurement uncertainty.
             This should be a scalar or have the shape ``(N_data,)``. If not
@@ -66,6 +66,7 @@ class GaussianProcess:
         solver: Optional[Any] = None,
         mean_value: Optional[JAXArray] = None,
         covariance_value: Optional[Any] = None,
+        **solver_kwargs: Any,
     ):
         self.kernel = kernel
         self.X = X
@@ -101,7 +102,11 @@ class GaussianProcess:
             else:
                 solver = DirectSolver
         self.solver = solver.init(
-            kernel, self.X, self.noise, covariance=covariance_value
+            kernel,
+            self.X,
+            self.noise,
+            covariance=covariance_value,
+            **solver_kwargs,
         )
 
     @property
@@ -162,6 +167,22 @@ class GaussianProcess:
             the :class:`GaussianProcess` object describing the conditional
             distribution evaluated at ``X_test``.
         """
+        # If X_test is provided, we need to check that the tree structure
+        # matches that of the input data, and that the shapes are all compatible
+        # (i.e. the dimension of the inputs must match). This is slightly
+        # convoluted since we need to support arbitrary pytrees.
+        if X_test is not None:
+            matches = jax.tree_util.tree_map(
+                lambda a, b: jnp.ndim(a) == jnp.ndim(b)
+                and jnp.shape(a)[1:] == jnp.shape(b)[1:],
+                self.X,
+                X_test,
+            )
+            if not jax.tree_util.tree_reduce(lambda a, b: a and b, matches):
+                raise ValueError(
+                    "`X_test` must have the same tree structure as the input `X`, "
+                    "and all but the leading dimension must have matching sizes"
+                )
 
         alpha, log_prob, mean_value = self._condition(
             y, X_test, include_mean, kernel
@@ -197,6 +218,11 @@ class GaussianProcess:
 
         return ConditionResult(log_prob, gp)
 
+    @partial(
+        jax.jit,
+        static_argnums=(0,),
+        static_argnames=("include_mean", "return_var", "return_cov"),
+    )
     def predict(
         self,
         y: JAXArray,
@@ -234,14 +260,6 @@ class GaussianProcess:
             returned with shape ``(N_test,)`` or ``(N_test, N_test)``
             respectively.
         """
-        import warnings
-
-        warnings.warn(
-            "The 'predict' method is deprecated and 'condition' should be preferred",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
         _, cond = self.condition(
             y, X_test, kernel=kernel, include_mean=include_mean
         )

@@ -1,0 +1,1 @@
+Fixed syntax for `vmap` of `flax` modules in `transforms` tutorial.

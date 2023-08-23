@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 from abc import ABCMeta, abstractmethod
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -118,11 +118,11 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         pu = h2 @ Pinf
 
         i = jnp.clip(idx, 0, ql.shape[0] - 1)
-        Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
+        Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
         pl = jax.vmap(jnp.dot)(pl, jax.vmap(self.transition_matrix)(Xi, X1))
 
         i = jnp.clip(idx + 1, 0, pu.shape[0] - 1)
-        Xi = jax.tree_map(lambda x: jnp.asarray(x)[i], X2)
+        Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
         qu = jax.vmap(jnp.dot)(jax.vmap(self.transition_matrix)(X1, Xi), qu)
 
         return GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)
@@ -151,7 +151,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
             )
         return Sum(self, other)
 
-    def __radd__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __radd__(self, other: Any) -> "Kernel":
         # We'll hit this first branch when using the `sum` function
         if other == 0:
             return self
@@ -171,7 +171,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
             )
         return Scale(kernel=self, scale=other)
 
-    def __rmul__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __rmul__(self, other: Any) -> "Kernel":
         if isinstance(other, Quasisep):
             return Product(other, self)
         if isinstance(other, Kernel) or jnp.ndim(other) != 0:
@@ -204,6 +204,9 @@ class Wrapper(Quasisep, metaclass=ABCMeta):
 
     kernel: Quasisep
 
+    def coord_to_sortable(self, X: JAXArray) -> JAXArray:
+        return self.kernel.coord_to_sortable(X)
+
     def design_matrix(self) -> JAXArray:
         return self.kernel.design_matrix()
 
@@ -225,6 +228,10 @@ class Sum(Quasisep):
 
     kernel1: Quasisep
     kernel2: Quasisep
+
+    def coord_to_sortable(self, X: JAXArray) -> JAXArray:
+        """We assume that both kernels use the same coordinates"""
+        return self.kernel1.coord_to_sortable(X)
 
     def design_matrix(self) -> JAXArray:
         return jsp.linalg.block_diag(
@@ -258,6 +265,10 @@ class Product(Quasisep):
 
     kernel1: Quasisep
     kernel2: Quasisep
+
+    def coord_to_sortable(self, X: JAXArray) -> JAXArray:
+        """We assume that both kernels use the same coordinates"""
+        return self.kernel1.coord_to_sortable(X)
 
     def design_matrix(self) -> JAXArray:
         F1 = self.kernel1.design_matrix()
@@ -714,14 +725,14 @@ class CARMA(Quasisep):
         params = jnp.linalg.solve(
             params, 0.5 * sigma**2 * jnp.eye(p, 1, k=-p + 1)
         )[:, 0]
-        stn = []
+        stn_ = []
         for j in range(p):
-            stn.append([jnp.zeros(()) for _ in range(p)])
+            stn_.append([jnp.zeros(()) for _ in range(p)])
             for n, k in enumerate(range(j - 2, -1, -2)):
-                stn[-1][k] = (2 * (n % 2) - 1) * params[j - n - 1]
+                stn_[-1][k] = (2 * (n % 2) - 1) * params[j - n - 1]
             for n, k in enumerate(range(j, p, 2)):
-                stn[-1][k] = (1 - 2 * (n % 2)) * params[n + j]
-        stn = jnp.array(list(map(jnp.stack, stn)))
+                stn_[-1][k] = (1 - 2 * (n % 2)) * params[n + j]
+        stn = jnp.array(list(map(jnp.stack, stn_)))
 
         return cls(
             sigma=sigma,
