@@ -390,7 +390,7 @@ class SHO(Quasisep):
     Args:
         omega: The parameter :math:`\omega`.
         quality: The parameter :math:`Q`.
-            sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
+        sigma (optional): The parameter :math:`\sigma`. Defaults to a value of
             1. Specifying the explicit value here provides a slight performance
             boost compared to independently multiplying the kernel with a
             prefactor.
