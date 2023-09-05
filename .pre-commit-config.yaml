@@ -24,10 +24,10 @@ repos:
       - id: nbstripout
         exclude: docs/benchmarks.ipynb
   - repo: https://github.com/hadialqattan/pycln
-    rev: "v2.2.0"
+    rev: "v2.2.2"
     hooks:
       - id: pycln
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v1.4.1"
+    rev: "v1.5.1"
     hooks:
       - id: mypy
