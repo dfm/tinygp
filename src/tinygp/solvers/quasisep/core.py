@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 The algorithms implemented in this subpackage are are mostly based on `Eidelman
 & Gohberg (1999) <https://link.springer.com/article/10.1007%2FBF01300581>`_ and
@@ -19,7 +18,7 @@ __all__ = [
 
 from abc import ABCMeta, abstractmethod
 from functools import wraps
-from typing import Any, Callable, Tuple
+from typing import Any, Callable
 
 import jax
 import jax.numpy as jnp
@@ -72,7 +71,7 @@ class QSM(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def scale(self, other: JAXArray) -> "QSM":
+    def scale(self, other: JAXArray) -> QSM:
         """The multiplication of this matrix times a scalar, as a QSM"""
         raise NotImplementedError
 
@@ -89,7 +88,7 @@ class QSM(metaclass=ABCMeta):
         return self.matmul(jnp.eye(self.shape[0]))
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         """The shape of the matrix"""
         n = self.diag.shape[0]  # type: ignore
         return (n, n)
@@ -149,29 +148,29 @@ class DiagQSM(QSM):
     d: JAXArray
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         n = self.d.shape[0]
         return (n, n)
 
-    def transpose(self) -> "DiagQSM":
+    def transpose(self) -> DiagQSM:
         return self
 
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.d[:, None] * x
 
-    def scale(self, other: JAXArray) -> "DiagQSM":
+    def scale(self, other: JAXArray) -> DiagQSM:
         return DiagQSM(d=self.d * other)
 
-    def self_add(self, other: "DiagQSM") -> "DiagQSM":
+    def self_add(self, other: DiagQSM) -> DiagQSM:
         """The sum of two :class:`DiagQSM` matrices"""
         return DiagQSM(d=self.d + other.d)
 
-    def self_mul(self, other: "DiagQSM") -> "DiagQSM":
+    def self_mul(self, other: DiagQSM) -> DiagQSM:
         """The elementwise product of two :class:`DiagQSM` matrices"""
         return DiagQSM(d=self.d * other.d)
 
-    def __neg__(self) -> "DiagQSM":
+    def __neg__(self) -> DiagQSM:
         return DiagQSM(d=-self.d)
 
 
@@ -190,11 +189,11 @@ class StrictLowerTriQSM(QSM):
     a: JAXArray
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         n = self.p.shape[0]
         return (n, n)
 
-    def transpose(self) -> "StrictUpperTriQSM":
+    def transpose(self) -> StrictUpperTriQSM:
         return StrictUpperTriQSM(p=self.p, q=self.q, a=self.a)
 
     @jax.jit
@@ -208,10 +207,10 @@ class StrictLowerTriQSM(QSM):
         _, f = jax.lax.scan(impl, init, (self.q, self.a, x))
         return jax.vmap(jnp.dot)(self.p, f)
 
-    def scale(self, other: JAXArray) -> "StrictLowerTriQSM":
+    def scale(self, other: JAXArray) -> StrictLowerTriQSM:
         return StrictLowerTriQSM(p=self.p * other, q=self.q, a=self.a)
 
-    def self_add(self, other: "StrictLowerTriQSM") -> "StrictLowerTriQSM":
+    def self_add(self, other: StrictLowerTriQSM) -> StrictLowerTriQSM:
         """The sum of two :class:`StrictLowerTriQSM` matrices"""
 
         @jax.vmap
@@ -228,21 +227,18 @@ class StrictLowerTriQSM(QSM):
 
         return impl(self, other)
 
-    def self_mul(self, other: "StrictLowerTriQSM") -> "StrictLowerTriQSM":
+    def self_mul(self, other: StrictLowerTriQSM) -> StrictLowerTriQSM:
         """The elementwise product of two :class:`StrictLowerTriQSM` matrices"""
-        i, j = np.meshgrid(
-            np.arange(self.p.shape[1]), np.arange(other.p.shape[1])
-        )
+        i, j = np.meshgrid(np.arange(self.p.shape[1]), np.arange(other.p.shape[1]))
         i = i.flatten()
         j = j.flatten()
         return StrictLowerTriQSM(
             p=self.p[:, i] * other.p[:, j],
             q=self.q[:, i] * other.q[:, j],
-            a=self.a[:, i[:, None], i[None, :]]
-            * other.a[:, j[:, None], j[None, :]],
+            a=self.a[:, i[:, None], i[None, :]] * other.a[:, j[:, None], j[None, :]],
         )
 
-    def __neg__(self) -> "StrictLowerTriQSM":
+    def __neg__(self) -> StrictLowerTriQSM:
         return StrictLowerTriQSM(p=-self.p, q=self.q, a=self.a)
 
 
@@ -267,11 +263,11 @@ class StrictUpperTriQSM(QSM):
     a: JAXArray
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         n = self.p.shape[0]
         return (n, n)
 
-    def transpose(self) -> "StrictLowerTriQSM":
+    def transpose(self) -> StrictLowerTriQSM:
         return StrictLowerTriQSM(p=self.p, q=self.q, a=self.a)
 
     @jax.jit
@@ -285,18 +281,18 @@ class StrictUpperTriQSM(QSM):
         _, f = jax.lax.scan(impl, init, (self.p, self.a, x), reverse=True)
         return jax.vmap(jnp.dot)(self.q, f)
 
-    def scale(self, other: JAXArray) -> "StrictUpperTriQSM":
+    def scale(self, other: JAXArray) -> StrictUpperTriQSM:
         return StrictUpperTriQSM(p=self.p, q=self.q * other, a=self.a)
 
-    def self_add(self, other: "StrictUpperTriQSM") -> "StrictUpperTriQSM":
+    def self_add(self, other: StrictUpperTriQSM) -> StrictUpperTriQSM:
         """The sum of two :class:`StrictUpperTriQSM` matrices"""
         return self.transpose().self_add(other.transpose()).transpose()
 
-    def self_mul(self, other: "StrictUpperTriQSM") -> "StrictUpperTriQSM":
+    def self_mul(self, other: StrictUpperTriQSM) -> StrictUpperTriQSM:
         """The elementwise product of two :class:`StrictUpperTriQSM` matrices"""
         return self.transpose().self_mul(other.transpose()).transpose()
 
-    def __neg__(self) -> "StrictUpperTriQSM":
+    def __neg__(self) -> StrictUpperTriQSM:
         return StrictUpperTriQSM(p=-self.p, q=self.q, a=self.a)
 
 
@@ -312,28 +308,24 @@ class LowerTriQSM(QSM):
     diag: DiagQSM
     lower: StrictLowerTriQSM
 
-    def transpose(self) -> "UpperTriQSM":
+    def transpose(self) -> UpperTriQSM:
         return UpperTriQSM(diag=self.diag, upper=self.lower.transpose())
 
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.lower.matmul(x)
 
-    def scale(self, other: JAXArray) -> "LowerTriQSM":
-        return LowerTriQSM(
-            diag=self.diag.scale(other), lower=self.lower.scale(other)
-        )
+    def scale(self, other: JAXArray) -> LowerTriQSM:
+        return LowerTriQSM(diag=self.diag.scale(other), lower=self.lower.scale(other))
 
-    def inv(self) -> "LowerTriQSM":
+    def inv(self) -> LowerTriQSM:
         (d,) = self.diag
         p, q, a = self.lower
         g = 1 / d
         u = -g[:, None] * p
         v = g[:, None] * q
         b = a - jax.vmap(jnp.outer)(v, p)
-        return LowerTriQSM(
-            diag=DiagQSM(g), lower=StrictLowerTriQSM(p=u, q=v, a=b)
-        )
+        return LowerTriQSM(diag=DiagQSM(g), lower=StrictLowerTriQSM(p=u, q=v, a=b))
 
     @jax.jit
     @handle_matvec_shapes
@@ -357,7 +349,7 @@ class LowerTriQSM(QSM):
         _, x = jax.lax.scan(impl, init, (self, y))
         return x
 
-    def __neg__(self) -> "LowerTriQSM":
+    def __neg__(self) -> LowerTriQSM:
         return LowerTriQSM(diag=-self.diag, lower=-self.lower)
 
 
@@ -373,19 +365,17 @@ class UpperTriQSM(QSM):
     diag: DiagQSM
     upper: StrictUpperTriQSM
 
-    def transpose(self) -> "LowerTriQSM":
+    def transpose(self) -> LowerTriQSM:
         return LowerTriQSM(diag=self.diag, lower=self.upper.transpose())
 
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.upper.matmul(x)
 
-    def scale(self, other: JAXArray) -> "UpperTriQSM":
-        return UpperTriQSM(
-            diag=self.diag.scale(other), upper=self.upper.scale(other)
-        )
+    def scale(self, other: JAXArray) -> UpperTriQSM:
+        return UpperTriQSM(diag=self.diag.scale(other), upper=self.upper.scale(other))
 
-    def inv(self) -> "UpperTriQSM":
+    def inv(self) -> UpperTriQSM:
         return self.transpose().inv().transpose()
 
     @jax.jit
@@ -410,7 +400,7 @@ class UpperTriQSM(QSM):
         _, x = jax.lax.scan(impl, init, (self, y), reverse=True)
         return x
 
-    def __neg__(self) -> "UpperTriQSM":
+    def __neg__(self) -> UpperTriQSM:
         return UpperTriQSM(diag=-self.diag, upper=-self.upper)
 
 
@@ -428,7 +418,7 @@ class SquareQSM(QSM):
     lower: StrictLowerTriQSM
     upper: StrictUpperTriQSM
 
-    def transpose(self) -> "SquareQSM":
+    def transpose(self) -> SquareQSM:
         return SquareQSM(
             diag=self.diag,
             lower=self.upper.transpose(),
@@ -437,18 +427,16 @@ class SquareQSM(QSM):
 
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
-        return (
-            self.diag.matmul(x) + self.lower.matmul(x) + self.upper.matmul(x)
-        )
+        return self.diag.matmul(x) + self.lower.matmul(x) + self.upper.matmul(x)
 
-    def scale(self, other: JAXArray) -> "SquareQSM":
+    def scale(self, other: JAXArray) -> SquareQSM:
         return SquareQSM(
             diag=self.diag.scale(other),
             lower=self.lower.scale(other),
             upper=self.upper.scale(other),
         )
 
-    def gram(self) -> "SymmQSM":
+    def gram(self) -> SymmQSM:
         """The inner product of this matrix with itself
 
         If this matrix is called ``A``, the Gram matrix is ``A.T @ A``, and
@@ -461,7 +449,7 @@ class SquareQSM(QSM):
         return SymmQSM(diag=M.diag, lower=M.lower)
 
     @jax.jit
-    def inv(self) -> "SquareQSM":
+    def inv(self) -> SquareQSM:
         """The inverse of this matrix"""
         (d,) = self.diag
         p, q, a = self.lower
@@ -483,9 +471,7 @@ class SquareQSM(QSM):
             return fk, (igk, sk, ellk, vk, delk)
 
         init = jnp.zeros_like(jnp.outer(q[0], g[0]))
-        ig, s, ell, v, del_ = jax.lax.scan(
-            forward, init, (d, p, q, a, g, h, b)
-        )[1]
+        ig, s, ell, v, del_ = jax.lax.scan(forward, init, (d, p, q, a, g, h, b))[1]
 
         def backward(carry, data):  # type: ignore
             z = carry
@@ -507,7 +493,7 @@ class SquareQSM(QSM):
             upper=StrictUpperTriQSM(p=u, q=v, a=del_),
         )
 
-    def __neg__(self) -> "SquareQSM":
+    def __neg__(self) -> SquareQSM:
         return SquareQSM(diag=-self.diag, lower=-self.lower, upper=-self.upper)
 
 
@@ -523,7 +509,7 @@ class SymmQSM(QSM):
     diag: DiagQSM
     lower: StrictLowerTriQSM
 
-    def transpose(self) -> "SymmQSM":
+    def transpose(self) -> SymmQSM:
         return self
 
     @handle_matvec_shapes
@@ -534,13 +520,11 @@ class SymmQSM(QSM):
             + self.lower.transpose().matmul(x)
         )
 
-    def scale(self, other: JAXArray) -> "SymmQSM":
-        return SymmQSM(
-            diag=self.diag.scale(other), lower=self.lower.scale(other)
-        )
+    def scale(self, other: JAXArray) -> SymmQSM:
+        return SymmQSM(diag=self.diag.scale(other), lower=self.lower.scale(other))
 
     @jax.jit
-    def inv(self) -> "SymmQSM":
+    def inv(self) -> SymmQSM:
         """The inverse of this matrix"""
         (d,) = self.diag
         p, q, a = self.lower
@@ -571,9 +555,7 @@ class SymmQSM(QSM):
 
         init = jnp.zeros_like(jnp.outer(p[-1], p[-1]))
         lam, t = jax.lax.scan(backward, init, (ig, p, a, s), reverse=True)[1]
-        return SymmQSM(
-            diag=DiagQSM(d=lam), lower=StrictLowerTriQSM(p=t, q=s, a=ell)
-        )
+        return SymmQSM(diag=DiagQSM(d=lam), lower=StrictLowerTriQSM(p=t, q=s, a=ell))
 
     @jax.jit
     def cholesky(self) -> LowerTriQSM:
@@ -596,9 +578,7 @@ class SymmQSM(QSM):
 
         init = jnp.zeros_like(jnp.outer(q[0], q[0]))
         _, (c, w) = jax.lax.scan(impl, init, (d, p, q, a))
-        return LowerTriQSM(
-            diag=DiagQSM(c), lower=StrictLowerTriQSM(p=p, q=w, a=a)
-        )
+        return LowerTriQSM(diag=DiagQSM(c), lower=StrictLowerTriQSM(p=p, q=w, a=a))
 
-    def __neg__(self) -> "SymmQSM":
+    def __neg__(self) -> SymmQSM:
         return SymmQSM(diag=-self.diag, lower=-self.lower)

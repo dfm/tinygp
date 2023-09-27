@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 The kernels implemented in this subpackage are used with the
 :class:`tinygp.solvers.QuasisepSolver` to allow scalable GP computations by
@@ -27,7 +26,7 @@ __all__ = [
 ]
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -97,9 +96,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         p = h @ Pinf
         d = jnp.sum(p * q, axis=1)
         p = jax.vmap(jnp.dot)(p, a)
-        return SymmQSM(
-            diag=DiagQSM(d=d), lower=StrictLowerTriQSM(p=p, q=q, a=a)
-        )
+        return SymmQSM(diag=DiagQSM(d=d), lower=StrictLowerTriQSM(p=p, q=q, a=a))
 
     def to_general_qsm(self, X1: JAXArray, X2: JAXArray) -> GeneralQSM:
         """The generalized quasiseparable representation of this kernel"""
@@ -130,8 +127,8 @@ class Quasisep(Kernel, metaclass=ABCMeta):
     def matmul(
         self,
         X1: JAXArray,
-        X2: Optional[JAXArray] = None,
-        y: Optional[JAXArray] = None,
+        X2: JAXArray | None = None,
+        y: JAXArray | None = None,
     ) -> JAXArray:
         if y is None:
             assert X2 is not None
@@ -144,14 +141,14 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         else:
             return self.to_general_qsm(X1, X2) @ y
 
-    def __add__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __add__(self, other: Kernel | JAXArray) -> Kernel:
         if not isinstance(other, Quasisep):
             raise ValueError(
                 "Quasisep kernels can only be added to other Quasisep kernels"
             )
         return Sum(self, other)
 
-    def __radd__(self, other: Any) -> "Kernel":
+    def __radd__(self, other: Any) -> Kernel:
         # We'll hit this first branch when using the `sum` function
         if other == 0:
             return self
@@ -161,7 +158,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
             )
         return Sum(other, self)
 
-    def __mul__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __mul__(self, other: Kernel | JAXArray) -> Kernel:
         if isinstance(other, Quasisep):
             return Product(self, other)
         if isinstance(other, Kernel) or jnp.ndim(other) != 0:
@@ -171,7 +168,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
             )
         return Scale(kernel=self, scale=other)
 
-    def __rmul__(self, other: Any) -> "Kernel":
+    def __rmul__(self, other: Any) -> Kernel:
         if isinstance(other, Quasisep):
             return Product(other, self)
         if isinstance(other, Kernel) or jnp.ndim(other) != 0:
@@ -567,9 +564,7 @@ class Matern52(Quasisep):
         f = np.sqrt(5) / self.scale
         f2 = jnp.square(f)
         f2o3 = f2 / 3
-        return jnp.array(
-            [[1, 0, -f2o3], [0, f2o3, 0], [-f2o3, 0, jnp.square(f2)]]
-        )
+        return jnp.array([[1, 0, -f2o3], [0, f2o3, 0], [-f2o3, 0, jnp.square(f2)]])
 
     def observation_model(self, X: JAXArray) -> JAXArray:
         return jnp.array([self.sigma, 0, 0])
@@ -670,8 +665,8 @@ class CARMA(Quasisep):
 
     @classmethod
     def init(
-        cls, alpha: JAXArray, beta: JAXArray, sigma: Optional[JAXArray] = None
-    ) -> "CARMA":
+        cls, alpha: JAXArray, beta: JAXArray, sigma: JAXArray | None = None
+    ) -> CARMA:
         r"""Construct a CARMA kernel
 
         Args:
@@ -722,9 +717,9 @@ class CARMA(Quasisep):
         f = 2 * ((np.arange(2 * p) // 2) % 2) - 1
         x = f * jnp.append(alpha_ext, jnp.zeros(p - 1))
         params = jnp.stack([np.roll(x, k)[::2] for k in range(p)], axis=0)
-        params = jnp.linalg.solve(
-            params, 0.5 * sigma**2 * jnp.eye(p, 1, k=-p + 1)
-        )[:, 0]
+        params = jnp.linalg.solve(params, 0.5 * sigma**2 * jnp.eye(p, 1, k=-p + 1))[
+            :, 0
+        ]
         stn_ = []
         for j in range(p):
             stn_.append([jnp.zeros(()) for _ in range(p)])
@@ -758,9 +753,7 @@ class CARMA(Quasisep):
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
-        return (
-            self.proj_inv @ (jnp.exp(self.roots * dt)[:, None] * self.proj)
-        ).real
+        return (self.proj_inv @ (jnp.exp(self.roots * dt)[:, None] * self.proj)).real
 
 
 def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:

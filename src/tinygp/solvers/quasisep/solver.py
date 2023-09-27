@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 __all__ = ["QuasisepSolver"]
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
@@ -40,9 +38,9 @@ class QuasisepSolver(Solver):
         X: JAXArray,
         noise: Noise,
         *,
-        covariance: Optional[Any] = None,
+        covariance: Any | None = None,
         assume_sorted: bool = False,
-    ) -> "QuasisepSolver":
+    ) -> QuasisepSolver:
         """Build a :class:`QuasisepSolver` for a given kernel and coordinates
 
         Args:
@@ -86,9 +84,7 @@ class QuasisepSolver(Solver):
             0
         ] * np.log(2 * np.pi)
 
-    def solve_triangular(
-        self, y: JAXArray, *, transpose: bool = False
-    ) -> JAXArray:
+    def solve_triangular(self, y: JAXArray, *, transpose: bool = False) -> JAXArray:
         if transpose:
             return self.factor.transpose().solve(y)
         else:
@@ -97,9 +93,7 @@ class QuasisepSolver(Solver):
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return self.factor @ y
 
-    def condition(
-        self, kernel: Kernel, X_test: Optional[JAXArray], noise: Noise
-    ) -> Any:
+    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
         """Compute the covariance matrix for a conditional GP
 
         In the case where the prediction is made at the input coordinates with a

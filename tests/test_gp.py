@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import jax
@@ -36,20 +35,14 @@ def test_sample(data):
 
         y = gp.sample(jax.random.PRNGKey(543), shape=(100_000,))
         assert y.shape == (100_000, len(X))
-        np.testing.assert_allclose(
-            jnp.mean(y, axis=0), jnp.sum(X, axis=1), atol=0.015
-        )
-        np.testing.assert_allclose(
-            jnp.cov(y, rowvar=0), gp.covariance, atol=0.015
-        )
+        np.testing.assert_allclose(jnp.mean(y, axis=0), jnp.sum(X, axis=1), atol=0.015)
+        np.testing.assert_allclose(jnp.cov(y, rowvar=0), gp.covariance, atol=0.015)
 
 
 def test_means(data):
     X, y = data
 
-    gp1 = GaussianProcess(
-        kernels.Matern32(1.5), X, diag=0.01, mean=lambda x: 0.0
-    )
+    gp1 = GaussianProcess(kernels.Matern32(1.5), X, diag=0.01, mean=lambda x: 0.0)
     gp2 = GaussianProcess(kernels.Matern32(1.5), X, diag=0.01, mean=0.0)
     gp3 = GaussianProcess(kernels.Matern32(1.5), X, diag=0.01)
 

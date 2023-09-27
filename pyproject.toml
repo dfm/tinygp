@@ -6,30 +6,25 @@ build-backend = "setuptools.build_meta"
 write_to = "src/tinygp/tinygp_version.py"
 
 [tool.black]
-line-length = 79
+target-version = ["py39"]
+line-length = 88
 
-[tool.isort]
-skip_glob = []
-line_length = 79
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+select = ["F", "I", "E", "W", "YTT", "B", "Q", "PLE", "PLR", "PLW", "UP"]
+ignore = [
+    "E741",    # Allow ambiguous variable names
+    "PLR0911", # Allow many return statements
+    "PLR0913", # Allow many arguments to functions
+    "PLR0915", # Allow many statements
+    "PLR2004", # Allow magic numbers in comparisons
+]
+exclude = []
 
-[tool.coverage.run]
-parallel = true
-branch = true
-source = ["tinygp"]
-omit = ["docs/*", "tests/*", "*/tinygp/tinygp_version.py"]
-
-[tool.coverage.paths]
-source = ["src", "*/site-packages"]
-
-[tool.coverage.report]
-show_missing = true
-
-[tool.pycln]
-all = true
+[tool.ruff.isort]
+known-first-party = ["tinygp"]
+combine-as-imports = true
 
 [tool.towncrier]
 name = "tinygp"

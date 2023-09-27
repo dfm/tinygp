@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ``tinygp`` is an extremely lightweight library for building Gaussian Process
 models in Python, built on top of `jax <https://github.com/google/jax>`_. The

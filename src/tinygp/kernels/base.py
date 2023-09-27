@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 __all__ = [
@@ -14,7 +12,8 @@ __all__ = [
 ]
 
 from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Callable, Union
 
 import jax
 import jax.numpy as jnp
@@ -73,8 +72,8 @@ class Kernel(metaclass=ABCMeta):
     def matmul(
         self,
         X1: JAXArray,
-        X2: Optional[JAXArray] = None,
-        y: Optional[JAXArray] = None,
+        X2: JAXArray | None = None,
+        y: JAXArray | None = None,
     ) -> JAXArray:
         if y is None:
             assert X2 is not None
@@ -86,9 +85,7 @@ class Kernel(metaclass=ABCMeta):
 
         return jnp.dot(self(X1, X2), y)
 
-    def __call__(
-        self, X1: JAXArray, X2: Optional[JAXArray] = None
-    ) -> JAXArray:
+    def __call__(self, X1: JAXArray, X2: JAXArray | None = None) -> JAXArray:
         if X2 is None:
             k = jax.vmap(self.evaluate_diag, in_axes=0)(X1)
             if k.ndim != 1:
@@ -98,9 +95,9 @@ class Kernel(metaclass=ABCMeta):
                     "check the dimensions of parameters and custom kernels"
                 )
             return k
-        k = jax.vmap(
-            jax.vmap(self.evaluate, in_axes=(None, 0)), in_axes=(0, None)
-        )(X1, X2)
+        k = jax.vmap(jax.vmap(self.evaluate, in_axes=(None, 0)), in_axes=(0, None))(
+            X1, X2
+        )
         if k.ndim != 2:
             raise ValueError(
                 "Invalid kernel shape: "
@@ -109,12 +106,12 @@ class Kernel(metaclass=ABCMeta):
             )
         return k
 
-    def __add__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __add__(self, other: Kernel | JAXArray) -> Kernel:
         if isinstance(other, Kernel):
             return Sum(self, other)
         return Sum(self, Constant(other))
 
-    def __radd__(self, other: Any) -> "Kernel":
+    def __radd__(self, other: Any) -> Kernel:
         # We'll hit this first branch when using the `sum` function
         if other == 0:
             return self
@@ -122,12 +119,12 @@ class Kernel(metaclass=ABCMeta):
             return Sum(other, self)
         return Sum(Constant(other), self)
 
-    def __mul__(self, other: Union["Kernel", JAXArray]) -> "Kernel":
+    def __mul__(self, other: Kernel | JAXArray) -> Kernel:
         if isinstance(other, Kernel):
             return Product(self, other)
         return Product(self, Constant(other))
 
-    def __rmul__(self, other: Any) -> "Kernel":
+    def __rmul__(self, other: Any) -> Kernel:
         if isinstance(other, Kernel):
             return Product(other, self)
         return Product(Constant(other), self)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import jax.numpy as jnp
@@ -55,9 +54,7 @@ def test_banded():
     diag = np.diag(R)
     off_diags = np.zeros((N, J))
     for j in range(J):
-        off_diags[: N - j - 1, j] = R[
-            (np.arange(0, N - j - 1), np.arange(j + 1, N))
-        ]
+        off_diags[: N - j - 1, j] = R[(np.arange(0, N - j - 1), np.arange(j + 1, N))]
 
     noise = tinygp.noise.Banded(diag=diag, off_diags=off_diags)
     check_noise_model(noise, R)

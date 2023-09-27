@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 __all__ = ["kalman_filter"]
 
-from typing import Any, Optional, Tuple
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -40,8 +38,8 @@ class KalmanSolver(Solver):
         X: JAXArray,
         noise: Noise,
         *,
-        covariance: Optional[Any] = None,
-    ) -> "KalmanSolver":
+        covariance: Any | None = None,
+    ) -> KalmanSolver:
         """Build a :class:`KalmanSolver` for a given kernel and coordinates
 
         Args:
@@ -75,25 +73,21 @@ class KalmanSolver(Solver):
     def normalization(self) -> JAXArray:
         return 0.5 * jnp.sum(jnp.log(2 * np.pi * self.s))
 
-    def solve_triangular(
-        self, y: JAXArray, *, transpose: bool = False
-    ) -> JAXArray:
+    def solve_triangular(self, y: JAXArray, *, transpose: bool = False) -> JAXArray:
         assert not transpose
         return kalman_filter(self.A, self.H, self.K, y) / jnp.sqrt(self.s)
 
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         raise NotImplementedError
 
-    def condition(
-        self, kernel: Kernel, X_test: Optional[JAXArray], noise: Noise
-    ) -> Any:
+    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
         raise NotImplementedError
 
 
 @jax.jit
 def kalman_gains(
     Pinf: JAXArray, A: JAXArray, H: JAXArray, diag: JAXArray
-) -> Tuple[JAXArray, JAXArray]:
+) -> tuple[JAXArray, JAXArray]:
     def step(carry, data):  # type: ignore
         Pp = carry
         Ak, hk, dk = data
@@ -111,9 +105,7 @@ def kalman_gains(
 
 
 @jax.jit
-def kalman_filter(
-    A: JAXArray, H: JAXArray, K: JAXArray, y: JAXArray
-) -> JAXArray:
+def kalman_filter(A: JAXArray, H: JAXArray, K: JAXArray, y: JAXArray) -> JAXArray:
     def step(carry, data):  # type: ignore
         mp = carry
         Ak, hk, Kk, yk = data

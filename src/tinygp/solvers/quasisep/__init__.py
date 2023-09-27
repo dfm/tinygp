@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 r"""
 This subpackage implements the core linear algebra required for the
 :class:`QuasisepSolver`, and a few extras. An intro to these matrices can be

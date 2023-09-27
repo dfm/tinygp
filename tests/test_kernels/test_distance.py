@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import jax
@@ -16,7 +15,9 @@ def check(comp, expect, args, order=2, **kwargs):
 
 
 def test_l2_distance_grad_at_zero():
-    expect = lambda x1, x2: jnp.sqrt(jnp.sum(jnp.square(x1 - x2)))
+    def expect(x1, x2):
+        return jnp.sqrt(jnp.sum(jnp.square(x1 - x2)))
+
     comp = distance.L2Distance().distance
 
     x1 = 0.0

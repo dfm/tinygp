@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 While the usual definition of quasiseparable matrices is restricted to square
 matrices, it is useful for our purposes to also implement some algorithms for a
@@ -18,7 +17,7 @@ from __future__ import annotations
 __all__ = ["GeneralQSM"]
 
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Tuple
+from typing import TYPE_CHECKING, Any, Callable
 
 import jax
 import jax.numpy as jnp
@@ -64,7 +63,7 @@ class GeneralQSM:
             pass
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         """The shape of the matrix"""
         return (self.pl.shape[0], self.ql.shape[0])
 

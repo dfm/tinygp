@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 from itertools import combinations
@@ -43,9 +42,7 @@ def some_nice_matrices():
     mat3 = SquareQSM(
         diag=DiagQSM(diag1),
         lower=StrictLowerTriQSM(p=p1, q=q1, a=a1),
-        upper=StrictUpperTriQSM(
-            p=jnp.zeros_like(p2), q=jnp.zeros_like(q2), a=a2
-        ),
+        upper=StrictUpperTriQSM(p=jnp.zeros_like(p2), q=jnp.zeros_like(q2), a=a2),
     )
     mat4 = SquareQSM(
         diag=DiagQSM(diag1),
@@ -103,13 +100,11 @@ def get_matrices(name):
         q = np.concatenate((cos, sin), axis=1)
         c = np.append(c, c)
         dt = np.append(0, np.diff(t))
-        a = np.stack(
-            [np.diag(v) for v in np.exp(-c[None] * dt[:, None])], axis=0
-        )
+        a = np.stack([np.diag(v) for v in np.exp(-c[None] * dt[:, None])], axis=0)
         p = np.einsum("ni,nij->nj", p, a)
 
     else:
-        assert False
+        raise AssertionError()
 
     v = random.normal(size=N)
     m = random.normal(size=(N, 4))
@@ -172,9 +167,7 @@ def test_strict_tri_matmul(matrices):
 
 def test_tri_matmul(matrices):
     diag, p, q, a, v, m, l, _ = matrices
-    mat = LowerTriQSM(
-        diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a)
-    )
+    mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = l + np.diag(diag)
 
     # Check multiplication into identity / to dense
@@ -194,9 +187,7 @@ def test_tri_matmul(matrices):
 def test_square_matmul(symm, matrices):
     diag, p, q, a, v, m, l, u = matrices
     if symm:
-        mat = SymmQSM(
-            diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a)
-        )
+        mat = SymmQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     else:
         mat = SquareQSM(
             diag=DiagQSM(diag),
@@ -220,23 +211,17 @@ def test_square_matmul(symm, matrices):
 @pytest.mark.parametrize("name", ["celerite"])
 def test_tri_inv(matrices):
     diag, p, q, a, _, _, _, _ = matrices
-    mat = LowerTriQSM(
-        diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a)
-    )
+    mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = mat.to_dense()
     minv = mat.inv()
     np.testing.assert_allclose(minv.to_dense(), jnp.linalg.inv(dense))
-    np.testing.assert_allclose(
-        minv.matmul(dense), np.eye(len(diag)), atol=1e-12
-    )
+    np.testing.assert_allclose(minv.matmul(dense), np.eye(len(diag)), atol=1e-12)
 
 
 @pytest.mark.parametrize("name", ["celerite"])
 def test_tri_solve(matrices):
     diag, p, q, a, v, m, _, _ = matrices
-    mat = LowerTriQSM(
-        diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a)
-    )
+    mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = mat.to_dense()
     np.testing.assert_allclose(mat.solve(v), np.linalg.solve(dense, v))
     np.testing.assert_allclose(mat.solve(m), np.linalg.solve(dense, m))
@@ -254,9 +239,7 @@ def test_tri_solve(matrices):
 def test_square_inv(symm, matrices):
     diag, p, q, a, _, _, l, u = matrices
     if symm:
-        mat = SymmQSM(
-            diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a)
-        )
+        mat = SymmQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     else:
         mat = SquareQSM(
             diag=DiagQSM(diag),
@@ -272,12 +255,8 @@ def test_square_inv(symm, matrices):
 
     # Invert the QS matrix
     minv = mat.inv()
-    np.testing.assert_allclose(
-        minv.to_dense(), jnp.linalg.inv(dense), rtol=2e-6
-    )
-    np.testing.assert_allclose(
-        minv.matmul(dense), np.eye(len(diag)), atol=1e-12
-    )
+    np.testing.assert_allclose(minv.to_dense(), jnp.linalg.inv(dense), rtol=2e-6)
+    np.testing.assert_allclose(minv.matmul(dense), np.eye(len(diag)), atol=1e-12)
 
     # In this case, we know our matrix to be symmetric - so should its inverse be!
     # This may change in the future as we expand test cases
@@ -332,12 +311,8 @@ def test_cholesky(matrices):
     chol = mat.cholesky()
     np.testing.assert_allclose(chol.to_dense(), np.linalg.cholesky(dense))
 
-    np.testing.assert_allclose(
-        chol.solve(v), np.linalg.solve(chol.to_dense(), v)
-    )
-    np.testing.assert_allclose(
-        chol.solve(m), np.linalg.solve(chol.to_dense(), m)
-    )
+    np.testing.assert_allclose(chol.solve(v), np.linalg.solve(chol.to_dense(), v))
+    np.testing.assert_allclose(chol.solve(m), np.linalg.solve(chol.to_dense(), m))
 
 
 def test_tri_qsmul(some_nice_matrices):
@@ -372,9 +347,7 @@ def test_square_qsmul(some_nice_matrices):
         np.testing.assert_allclose(np.tril(a, -1), np.tril(b, -1), atol=1e-12)
         np.testing.assert_allclose(np.triu(a, 1), np.triu(b, 1), atol=1e-12)
 
-    for m1, m2 in combinations(
-        [mat1, mat2, mat3, mat4, mat1.inv(), mat2.inv()], 2
-    ):
+    for m1, m2 in combinations([mat1, mat2, mat3, mat4, mat1.inv(), mat2.inv()], 2):
         check(m1, m2)
 
 
@@ -389,11 +362,7 @@ def test_ops(some_nice_matrices):
             np.testing.assert_allclose((m1 + m2).to_dense(), a + b, atol=1e-12)
             np.testing.assert_allclose((m1 - m2).to_dense(), a - b, atol=1e-12)
             np.testing.assert_allclose((m1 * m2).to_dense(), a * b, atol=1e-12)
-            np.testing.assert_allclose(
-                (2.5 * m1).to_dense(), 2.5 * a, atol=1e-12
-            )
+            np.testing.assert_allclose((2.5 * m1).to_dense(), 2.5 * a, atol=1e-12)
 
-    for m1, m2 in combinations(
-        [mat1, mat2, mat3, mat4, mat1.inv(), mat2.inv()], 2
-    ):
+    for m1, m2 in combinations([mat1, mat2, mat3, mat4, mat1.inv(), mat2.inv()], 2):
         check(m1, m2)

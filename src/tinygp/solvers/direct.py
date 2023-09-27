@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 __all__ = ["DirectSolver"]
 
-from typing import Any, Optional
+from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
@@ -37,8 +35,8 @@ class DirectSolver(Solver):
         X: JAXArray,
         noise: Noise,
         *,
-        covariance: Optional[Any] = None,
-    ) -> "DirectSolver":
+        covariance: Any | None = None,
+    ) -> DirectSolver:
         """Build a :class:`DirectSolver` for a given kernel and coordinates
 
         Args:
@@ -71,13 +69,9 @@ class DirectSolver(Solver):
             jnp.log(jnp.diag(self.scale_tril))
         ) + 0.5 * self.scale_tril.shape[0] * np.log(2 * np.pi)
 
-    def solve_triangular(
-        self, y: JAXArray, *, transpose: bool = False
-    ) -> JAXArray:
+    def solve_triangular(self, y: JAXArray, *, transpose: bool = False) -> JAXArray:
         if transpose:
-            return linalg.solve_triangular(
-                self.scale_tril, y, lower=True, trans=1
-            )
+            return linalg.solve_triangular(self.scale_tril, y, lower=True, trans=1)
         else:
             return linalg.solve_triangular(self.scale_tril, y, lower=True)
 
@@ -85,7 +79,7 @@ class DirectSolver(Solver):
         return jnp.einsum("ij,j...->i...", self.scale_tril, y)
 
     def condition(
-        self, kernel: kernels.Kernel, X_test: Optional[JAXArray], noise: Noise
+        self, kernel: kernels.Kernel, X_test: JAXArray | None, noise: Noise
     ) -> Any:
         """Compute the covariance matrix for a conditional GP
 

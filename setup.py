@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import codecs
 import os
@@ -51,21 +50,17 @@ def read(*parts: str) -> str:
 
 
 def find_meta(meta: str, meta_file: str = read(META_PATH)) -> str:
-    meta_match = re.search(
-        r"^__{meta}__ = ['\"]([^'\"]*)['\"]".format(meta=meta), meta_file, re.M
-    )
+    meta_match = re.search(rf"^__{meta}__ = ['\"]([^'\"]*)['\"]", meta_file, re.M)
     if meta_match:
         return meta_match.group(1)
-    raise RuntimeError("Unable to find __{meta}__ string.".format(meta=meta))
+    raise RuntimeError(f"Unable to find __{meta}__ string.")
 
 
 if __name__ == "__main__":
     setup(
         name=NAME,
         use_scm_version={
-            "write_to": os.path.join(
-                "src", NAME, "{0}_version.py".format(NAME)
-            ),
+            "write_to": os.path.join("src", NAME, f"{NAME}_version.py"),
             "write_to_template": '__version__ = "{version}"\n',
         },
         author=find_meta("author"),

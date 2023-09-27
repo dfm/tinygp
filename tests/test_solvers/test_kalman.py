@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import jax
@@ -37,9 +36,7 @@ def data(random):
         1.5 * quasisep.Matern52(1.5) + 0.3 * quasisep.Exp(1.5),
         quasisep.Matern52(1.5) * quasisep.SHO(omega=1.5, quality=0.1),
         1.5 * quasisep.Matern52(1.5) * quasisep.Celerite(1.1, 0.8, 0.9, 0.1),
-        quasisep.CARMA.init(
-            alpha=np.array([1.4, 2.3, 1.5]), beta=np.array([0.1, 0.5])
-        ),
+        quasisep.CARMA.init(alpha=np.array([1.4, 2.3, 1.5]), beta=np.array([0.1, 0.5])),
     ]
 )
 def kernel(request):
@@ -68,6 +65,4 @@ def test_consistent_with_direct(kernel, data):
     gp2 = GaussianProcess(kernel, x, diag=0.1, solver=QuasisepSolver)
 
     np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
-    np.testing.assert_allclose(
-        gp1.solver.normalization(), gp2.solver.normalization()
-    )
+    np.testing.assert_allclose(gp1.solver.normalization(), gp2.solver.normalization())

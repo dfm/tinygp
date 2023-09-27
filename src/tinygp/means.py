@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 In ``tinygp``, the Gaussian process mean function can be defined using any
 callable object, but this submodule includes two helper classes for defining
@@ -13,7 +12,7 @@ from __future__ import annotations
 
 __all__ = ["Mean", "Conditioned"]
 
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable
 
 import jax
 
@@ -33,7 +32,7 @@ class Mean:
             signature.
     """
 
-    value: Union[JAXArray, Callable[[JAXArray], JAXArray]]
+    value: JAXArray | Callable[[JAXArray], JAXArray]
 
     if TYPE_CHECKING:
 
@@ -48,7 +47,7 @@ class Mean:
 
 @dataclass
 class Conditioned:
-    """The mean of a process conditioned on observed data
+    r"""The mean of a process conditioned on observed data
 
     Args:
         X: The coordinates of the data. alpha: The value :math:`L^-1\,y` where L
@@ -68,7 +67,7 @@ class Conditioned:
     alpha: JAXArray
     kernel: Kernel
     include_mean: bool
-    mean_function: Optional[Mean] = None
+    mean_function: Mean | None = None
 
     if TYPE_CHECKING:
 
@@ -76,9 +75,7 @@ class Conditioned:
             pass
 
     def __call__(self, X: JAXArray) -> JAXArray:
-        Ks = jax.vmap(self.kernel.evaluate, in_axes=(None, 0), out_axes=0)(
-            X, self.X
-        )
+        Ks = jax.vmap(self.kernel.evaluate, in_axes=(None, 0), out_axes=0)(X, self.X)
         mu = Ks @ self.alpha
         if self.include_mean and self.mean_function is not None:
             mu += self.mean_function(X)
