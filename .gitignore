@@ -1,5 +1,6 @@
 *_version.py
 .coverage
+.nox
 .tox
 .coverage*
 /*.ipynb

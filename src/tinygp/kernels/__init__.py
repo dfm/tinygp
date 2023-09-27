@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 The primary model building interface in ``tinygp`` is via "kernels", which are
 typically constructed as sums and products of objects defined in this

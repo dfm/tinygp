@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import warnings
@@ -24,9 +23,7 @@ def kernel(request):
     return {
         "Constant": (
             kernels.Constant(value=1.5),
-            george.kernels.ConstantKernel(
-                log_constant=np.log(1.5 / 5), ndim=5
-            ),
+            george.kernels.ConstantKernel(log_constant=np.log(1.5 / 5), ndim=5),
         ),
         "DotProduct": (
             kernels.DotProduct(),
@@ -80,9 +77,7 @@ def stationary_kernel(request):
         ),
         "RationalQuadratic": (
             kernels.RationalQuadratic(alpha=1.5),
-            george.kernels.RationalQuadraticKernel(
-                metric=1.0, log_alpha=np.log(1.5)
-            ),
+            george.kernels.RationalQuadraticKernel(metric=1.0, log_alpha=np.log(1.5)),
         ),
     }[request.param]
 
@@ -116,9 +111,7 @@ def compare_gps(random, tiny_kernel, george_kernel):
     tiny_gp = GaussianProcess(tiny_kernel, x, diag=diag)
 
     # Likelihood
-    np.testing.assert_allclose(
-        tiny_gp.log_probability(y), george_gp.log_likelihood(y)
-    )
+    np.testing.assert_allclose(tiny_gp.log_probability(y), george_gp.log_likelihood(y))
 
     # Filtering
     with warnings.catch_warnings():

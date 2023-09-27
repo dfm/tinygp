@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This subpackage provides the tools needed to build expressive observation
 processes for ``tinygp`` Gaussian process models. The most commonly used noise
@@ -13,7 +12,7 @@ from __future__ import annotations
 __all__ = ["Diagonal", "Dense", "Banded"]
 
 from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING, Any, Tuple, Union
+from typing import TYPE_CHECKING
 
 import jax.numpy as jnp
 import numpy as np
@@ -28,9 +27,6 @@ class Noise(metaclass=ABCMeta):
     """An abstract base class defining the noise model protocol"""
 
     __array_priority__ = 2001
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        pass
 
     @abstractmethod
     def diagonal(self) -> JAXArray:
@@ -50,7 +46,7 @@ class Noise(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def to_qsm(self) -> Union["SymmQSM", "DiagQSM"]:
+    def to_qsm(self) -> SymmQSM | DiagQSM:
         """This noise model represented as a quasiseparable matrix"""
         raise NotImplementedError
 
@@ -79,11 +75,7 @@ class Diagonal(Noise):
         return self.diag
 
     def _add(self, other: JAXArray) -> JAXArray:
-        return (
-            jnp.asarray(other)
-            .at[jnp.diag_indices(other.shape[0])]
-            .add(self.diag)
-        )
+        return jnp.asarray(other).at[jnp.diag_indices(other.shape[0])].add(self.diag)
 
     def __add__(self, other: JAXArray) -> JAXArray:
         return self._add(other)
@@ -97,7 +89,7 @@ class Diagonal(Noise):
         else:
             return self.diag[:, None] * other
 
-    def to_qsm(self) -> "DiagQSM":
+    def to_qsm(self) -> DiagQSM:
         from tinygp.solvers.quasisep.core import DiagQSM
 
         return DiagQSM(d=self.diag)
@@ -128,7 +120,7 @@ class Dense(Noise):
     def __matmul__(self, other: JAXArray) -> JAXArray:
         return self.value @ other
 
-    def to_qsm(self) -> Union["SymmQSM", "DiagQSM"]:
+    def to_qsm(self) -> SymmQSM | DiagQSM:
         """This cannot be compactly represented as a quasiseparable matrix"""
         raise NotImplementedError
 
@@ -185,7 +177,7 @@ class Banded(Noise):
 
     def _indices(
         self,
-    ) -> Tuple[Tuple[JAXArray, JAXArray], Tuple[JAXArray, JAXArray]]:
+    ) -> tuple[tuple[JAXArray, JAXArray], tuple[JAXArray, JAXArray]]:
         N, J = jnp.shape(self.off_diags)
         sparse_idx_1 = []
         sparse_idx_2 = []
@@ -206,11 +198,7 @@ class Banded(Noise):
         sparse_idx, dense_idx = self._indices()
 
         # Start by adding the diagonal
-        result = (
-            jnp.asarray(other)
-            .at[jnp.diag_indices(other.shape[0])]
-            .add(self.diag)
-        )
+        result = jnp.asarray(other).at[jnp.diag_indices(other.shape[0])].add(self.diag)
 
         # Then the off diagonals, assuming symmetric
         return result.at[
@@ -236,7 +224,7 @@ class Banded(Noise):
     def __matmul__(self, other: JAXArray) -> JAXArray:
         return self.to_qsm() @ other
 
-    def to_qsm(self) -> "SymmQSM":
+    def to_qsm(self) -> SymmQSM:
         from tinygp.solvers.quasisep import core
 
         N, J = jnp.shape(self.off_diags)

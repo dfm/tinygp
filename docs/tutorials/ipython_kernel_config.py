@@ -1,3 +1,1 @@
-# mypy: ignore-errors
-
-c.InlineBackend.rc = {}
+c.InlineBackend.rc = {}  # noqa

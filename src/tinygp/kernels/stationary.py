@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Many of the most commonly used kernels are implemented as subclasses of the
 :class:`Stationary` kernel. This means that each kernel in this section has (at
@@ -27,7 +25,6 @@ __all__ = [
     "RationalQuadratic",
 ]
 
-from typing import Optional
 
 import jax.numpy as jnp
 import numpy as np
@@ -202,7 +199,7 @@ class ExpSineSquared(Stationary):
         gamma: The parameter :math:`\Gamma`.
     """
 
-    gamma: Optional[JAXArray] = None
+    gamma: JAXArray | None = None
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         if self.gamma is None:
@@ -231,7 +228,7 @@ class RationalQuadratic(Stationary):
         alpha: The parameter :math:`\alpha`.
     """
 
-    alpha: Optional[JAXArray] = None
+    alpha: JAXArray | None = None
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         if self.alpha is None:

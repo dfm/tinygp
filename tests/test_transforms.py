@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import jax.numpy as jnp
@@ -10,9 +9,7 @@ from tinygp import kernels, transforms
 def test_linear():
     kernel0 = kernels.Matern32(4.5)
     kernel1 = transforms.Linear(1 / 4.5, kernels.Matern32())
-    np.testing.assert_allclose(
-        kernel0.evaluate(0.5, 0.1), kernel1.evaluate(0.5, 0.1)
-    )
+    np.testing.assert_allclose(kernel0.evaluate(0.5, 0.1), kernel1.evaluate(0.5, 0.1))
 
 
 def test_multivariate_linear():
@@ -27,9 +24,7 @@ def test_multivariate_linear():
 def test_cholesky():
     kernel0 = kernels.Matern32(4.5)
     kernel1 = transforms.Cholesky(4.5, kernels.Matern32())
-    np.testing.assert_allclose(
-        kernel0.evaluate(0.5, 0.1), kernel1.evaluate(0.5, 0.1)
-    )
+    np.testing.assert_allclose(kernel0.evaluate(0.5, 0.1), kernel1.evaluate(0.5, 0.1))
 
 
 def test_multivariate_cholesky():

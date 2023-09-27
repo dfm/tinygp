@@ -1,19 +1,14 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 __all__ = ["GaussianProcess"]
 
+from collections.abc import Sequence
 from functools import partial
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
 )
 
 import jax
@@ -60,12 +55,12 @@ class GaussianProcess:
         kernel: kernels.Kernel,
         X: JAXArray,
         *,
-        diag: Optional[JAXArray] = None,
-        noise: Optional[Noise] = None,
-        mean: Optional[Union[Callable[[JAXArray], JAXArray], JAXArray]] = None,
-        solver: Optional[Any] = None,
-        mean_value: Optional[JAXArray] = None,
-        covariance_value: Optional[Any] = None,
+        diag: JAXArray | None = None,
+        noise: Noise | None = None,
+        mean: Callable[[JAXArray], JAXArray] | JAXArray | None = None,
+        solver: Any | None = None,
+        mean_value: JAXArray | None = None,
+        covariance_value: Any | None = None,
         **solver_kwargs: Any,
     ):
         self.kernel = kernel
@@ -73,11 +68,10 @@ class GaussianProcess:
 
         if callable(mean):
             self.mean_function = mean
+        elif mean is None:
+            self.mean_function = means.Mean(jnp.zeros(()))
         else:
-            if mean is None:
-                self.mean_function = means.Mean(jnp.zeros(()))
-            else:
-                self.mean_function = means.Mean(mean)
+            self.mean_function = means.Mean(mean)
         if mean_value is None:
             mean_value = jax.vmap(self.mean_function)(self.X)
         self.num_data = mean_value.shape[0]
@@ -85,8 +79,7 @@ class GaussianProcess:
         self.loc = self.mean = mean_value
         if self.mean.ndim != 1:
             raise ValueError(
-                "Invalid mean shape: "
-                f"expected ndim = 1, got ndim={self.mean.ndim}"
+                "Invalid mean shape: " f"expected ndim = 1, got ndim={self.mean.ndim}"
             )
 
         if noise is None:
@@ -95,9 +88,7 @@ class GaussianProcess:
         self.noise = noise
 
         if solver is None:
-            if isinstance(covariance_value, SymmQSM) or isinstance(
-                kernel, Quasisep
-            ):
+            if isinstance(covariance_value, SymmQSM) or isinstance(kernel, Quasisep):
                 solver = QuasisepSolver
             else:
                 solver = DirectSolver
@@ -134,12 +125,12 @@ class GaussianProcess:
     def condition(
         self,
         y: JAXArray,
-        X_test: Optional[JAXArray] = None,
+        X_test: JAXArray | None = None,
         *,
-        diag: Optional[JAXArray] = None,
-        noise: Optional[Noise] = None,
+        diag: JAXArray | None = None,
+        noise: Noise | None = None,
         include_mean: bool = True,
-        kernel: Optional[kernels.Kernel] = None,
+        kernel: kernels.Kernel | None = None,
     ) -> ConditionResult:
         """Condition the model on observed data and
 
@@ -184,9 +175,7 @@ class GaussianProcess:
                     "and all but the leading dimension must have matching sizes"
                 )
 
-        alpha, log_prob, mean_value = self._condition(
-            y, X_test, include_mean, kernel
-        )
+        alpha, log_prob, mean_value = self._condition(y, X_test, include_mean, kernel)
         if kernel is None:
             kernel = self.kernel
 
@@ -226,13 +215,13 @@ class GaussianProcess:
     def predict(
         self,
         y: JAXArray,
-        X_test: Optional[JAXArray] = None,
+        X_test: JAXArray | None = None,
         *,
-        kernel: Optional[kernels.Kernel] = None,
+        kernel: kernels.Kernel | None = None,
         include_mean: bool = True,
         return_var: bool = False,
         return_cov: bool = False,
-    ) -> Union[JAXArray, Tuple[JAXArray, JAXArray]]:
+    ) -> JAXArray | tuple[JAXArray, JAXArray]:
         """Predict the GP model at new test points conditioned on observed data
 
         Args:
@@ -260,9 +249,7 @@ class GaussianProcess:
             returned with shape ``(N_test,)`` or ``(N_test, N_test)``
             respectively.
         """
-        _, cond = self.condition(
-            y, X_test, kernel=kernel, include_mean=include_mean
-        )
+        _, cond = self.condition(y, X_test, kernel=kernel, include_mean=include_mean)
         if return_var:
             return cond.loc, cond.variance
         if return_cov:
@@ -272,7 +259,7 @@ class GaussianProcess:
     def sample(
         self,
         key: jax.random.KeyArray,
-        shape: Optional[Sequence[int]] = None,
+        shape: Sequence[int] | None = None,
     ) -> JAXArray:
         """Generate samples from the prior process
 
@@ -288,7 +275,7 @@ class GaussianProcess:
         """
         return self._sample(key, shape)
 
-    def numpyro_dist(self, **kwargs: Any) -> "TinyDistribution":
+    def numpyro_dist(self, **kwargs: Any) -> TinyDistribution:
         """Get the numpyro MultivariateNormal distribution for this process"""
         from tinygp.numpyro_support import TinyDistribution
 
@@ -298,7 +285,7 @@ class GaussianProcess:
     def _sample(
         self,
         key: jax.random.KeyArray,
-        shape: Optional[Sequence[int]],
+        shape: Sequence[int] | None,
     ) -> JAXArray:
         if shape is None:
             shape = (self.num_data,)
@@ -311,9 +298,7 @@ class GaussianProcess:
 
     @partial(jax.jit, static_argnums=0)
     def _compute_log_prob(self, alpha: JAXArray) -> JAXArray:
-        loglike = (
-            -0.5 * jnp.sum(jnp.square(alpha)) - self.solver.normalization()
-        )
+        loglike = -0.5 * jnp.sum(jnp.square(alpha)) - self.solver.normalization()
         return jnp.where(jnp.isfinite(loglike), loglike, -jnp.inf)
 
     @partial(jax.jit, static_argnums=0)
@@ -324,10 +309,10 @@ class GaussianProcess:
     def _condition(
         self,
         y: JAXArray,
-        X_test: Optional[JAXArray],
+        X_test: JAXArray | None,
         include_mean: bool,
-        kernel: Optional[kernels.Kernel] = None,
-    ) -> Tuple[JAXArray, JAXArray, JAXArray]:
+        kernel: kernels.Kernel | None = None,
+    ) -> tuple[JAXArray, JAXArray, JAXArray]:
         alpha = self._get_alpha(y)
         log_prob = self._compute_log_prob(alpha)
 

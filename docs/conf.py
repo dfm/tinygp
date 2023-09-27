@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import tinygp
 
 extensions = [
@@ -22,7 +20,7 @@ templates_path = ["_templates"]
 
 # General information about the project.
 project = "tinygp"
-copyright = tinygp.__copyright__
+copyright = "2021, 2022, 2023 Simons Foundation, Inc."
 version = tinygp.__version__
 release = tinygp.__version__
 

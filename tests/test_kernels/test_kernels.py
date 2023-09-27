@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import jax
@@ -77,9 +76,7 @@ def test_conditioned(data):
         k1 = 1.5 * kernels.Matern32(2.5)
         k2 = 0.9 * kernels.ExpSineSquared(scale=1.5, gamma=0.3)
         K = k1(x1, x1) + 0.1 * jnp.eye(x1.shape[0])
-        solver = DirectSolver.init(
-            k1, x1, noise.Diagonal(jnp.full(x1.shape[0], 0.1))
-        )
+        solver = DirectSolver.init(k1, x1, noise.Diagonal(jnp.full(x1.shape[0], 0.1)))
         cond = kernels.Conditioned(x1, solver, k2)
         np.testing.assert_allclose(
             cond(x1, x2),

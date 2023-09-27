@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 In ``tinygp``, "solvers" provide a swappable low-level interface for
 implementing the linear algebra required to execute Gaussian Process models. At

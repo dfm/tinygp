@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 __all__ = ["Solver"]
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
@@ -13,9 +11,6 @@ from tinygp.noise import Noise
 
 
 class Solver(metaclass=ABCMeta):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        pass
-
     @classmethod
     def init(
         cls,
@@ -23,8 +18,8 @@ class Solver(metaclass=ABCMeta):
         X: JAXArray,
         noise: Noise,
         *,
-        covariance: Optional[Any] = None,
-    ) -> "Solver":
+        covariance: Any | None = None,
+    ) -> Solver:
         raise NotImplementedError
 
     @abstractmethod
@@ -48,9 +43,7 @@ class Solver(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def solve_triangular(
-        self, y: JAXArray, *, transpose: bool = False
-    ) -> JAXArray:
+    def solve_triangular(self, y: JAXArray, *, transpose: bool = False) -> JAXArray:
         """Solve the lower triangular linear system defined by this solver
 
         If the covariance matrix is ``K = L @ L.T`` for some lower triangular
@@ -70,7 +63,5 @@ class Solver(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def condition(
-        self, kernel: Kernel, X_test: Optional[JAXArray], noise: Noise
-    ) -> Any:
+    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
         raise NotImplementedError

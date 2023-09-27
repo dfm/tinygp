@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import annotations
 
 __all__ = ["JAXArray", "dataclass", "field"]
 
 import dataclasses
-from typing import Any, Callable, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, TypeVar, Union
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +27,7 @@ def __dataclass_transform__(
     eq_default: bool = True,
     order_default: bool = False,
     kw_only_default: bool = False,
-    field_descriptors: Tuple[Union[type, Callable[..., Any]], ...] = (()),
+    field_descriptors: tuple[type | Callable[..., Any], ...] = (()),
 ) -> Callable[[_T], _T]:
     # If used within a stub file, the following implementation can be
     # replaced with "...".
@@ -37,7 +35,7 @@ def __dataclass_transform__(
 
 
 @__dataclass_transform__()
-def dataclass(clz: Type[Any]) -> Type[Any]:
+def dataclass(clz: type[Any]) -> type[Any]:
     data_clz: Any = dataclasses.dataclass(frozen=True)(clz)
     meta_fields = []
     data_fields = []
@@ -53,20 +51,18 @@ def dataclass(clz: Type[Any]) -> Type[Any]:
 
     data_clz.replace = replace
 
-    def iterate_clz(x: Any) -> Tuple[Tuple[Any, ...], Tuple[Any, ...]]:
+    def iterate_clz(x: Any) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
         meta = tuple(getattr(x, name) for name in meta_fields)
         data = tuple(getattr(x, name) for name in data_fields)
         return data, meta
 
-    def clz_from_iterable(meta: Tuple[Any, ...], data: Tuple[Any, ...]) -> Any:
+    def clz_from_iterable(meta: tuple[Any, ...], data: tuple[Any, ...]) -> Any:
         meta_args = tuple(zip(meta_fields, meta))
         data_args = tuple(zip(data_fields, data))
         kwargs = dict(meta_args + data_args)
         return data_clz(**kwargs)
 
-    jax.tree_util.register_pytree_node(
-        data_clz, iterate_clz, clz_from_iterable
-    )
+    jax.tree_util.register_pytree_node(data_clz, iterate_clz, clz_from_iterable)
 
     # Hack to make this class act as a tuple when unpacked
     data_clz.iter_elems = lambda self: iterate_clz(self)[0].__iter__()

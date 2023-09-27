@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # mypy: ignore-errors
 
 import jax
@@ -64,9 +63,7 @@ def test_consistent_with_direct(kernel_pair, data):
     gp2 = GaussianProcess(kernel2, x, diag=0.1, solver=DirectSolver)
 
     np.testing.assert_allclose(gp1.covariance, gp2.covariance)
-    np.testing.assert_allclose(
-        gp1.solver.normalization(), gp2.solver.normalization()
-    )
+    np.testing.assert_allclose(gp1.solver.normalization(), gp2.solver.normalization())
     np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
     np.testing.assert_allclose(
         gp1.sample(jax.random.PRNGKey(0)), gp2.sample(jax.random.PRNGKey(0))
@@ -82,9 +79,7 @@ def test_consistent_with_direct(kernel_pair, data):
     np.testing.assert_allclose(gp1p.log_probability, gp2p.log_probability)
     np.testing.assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
     np.testing.assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
-    np.testing.assert_allclose(
-        gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7
-    )
+    np.testing.assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7)
 
     gp1p = gp1.condition(y, kernel=kernel0)
     gp2p = gp2.condition(y, kernel=kernel0)
@@ -92,9 +87,7 @@ def test_consistent_with_direct(kernel_pair, data):
     np.testing.assert_allclose(gp1p.log_probability, gp2p.log_probability)
     np.testing.assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
     np.testing.assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
-    np.testing.assert_allclose(
-        gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7
-    )
+    np.testing.assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7)
 
     gp1p = gp1.condition(y, X_test=t, kernel=kernel0)
     gp2p = gp2.condition(y, X_test=t, kernel=kernel0)
@@ -102,9 +95,7 @@ def test_consistent_with_direct(kernel_pair, data):
     np.testing.assert_allclose(gp1p.log_probability, gp2p.log_probability)
     np.testing.assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
     np.testing.assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
-    np.testing.assert_allclose(
-        gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7
-    )
+    np.testing.assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7)
 
 
 @pytest.mark.skipif(celerite is None, reason="'celerite' must be installed")

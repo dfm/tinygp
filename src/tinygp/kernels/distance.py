@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This submodule defines a set of distance metrics that can be used when working
 with multivariate data. By default, all
