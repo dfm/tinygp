@@ -13,7 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.9", "3.10", "3.11"]
+        nox-session: ["test"]
+        include:
+          - python-version: "3.10"
+            nox-session: "doctest"
 
     steps:
       - name: Checkout
@@ -27,68 +31,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          python -m pip install -U coveralls coverage[toml] tox tox-gh-actions
+          python -m pip install nox
       - name: Run tests
-        run: python -m tox
-      - name: Combine and upload coverage
         run: |
-          python -m coverage combine
-          python -m coverage xml -i
-          python -m coveralls --service=github
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COVERALLS_PARALLEL: true
-          COVERALLS_FLAG_NAME: ${{ matrix.python-version }}
-
-  coverage:
-    needs: tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-      - name: Finish coverage collection
-        run: |
-          python -m pip install -U pip
-          python -m pip install -U coveralls
-          python -m coveralls --finish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  doctest:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-      - name: Install dependencies
-        run: |
-          python -m pip install -U pip
-          python -m pip install tox
-      - name: Lint the code
-        run: python -m tox -e doctest
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-      - name: Install dependencies
-        run: |
-          python -m pip install -U pip
-          python -m pip install tox
-      - name: Lint the code
-        run: python -m tox -e lint
+          python -m nox --non-interactive --error-on-missing-interpreter \
+            --session ${{ matrix.nox-session }} --python ${{ matrix.python-version }}
 
   build:
     runs-on: ubuntu-latest
@@ -99,27 +46,31 @@ jobs:
       - uses: actions/setup-python@v4
         name: Install Python
         with:
-          python-version: "3.9"
-      - name: Build sdist and wheel
+          python-version: "3.10"
+      - name: Install dependencies
         run: |
           python -m pip install -U pip
-          python -m pip install -U build
-          python -m build .
+          python -m pip install -U build twine
+      - name: Build the distribution
+        run: python -m build .
+      - name: Check the distribution
+        run: python -m twine check --strict dist/*
       - uses: actions/upload-artifact@v3
         with:
           path: dist/*
 
-  upload_pypi:
-    needs: [tests, lint, build]
+  publish:
+    environment:
+      name: pypi
+      url: https://pypi.org/p/tinygp
+    permissions:
+      id-token: write
+    needs: [tests, build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
-
       - uses: pypa/gh-action-pypi-publish@v1.8.10
-        with:
-          user: __token__
-          password: ${{ secrets.pypi_password }}

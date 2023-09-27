@@ -1,9 +1,46 @@
-[build-system]
-requires = ["setuptools>=40.6.0,<60.9.0", "wheel", "setuptools_scm"]
-build-backend = "setuptools.build_meta"
+[project]
+name = "tinygp"
+description = "The tiniest of Gaussian Process libraries"
+authors = [{ name = "Dan Foreman-Mackey", email = "foreman.mackey@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+dynamic = ["version"]
+dependencies = ["jax", "jaxlib"]
 
-[tool.setuptools_scm]
-write_to = "src/tinygp/tinygp_version.py"
+[project.optional-dependencies]
+test = ["pytest", "george", "celerite"]
+docs = [
+    "sphinx-book-theme",
+    "myst-nb",
+    "matplotlib",
+    "statsmodels",
+    "numpyro",
+    "arviz",
+    "flax",
+    "optax",
+    "jaxopt",
+    "ipython",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/tinygp/tinygp_version.py"
 
 [tool.black]
 target-version = ["py39"]

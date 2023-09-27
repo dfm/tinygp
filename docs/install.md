@@ -34,6 +34,6 @@ If you installed from source, you can run the unit tests. From the root of the
 source directory, run:
 
 ```bash
-python -m pip install tox
-python -m tox
+python -m pip install nox
+python -m nox -s test -p 3.10
 ```
