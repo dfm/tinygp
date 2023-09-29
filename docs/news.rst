@@ -5,6 +5,39 @@ Release Notes
 
 .. towncrier release notes start
 
+tinygp 0.2.4 (2023-09-29)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Removed `__post_init__` checks after kernel construction to avoid extraneous errors when returning kernels out of `jax.vmap`'d functions. (`#148 <https://github.com/dfm/tinygp/issues/148>`_)
+- Added Zenodo data to improve citation tracking. (`#151 <https://github.com/dfm/tinygp/issues/151>`_)
+
+
+Bugfixes
+~~~~~~~~
+
+- Fixed syntax for `vmap` of `flax` modules in `transforms` tutorial. (`#159 <https://github.com/dfm/tinygp/issues/159>`_)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Fixed incorrect definition of "spectral mixture kernel" in the custom kernels
+  tutorial. (`#143 <https://github.com/dfm/tinygp/issues/143>`_)
+- Unpinned the docs theme version to fix release compatibility with recent
+  versions of setuptools. (`#153 <https://github.com/dfm/tinygp/issues/153>`_)
+- Added past contributor metadata to `.zenodo.json`. (`#154 <https://github.com/dfm/tinygp/issues/154>`_)
+- Clarified in documentation that sigma argument is optional in quasisep kernels. (`#176 <https://github.com/dfm/tinygp/issues/176>`_)
+
+
+Misc
+~~~~
+
+- `#184 <https://github.com/dfm/tinygp/issues/184>`_
+
+
 tinygp 0.2.3 (2022-10-31)
 -------------------------
 
