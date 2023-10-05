@@ -39,6 +39,12 @@
       "affiliation": "Department of Astronomy and the DiRAC Institute, University of Washington, Seattle, WA, USA",
       "name": "Caplar, Neven"
     }
+    {
+      "orcid": "0000-0002-1169-7486",
+      "affiliation": "SRON Netherlands Institute for Space Research, Leiden, The Netherlands",
+      "name": "Huppenkothen, Daniela"
+    }
+
   ],
   "license": "MIT",
   "title": "dfm/tinygp: The tiniest of Gaussian Process libraries",
