@@ -687,7 +687,7 @@ class CARMA(Quasisep):
         # We find the roots of the autoregressive polynomial as a means to find
         # the eigendecomposition of the design matrix.
         alpha_ext = jnp.append(alpha, 1.0)
-        roots = jnp.roots(alpha_ext[::-1])
+        roots = jnp.roots(alpha_ext[::-1], strip_zeros=False)
         proj = roots[:, None] ** jnp.arange(p)[None, :]
         proj_inv = jnp.linalg.inv(proj)
 
@@ -716,7 +716,7 @@ class CARMA(Quasisep):
         # strictly real-valued.
         f = 2 * ((np.arange(2 * p) // 2) % 2) - 1
         x = f * jnp.append(alpha_ext, jnp.zeros(p - 1))
-        params = jnp.stack([np.roll(x, k)[::2] for k in range(p)], axis=0)
+        params = jnp.stack([jnp.roll(x, k)[::2] for k in range(p)], axis=0)
         params = jnp.linalg.solve(params, 0.5 * sigma**2 * jnp.eye(p, 1, k=-p + 1))[
             :, 0
         ]
