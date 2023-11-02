@@ -23,6 +23,7 @@ __all__ = [
     "Matern52",
     "Cosine",
     "CARMA",
+    "carma",
 ]
 
 from abc import ABCMeta, abstractmethod
@@ -37,6 +38,9 @@ from tinygp.helpers import JAXArray, dataclass, field
 from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
+
+jax.config.update("jax_enable_x64", True)
+eta = 1e-20  # avoid nan
 
 
 class Quasisep(Kernel, metaclass=ABCMeta):
@@ -754,6 +758,177 @@ class CARMA(Quasisep):
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         dt = X2 - X1
         return (self.proj_inv @ (jnp.exp(self.roots * dt)[:, None] * self.proj)).real
+
+
+@dataclass
+class carma(Quasisep):
+    r"""A continuous autoregressive moving average (CARMA) process
+
+    This process has the power spectrum
+
+    .. math::
+
+        P(\omega) = \sigma^2\,\frac{\sum_{q} \beta_q\,(i\,\omega)^q}{\sum_{p}
+            \alpha_p\,(i\,\omega)^p}
+
+    defined following `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_.
+
+    Unlike other kernels, this *must* be instatiated using the :func:`init`
+    method instead of the usual constructor:
+
+    .. code-block:: python
+
+        kernel = CARMA2.init(log_alpha=..., log_beta=...)
+    """
+    alpha: JAXArray
+    beta: JAXArray
+    arroots: JAXArray
+    acf: JAXArray
+    real_mask: JAXArray
+    complex_mask: JAXArray
+    complex_select: JAXArray
+    obsmodel: JAXArray
+
+    @classmethod
+    def init(cls, log_alpha: JAXArray, log_beta: JAXArray) -> "carma":
+        """Construct a CARMA kernel
+
+        Args:
+            log_alpha: The parameter :math:`\alpha` in natural log in the
+                definition above. This should be an array of length ``p``.
+            log_beta: The parameter :math:`\beta` in natural log in the
+                definition above. This should be an array of length ``q``,
+                where ``q <= p``.
+        """
+        alpha = jnp.exp(log_alpha)
+        beta = jnp.exp(log_beta)
+        p = alpha.shape[0]
+        q = beta.shape[0] - 1
+        assert q < p
+
+        # find acf
+        arroots = jnp.roots(jnp.append(alpha, 1.0)[::-1], strip_zeros=False)
+        acf = carma.carma_acf(arroots, alpha, beta)
+        real_mask = jnp.where(arroots.imag == 0, jnp.ones(p), jnp.zeros(p))
+        complex_mask = -real_mask + 1
+        complex_idx = jnp.cumsum(-real_mask + 1) * complex_mask
+        complex_select = complex_mask * complex_idx % 2
+
+        # compute obsmodel
+        om_real = jnp.sqrt(jnp.abs(acf.real))
+        a, b, c, d = (
+            2 * acf.real * complex_mask,
+            2 * acf.imag * complex_mask,
+            -arroots.real * complex_mask,
+            -arroots.imag * complex_mask,
+        )
+
+        c2 = jnp.square(c)
+        d2 = jnp.square(d)
+        s2 = c2 + d2
+        h2_2 = d2 * (a * c - b * d) / (2 * c * s2 + eta * real_mask)
+        h2 = jnp.sqrt(h2_2)
+        h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / (d + eta * real_mask)
+        om_complex = jnp.array([h1, h2])
+        obsmodel = (om_real * real_mask) + jnp.ravel(om_complex)[
+            ::2
+        ] * complex_mask
+
+        return cls(
+            alpha=alpha,
+            beta=beta,
+            arroots=arroots,
+            acf=acf,
+            real_mask=real_mask,
+            complex_mask=complex_mask,
+            complex_select=complex_select,
+            obsmodel=obsmodel,
+        )
+
+    @staticmethod
+    @jax.jit
+    def carma_acf(arroots, arparam, maparam):
+        """Get ACVF coefficients given CARMA parameters
+        The CARMA noation (index) folows that in Brockwell et al. (2001).
+        Args:
+            arroots (array(complex)): AR roots in a numpy array
+            arparam (array(float)): AR parameters in a numpy array
+            maparam (array(float)): MA parameters in a numpy array
+        Returns:
+            array(complex): ACVF coefficients, each element correspond to a root.
+        """
+        arparam = jnp.atleast_1d(arparam)
+        maparam = jnp.atleast_1d(maparam)
+        p = arparam.shape[0]
+        q = maparam.shape[0] - 1
+        sigma = maparam[0]
+
+        # MA param into Kelly's notation
+        maparam = maparam / sigma
+
+        # init acf product terms
+        num_left = jnp.zeros(p, dtype=jnp.complex128)
+        num_right = jnp.zeros(p, dtype=jnp.complex128)
+        denom = -2 * arroots.real + jnp.zeros_like(arroots) * 1j
+
+        for k in range(q + 1):
+            num_left += maparam[k] * jnp.power(arroots, k)
+            num_right += maparam[k] * jnp.power(jnp.negative(arroots), k)
+
+        root_idx = jnp.arange(p)
+        for j in range(1, p):
+            root_k = arroots[jnp.roll(root_idx, j)]
+            denom *= (root_k - arroots) * (jnp.conj(root_k) + arroots)
+
+        return sigma**2 * num_left * num_right / denom
+
+    def design_matrix(self) -> JAXArray:
+        dm_real = jnp.diag(self.arroots.real * self.real_mask)
+        dm_complex_diag = jnp.diag(self.arroots.real * self.complex_mask)
+        dm_complex_u = jnp.diag(
+            (self.arroots.imag * self.complex_select)[:-1], k=1
+        )
+        # dm_complex_l = -dm_complex_u.T
+        return dm_real + dm_complex_diag + -dm_complex_u.T + dm_complex_u
+
+    def stationary_covariance(self) -> JAXArray:
+        p = self.acf.shape[0]
+        diag = jnp.diag(
+            jnp.where(self.acf.real > 0, jnp.ones(p), -jnp.ones(p))
+        )
+        diag_complex = jnp.diag(
+            (
+                2
+                * jnp.square(-self.arroots.real)
+                / jnp.square(-self.arroots.imag + eta)
+            )
+            * jnp.roll(self.complex_select, 1)
+            * self.complex_mask
+        )
+        c_over_d = self.arroots.real / (self.arroots.imag + eta)
+        sc_complex_u = jnp.diag((-c_over_d * self.complex_select)[:-1], k=1)
+        sc_complex_l = sc_complex_u.T
+
+        return diag + diag_complex + sc_complex_u + sc_complex_u.T
+
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        return self.obsmodel
+
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        dt = X2 - X1
+        c = -self.arroots.real
+        d = -self.arroots.imag
+        decay = jnp.exp(-c * dt)
+        sin = jnp.sin(d * dt)
+
+        tm_real = jnp.diag(decay * self.real_mask)
+        tm_complex_diag = jnp.diag(decay * jnp.cos(d * dt) * self.complex_mask)
+        tm_complex_u = jnp.diag(
+            (decay * sin * self.complex_select)[:-1],
+            k=1,
+        )
+        # tm_complex_l = -tm_complex_u.T
+        return tm_real + tm_complex_diag + -tm_complex_u.T + tm_complex_u
 
 
 def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:

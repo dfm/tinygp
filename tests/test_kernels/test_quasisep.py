@@ -4,6 +4,7 @@ import jax.scipy as jsp
 import numpy as np
 import pytest
 
+from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
 
 
@@ -37,7 +38,25 @@ def data(random):
         1.5 * quasisep.Matern52(1.5) * quasisep.Celerite(1.1, 0.8, 0.9, 0.1),
         quasisep.Cosine(sigma=1.8, scale=1.5),
         1.8 * quasisep.Cosine(1.5),
-        quasisep.CARMA.init(alpha=np.array([1.4, 2.3, 1.5]), beta=np.array([0.1, 0.5])),
+        quasisep.CARMA.init(
+            alpha=np.array([1.4, 2.3, 1.5]), beta=np.array([0.1, 0.5])
+        ),
+        quasisep.CARMA.init(
+            alpha=np.array([1, 1.2]), beta=np.array([1.0, 3.0])
+        ),
+        quasisep.CARMA.init(
+            alpha=np.array([0.1, 1.1]), beta=np.array([1.0, 3.0])
+        ),
+        quasisep.CARMA.init(alpha=np.array([1.0 / 100]), beta=np.array([0.3])),
+        quasisep.carma.init(
+            log_alpha=np.log([1, 1.2]), log_beta=np.log([1.0, 3.0])
+        ),
+        quasisep.carma.init(
+            log_alpha=np.log([0.1, 1.1]), log_beta=np.log([1.0, 3.0])
+        ),
+        quasisep.carma.init(
+            log_alpha=np.log([1.0 / 100]), log_beta=np.log([0.3])
+        ),
     ]
 )
 def kernel(request):
@@ -75,3 +94,63 @@ def test_celerite(data):
     tau = np.abs(x[:, None] - t[None, :])
     expect = np.exp(-c * tau) * (a * np.cos(d * tau) + b * np.sin(d * tau))
     np.testing.assert_allclose(calc, expect)
+
+
+def test_carma1(data):
+    x, y, t = data
+    carma_kernels = [
+        quasisep.CARMA.init(
+            alpha=np.array([1, 1.2]), beta=np.array([1.0, 3.0])
+        ),
+        quasisep.CARMA.init(
+            alpha=np.array([0.1, 1.1]), beta=np.array([1.0, 3.0])
+        ),
+        quasisep.CARMA.init(alpha=np.array([1.0 / 100]), beta=np.array([0.1])),
+    ]
+    test_kernels = [
+        quasisep.Exp(scale=100.0, sigma=np.sqrt(0.5)),
+        quasisep.Celerite(25.0 / 6, 2.5, 0.6, -0.8),
+        quasisep.Exp(1.0, np.sqrt(4.04040404))
+        + quasisep.Exp(10.0, np.sqrt(4.5959596)),
+    ]
+
+    for i, kernel in enumerate(carma_kernels):
+        gp1 = GaussianProcess(carma_kernels[i], x, diag=0.1)
+        gp2 = GaussianProcess(test_kernels[i], x, diag=0.1)
+
+        np.testing.assert_allclose(
+            gp1.log_probability(y), gp2.log_probability(y)
+        )
+        np.testing.assert_allclose(
+            gp1.solver.normalization(), gp2.solver.normalization()
+        )
+
+
+def test_carma2(data):
+    x, y, t = data
+    carma2_kernels = [
+        quasisep.carma.init(log_alpha=np.log([0.01]), log_beta=np.log([0.1])),
+        quasisep.carma.init(
+            log_alpha=np.log([1.0, 1.2]), log_beta=np.log([1.0, 3.0])
+        ),
+        quasisep.carma.init(
+            log_alpha=np.log([0.1, 1.1]), log_beta=np.log([1.0, 3.0])
+        ),
+    ]
+    test_kernels = [
+        quasisep.Exp(scale=100.0, sigma=np.sqrt(0.5)),
+        quasisep.Celerite(25.0 / 6, 2.5, 0.6, -0.8),
+        quasisep.Exp(1.0, np.sqrt(4.04040404))
+        + quasisep.Exp(10.0, np.sqrt(4.5959596)),
+    ]
+
+    for i in range(len(carma2_kernels)):
+        gp1 = GaussianProcess(carma2_kernels[i], x, diag=0.1)
+        gp2 = GaussianProcess(test_kernels[i], x, diag=0.1)
+
+        np.testing.assert_allclose(
+            gp1.log_probability(y), gp2.log_probability(y)
+        )
+        np.testing.assert_allclose(
+            gp1.solver.normalization(), gp2.solver.normalization()
+        )
