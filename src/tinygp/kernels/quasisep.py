@@ -657,128 +657,11 @@ class CARMA(Quasisep):
 
     .. code-block:: python
 
-        kernel = CARMA.init(alpha=..., beta=..., sigma=...)
-    """
-    alpha: JAXArray
-    beta: JAXArray
-    sigma: JAXArray
-    roots: JAXArray
-    proj: JAXArray
-    proj_inv: JAXArray
-    stn: JAXArray
-
-    @classmethod
-    def init(
-        cls, alpha: JAXArray, beta: JAXArray, sigma: JAXArray | None = None
-    ) -> CARMA:
-        r"""Construct a CARMA kernel
-
-        Args:
-            alpha: The parameter :math:`\alpha` in the definition above. This
-                should be an array of length ``p``.
-            beta: The parameter :math:`\beta` in the definition above. This
-                should be an array of length ``q``, where ``q <= p``.
-            sigma: The parameter :math:`\sigma` in the definition above.
-        """
-        sigma = jnp.ones(()) if sigma is None else sigma
-        alpha = jnp.atleast_1d(alpha)
-        beta = jnp.atleast_1d(beta)
-        assert alpha.ndim == 1
-        assert beta.ndim == 1
-        p = alpha.shape[0]
-        assert beta.shape[0] <= p
-
-        # We find the roots of the autoregressive polynomial as a means to find
-        # the eigendecomposition of the design matrix.
-        alpha_ext = jnp.append(alpha, 1.0)
-        roots = jnp.roots(alpha_ext[::-1], strip_zeros=False)
-        proj = roots[:, None] ** jnp.arange(p)[None, :]
-        proj_inv = jnp.linalg.inv(proj)
-
-        # Compute the stationary covariance - there is almost certainly a more
-        # elegant way, but this works! I worked this out kind of by trial and
-        # error using sympy. There is a lot of known structure in the P_inf
-        # matrix that can be exploited to "simplify" this calculation.
-        # Specifically, there are only `p` degrees of freedom, and P_inf has the
-        # following structure:
-        #
-        #   P_inf = [
-        #     [ p0   0   -p1   0    p2 ]
-        #     [ 0    p1   0   -p2   0  ]
-        #     [-p1   0    p2   0   -p3 ]
-        #     [ 0   -p2   0    p3   0  ]
-        #     [ p2   0   -p3   0    p4 ]
-        #   ]
-        #
-        # Using this structure, we get can solve the usual:
-        #
-        #  A @ P + P @ A.T + L @ L.T = 0
-        #
-        # for `P`, and we get something like the following. Kelly et al. (2104)
-        # also have an expression for this (their V_{ij}), but I prefer to use
-        # this since it is probably roughly just as fast to compute, and it is
-        # strictly real-valued.
-        f = 2 * ((np.arange(2 * p) // 2) % 2) - 1
-        x = f * jnp.append(alpha_ext, jnp.zeros(p - 1))
-        params = jnp.stack([jnp.roll(x, k)[::2] for k in range(p)], axis=0)
-        params = jnp.linalg.solve(params, 0.5 * sigma**2 * jnp.eye(p, 1, k=-p + 1))[
-            :, 0
-        ]
-        stn_ = []
-        for j in range(p):
-            stn_.append([jnp.zeros(()) for _ in range(p)])
-            for n, k in enumerate(range(j - 2, -1, -2)):
-                stn_[-1][k] = (2 * (n % 2) - 1) * params[j - n - 1]
-            for n, k in enumerate(range(j, p, 2)):
-                stn_[-1][k] = (1 - 2 * (n % 2)) * params[n + j]
-        stn = jnp.array(list(map(jnp.stack, stn_)))
-
-        return cls(
-            sigma=sigma,
-            alpha=alpha,
-            beta=beta,
-            roots=roots,
-            proj=proj,
-            proj_inv=proj_inv,
-            stn=stn,
-        )
-
-    def design_matrix(self) -> JAXArray:
-        p = self.alpha.shape[0]
-        return jnp.concatenate((jnp.eye(p - 1, p, k=1), -self.alpha[None]))
-
-    def stationary_covariance(self) -> JAXArray:
-        return self.stn
-
-    def observation_model(self, X: JAXArray) -> JAXArray:
-        return jnp.append(
-            self.beta, jnp.zeros(self.alpha.shape[0] - self.beta.shape[0])
-        )
-
-    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        dt = X2 - X1
-        return (self.proj_inv @ (jnp.exp(self.roots * dt)[:, None] * self.proj)).real
-
-
-@dataclass
-class carma(Quasisep):
-    r"""A continuous autoregressive moving average (CARMA) process
-
-    This process has the power spectrum
-
-    .. math::
-
-        P(\omega) = \sigma^2\,\frac{\sum_{q} \beta_q\,(i\,\omega)^q}{\sum_{p}
-            \alpha_p\,(i\,\omega)^p}
-
-    defined following `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_.
-
-    Unlike other kernels, this *must* be instatiated using the :func:`init`
-    method instead of the usual constructor:
-
-    .. code-block:: python
-
         kernel = CARMA.init(alpha=..., beta=...)
+
+    .. note::
+        To fit a CARMA model with p > 2, the :func:`from_fpoly` method needs to
+        be used to construct a valid model.
     """
     alpha: JAXArray
     beta: JAXArray
@@ -812,8 +695,8 @@ class carma(Quasisep):
         assert beta.shape[0] <= p
 
         # find acf
-        arroots = carma.roots(jnp.append(alpha, 1.0))
-        acf = carma.carma_acf(arroots, alpha, beta * sigma)
+        arroots = CARMA.roots(jnp.append(alpha, 1.0))
+        acf = CARMA.carma_acf(arroots, alpha, beta * sigma)
         # masks for selecting entries in matrixes
         real_mask = jnp.where(arroots.imag == 0.0, jnp.ones(p), jnp.zeros(p))
         complex_mask = -real_mask + 1
@@ -857,9 +740,9 @@ class carma(Quasisep):
     ) -> "CARMA":
         """Construct a CARMA kernel using the roots of the characteristic polynomials
 
-        The roots can be re-parameterized as the coefficients of a product 
-        of qudractic equations each with the second-order term set to 1. The 
-        input for this constructor are said coefficients. See Equation 30 in 
+        The roots can be re-parameterized as the coefficients of a product
+        of qudractic equations each with the second-order term set to 1. The
+        input for this constructor are said coefficients. See Equation 30 in
         the paper linked above for a reference.
 
 
@@ -868,17 +751,19 @@ class carma(Quasisep):
                 equations corresponding to the alpha parameters.
             beta_fpoly: The coefficients of the moving-average quadratic
                 equations corresponding to the beta parameters.
-            beta_mult: Equivalent to beta[-1] use in the init constructor.
+            beta_mult: Equivalent to beta[-1] used in the init constructor.
         """
 
         alpha_fpoly = jnp.atleast_1d(alpha_fpoly)
         beta_fpoly = jnp.atleast_1d(beta_fpoly)
         beta_mult = jnp.atleast_1d(beta_mult)
 
-        alpha = carma.fpoly2poly(jnp.append(alpha_fpoly, jnp.array([1.])))[:-1]
-        beta = carma.fpoly2poly(jnp.append(beta_fpoly, beta_mult))
+        alpha = CARMA.fpoly2poly(jnp.append(alpha_fpoly, jnp.array([1.0])))[
+            :-1
+        ]
+        beta = CARMA.fpoly2poly(jnp.append(beta_fpoly, beta_mult))
 
-        return carma.init(alpha, beta)
+        return CARMA.init(alpha, beta)
 
     @staticmethod
     @jax.jit
@@ -894,7 +779,9 @@ class carma(Quasisep):
         size = fpoly_coeffs.shape[0] - 1
         remain = size % 2
         nPair = size // 2
-        mult_f = fpoly_coeffs[-1:]  # The coeff of highest order term in the output
+        mult_f = fpoly_coeffs[
+            -1:
+        ]  # The coeff of highest order term in the output
 
         poly = jax.lax.cond(
             remain == 1,
@@ -902,7 +789,7 @@ class carma(Quasisep):
             lambda x: jnp.array([0.0, 1.0]),
             fpoly_coeffs[-2],
         )
-        poly = poly[-remain+1:]
+        poly = poly[-remain + 1 :]
 
         for p in jnp.arange(nPair):
             poly = jnp.convolve(
@@ -922,7 +809,7 @@ class carma(Quasisep):
 
         fpoly = jnp.empty((0))
         mult_f = poly_coeffs[-1]
-        roots = carma.roots(poly_coeffs / mult_f)
+        roots = CARMA.roots(poly_coeffs / mult_f)
         odd = bool(len(roots) & 0x1)
 
         rootsComp = roots[roots.imag != 0]
@@ -1029,6 +916,7 @@ class carma(Quasisep):
         )
 
         return tm_real + tm_complex_diag + -tm_complex_u.T + tm_complex_u
+
 
 def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
     i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
