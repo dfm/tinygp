@@ -676,7 +676,7 @@ class CARMA(Quasisep):
         cls,
         alpha: JAXArray,
         beta: JAXArray,
-        eta: Optional[JAXArray] = 1e-30,
+        eta: JAXArray | None = 1e-30,
     ) -> "CARMA":
         r"""Construct a CARMA kernel using the alpha, beta parameters
 
@@ -819,7 +819,7 @@ class CARMA(Quasisep):
         return poly[::-1] * mult_f
 
     @staticmethod
-    def poly2quads(poly_coeffs: JAXArray) -> Tuple[JAXArray, JAXArray]:
+    def poly2quads(poly_coeffs: JAXArray) -> tuple[JAXArray, JAXArray]:
         """Factorize a polynomial into the product of quadratic equations
 
         Args:
