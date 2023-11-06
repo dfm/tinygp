@@ -677,7 +677,7 @@ class CARMA(Quasisep):
         alpha: JAXArray,
         beta: JAXArray,
         eta: JAXArray | None = 1e-30,
-    ) -> "CARMA":
+    ) -> CARMA:
         r"""Construct a CARMA kernel using the alpha, beta parameters
 
         Args:
@@ -724,9 +724,7 @@ class CARMA(Quasisep):
         h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / (d + eta * real_mask)
         om_complex = jnp.array([h1, h2])
 
-        obsmodel = (om_real * real_mask) + jnp.ravel(om_complex)[
-            ::2
-        ] * complex_mask
+        obsmodel = (om_real * real_mask) + jnp.ravel(om_complex)[::2] * complex_mask
 
         ## return class
         return cls(
@@ -745,7 +743,7 @@ class CARMA(Quasisep):
     @classmethod
     def from_quads(
         cls, alpha_quads: JAXArray, beta_quads: JAXArray, beta_mult: JAXArray
-    ) -> "CARMA":
+    ) -> CARMA:
         """Construct a CARMA kernel using the roots of the characteristic polynomials
 
         The roots can be re-parameterized as the coefficients of a product
@@ -764,9 +762,7 @@ class CARMA(Quasisep):
         beta_quads = jnp.atleast_1d(beta_quads)
         beta_mult = jnp.atleast_1d(beta_mult)
 
-        alpha = CARMA.quads2poly(jnp.append(alpha_quads, jnp.array([1.0])))[
-            :-1
-        ]
+        alpha = CARMA.quads2poly(jnp.append(alpha_quads, jnp.array([1.0])))[:-1]
         beta = CARMA.quads2poly(jnp.append(beta_quads, beta_mult))
 
         return CARMA.init(alpha, beta)
@@ -794,9 +790,7 @@ class CARMA(Quasisep):
         size = quads_coeffs.shape[0] - 1
         remain = size % 2
         nPair = size // 2
-        mult_f = quads_coeffs[
-            -1:
-        ]  # The coeff of highest order term in the output
+        mult_f = quads_coeffs[-1:]  # The coeff of highest order term in the output
 
         poly = jax.lax.cond(
             remain == 1,
@@ -831,7 +825,7 @@ class CARMA(Quasisep):
                 equations. The last entry should a scaling factor, which corresponds to the coefficient of the highest order term in the full polynomial.
         """
 
-        quads = jnp.empty((0))
+        quads = jnp.empty(0)
         mult_f = poly_coeffs[-1]
         roots = CARMA.roots(poly_coeffs / mult_f)
         odd = bool(len(roots) & 0x1)
@@ -859,9 +853,7 @@ class CARMA(Quasisep):
         return jnp.append(quads, jnp.array(mult_f))
 
     @staticmethod
-    def carma_acvf(
-        arroots: JAXArray, arparam: JAXArray, maparam: JAXArray
-    ) -> JAXArray:
+    def carma_acvf(arroots: JAXArray, arparam: JAXArray, maparam: JAXArray) -> JAXArray:
         """Compute the coefficient of each term in the autocovariance function (ACVF) given CARMA parameters
 
          Args:
@@ -906,9 +898,7 @@ class CARMA(Quasisep):
         ## for complex exponential components
         dm_complex_diag = jnp.diag(self.arroots.real * self.complex_mask)
         # upper triangle entries
-        dm_complex_u = jnp.diag(
-            (self.arroots.imag * self.complex_select)[:-1], k=1
-        )
+        dm_complex_u = jnp.diag((self.arroots.imag * self.complex_select)[:-1], k=1)
 
         return dm_real + dm_complex_diag + -dm_complex_u.T + dm_complex_u
 
@@ -916,20 +906,18 @@ class CARMA(Quasisep):
         p = self.acf.shape[0]
 
         ## for real exponential components
-        diag = jnp.diag(
-            jnp.where(self.acf.real > 0, jnp.ones(p), -jnp.ones(p))
-        )
+        diag = jnp.diag(jnp.where(self.acf.real > 0, jnp.ones(p), -jnp.ones(p)))
 
         ## for complex exponential components
         diag_complex = jnp.diag(
             2
             * jnp.square(
-                (
+
                     self.arroots.real
                     / (self.arroots.imag + self._eta)
                     * jnp.roll(self.complex_select, 1)
                     * self.complex_mask
-                )
+
             )
         )
         c_over_d = self.arroots.real / (self.arroots.imag + self._eta)

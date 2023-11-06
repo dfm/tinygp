@@ -97,8 +97,7 @@ def test_carma(data):
     validate_kernels = [
         quasisep.Exp(scale=100.0, sigma=np.sqrt(0.5)),
         quasisep.Celerite(25.0 / 6, 2.5, 0.6, -0.8),
-        quasisep.Exp(1.0, np.sqrt(4.04040404))
-        + quasisep.Exp(10.0, np.sqrt(4.5959596)),
+        quasisep.Exp(1.0, np.sqrt(4.04040404)) + quasisep.Exp(10.0, np.sqrt(4.5959596)),
     ]
 
     # Compare log_probability & normalization
@@ -106,9 +105,7 @@ def test_carma(data):
         gp1 = GaussianProcess(carma2_kernels[i], x, diag=0.1)
         gp2 = GaussianProcess(validate_kernels[i], x, diag=0.1)
 
-        np.testing.assert_allclose(
-            gp1.log_probability(y), gp2.log_probability(y)
-        )
+        np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
         np.testing.assert_allclose(
             gp1.solver.normalization(), gp2.solver.normalization()
         )
@@ -118,9 +115,7 @@ def test_carma_jit(data):
     x, y, t = data
 
     def build_gp(params):
-        carma_kernel = quasisep.CARMA.init(
-            alpha=params["alpha"], beta=params["beta"]
-        )
+        carma_kernel = quasisep.CARMA.init(alpha=params["alpha"], beta=params["beta"])
         return GaussianProcess(carma_kernel, x, diag=0.01, mean=0.0)
 
     @jax.jit
