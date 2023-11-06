@@ -22,8 +22,7 @@ __all__ = [
     "Matern32",
     "Matern52",
     "Cosine",
-    "CARMA",
-    "carma",
+    "CARMA"
 ]
 
 from abc import ABCMeta, abstractmethod
@@ -647,7 +646,8 @@ class CARMA(Quasisep):
         P(\omega) = \sigma^2\,\frac{\sum_{q} \beta_q\,(i\,\omega)^q}{\sum_{p}
             \alpha_p\,(i\,\omega)^p}
 
-    defined following Equation 1 in `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_, in which `\beta_0` is fixed at 1.
+    defined following Equation 1 in `Kelly et al. (2014)
+     <https://arxiv.org/abs/1402.5978>`_, in which `\beta_0` is fixed at 1.
 
     Unlike other kernels, this *must* be instantiated using the :func:`init`
     method instead of the usual constructor:
@@ -657,9 +657,9 @@ class CARMA(Quasisep):
         kernel = CARMA.init(alpha=..., beta=...)
 
     .. note::
-        To construct a stationary CARMA model/process, the roots of the characteristic polynomial on both sides of the SDE must have negative real parts.
+        To construct a stationary CARMA model/process, the roots of the characteristic 
+        polynomial on both sides of the SDE must have negative real parts.
     """
-
     alpha: JAXArray
     beta: JAXArray
     sigma: JAXArray
@@ -683,12 +683,13 @@ class CARMA(Quasisep):
         Args:
             alpha: The parameter :math:`\alpha` in the definition above. This
                 should be an array of length ``p``.
-            beta: The product of :math:`\beta` and :math:`\sigma` in the
-                definition above. Given that by definition `\beta_0 = 1`, beta[0] = `\sigma`. This should be an array of length ``q+1``, where ``q+1 <= p``.
+            beta: The product of :math:`\beta` and :math:`\sigma` in the definition 
+                above. Given that by definition `\beta_0 = 1`, beta[0] = `\sigma`. 
+                This should be an array of length ``q+1``, where ``q+1 <= p``.
             eta: A tiny number to avoid division by zero error when computing
-                non-essential components. Defaults to 1e-30. Only update this if the internal numerical precision < float16.
+                non-essential components. Defaults to 1e-30. Only update this 
+                if the internal numerical precision < float16.
         """
-
         sigma = jnp.ones(())
         alpha = jnp.atleast_1d(alpha)
         beta = jnp.atleast_1d(beta)
@@ -748,7 +749,8 @@ class CARMA(Quasisep):
 
         The roots can be re-parameterized as the coefficients of a product
         of quadratic equations each with the second-order term set to 1. The
-        input for this constructor are said coefficients (without the 1s). See Equation 30 in `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_.
+        input for this constructor are said coefficients (without the 1s). 
+        See Equation 30 in `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_.
 
         Args:
             alpha_quads: Coefficients of the auto-regressive (AR) quadratic
@@ -780,7 +782,9 @@ class CARMA(Quasisep):
 
         Args:
             quads_coeffs: The 0th and 1st order coefficients of the quadractic
-                equations. The last entry should a scaling factor, which corresponds to the coefficient of the highest order term in the output full polynomial.
+                equations. The last entry should a scaling factor, which corresponds 
+                to the coefficient of the highest order term in the output full 
+                polynomial.
 
         Returns:
             poly_coeffs: Coefficients of the full polynomial. The first entry
@@ -822,7 +826,8 @@ class CARMA(Quasisep):
 
         Returns:
             quads_coeffs: The 0th and 1st order coefficients of the quadractic
-                equations. The last entry should a scaling factor, which corresponds to the coefficient of the highest order term in the full polynomial.
+                equations. The last entry should a scaling factor, which corresponds 
+                to the coefficient of the highest order term in the full polynomial.
         """
 
         quads = jnp.empty(0)
@@ -854,9 +859,10 @@ class CARMA(Quasisep):
 
     @staticmethod
     def carma_acvf(arroots: JAXArray, arparam: JAXArray, maparam: JAXArray) -> JAXArray:
-        """Compute the coefficient of each term in the autocovariance function (ACVF) given CARMA parameters
+        """Compute the coefficient of each term in the autocovariance function (ACVF) 
+        given CARMA parameters
 
-         Args:
+        Args:
              arroots (array(complex)): The roots of the autoregressive
                  polynomial.
              arparam (array(float)): :math:`\alpha` parameters
