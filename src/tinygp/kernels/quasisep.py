@@ -22,7 +22,7 @@ __all__ = [
     "Matern32",
     "Matern52",
     "Cosine",
-    "CARMA"
+    "CARMA",
 ]
 
 from abc import ABCMeta, abstractmethod
@@ -646,11 +646,11 @@ class CARMA(Quasisep):
         P(\omega) = \sigma^2\,\frac{|\sum_{q} \beta_q\,(i\,\omega)^q|^2}{|\sum_{p}
             \alpha_p\,(i\,\omega)^p|^2}
 
-    defined following Equation 1 in `Kelly et al. (2014) 
-    <https://arxiv.org/abs/1402.5978>`_, where :math:`\alpha_p` and :math:`\beta_0` 
-    are set to 1. In the current implementation, we absorb :math:`\sigma` into the 
-    definition of :math:`\beta` parameters. That is :math:`\beta_new` = 
-    :math:`\beta_old * \sigma` 
+    defined following Equation 1 in `Kelly et al. (2014)
+    <https://arxiv.org/abs/1402.5978>`_, where :math:`\alpha_p` and :math:`\beta_0`
+    are set to 1. In the current implementation, we absorb :math:`\sigma` into the
+    definition of :math:`\beta` parameters. That is :math:`\beta_new` =
+    :math:`\beta_old * \sigma`
 
     Unlike other kernels, this *must* be instantiated using the :func:`init`
     method instead of the usual constructor:
@@ -660,8 +660,8 @@ class CARMA(Quasisep):
         kernel = CARMA.init(alpha=..., beta=...)
 
     .. note::
-        To construct a stationary CARMA kernel/process, the roots of the characteristic 
-        polynomials for Equation 1 in `Kelly et al. (2014)` must have negative real 
+        To construct a stationary CARMA kernel/process, the roots of the characteristic
+        polynomials for Equation 1 in `Kelly et al. (2014)` must have negative real
         parts.
     """
     alpha: JAXArray
@@ -685,13 +685,13 @@ class CARMA(Quasisep):
         r"""Construct a CARMA kernel using the alpha, (new) beta parameters
 
         Args:
-            alpha: The parameter :math:`\alpha` in the definition above, exlcuding 
-                :math:`alpha_p`. This should be an array of length `p`. 
-            beta: The product of parameters :math:`\beta` and parameter :math:`\sigma` 
-                in the definition above. This should be an array of length `q+1`, 
+            alpha: The parameter :math:`\alpha` in the definition above, exlcuding
+                :math:`alpha_p`. This should be an array of length `p`.
+            beta: The product of parameters :math:`\beta` and parameter :math:`\sigma`
+                in the definition above. This should be an array of length `q+1`,
                 where `q+1 <= p`.
-            eta (optional): A tiny number to avoid division by zero error when 
-                computing non-essential intermediate results. Defaults to 1e-30. 
+            eta (optional): A tiny number to avoid division by zero error when
+                computing non-essential intermediate results. Defaults to 1e-30.
                 Only update this if the internal numerical precision < float16.
         """
         sigma = jnp.ones(())
@@ -702,7 +702,7 @@ class CARMA(Quasisep):
         p = alpha.shape[0]
         assert beta.shape[0] <= p
 
-        ## find acvf <= Eqn. 4 in Kelly+14; 
+        ## find acvf <= Eqn. 4 in Kelly+14;
         ## acvf gives the correct combination of real/complex exponential kernels
         arroots = CARMA.roots(jnp.append(alpha, 1.0))
         acf = CARMA.carma_acvf(arroots, alpha, beta * sigma)
@@ -752,11 +752,11 @@ class CARMA(Quasisep):
     ) -> CARMA:
         """Construct a CARMA kernel using the roots of its characteristic polynomials
 
-        The roots can be parameterized as the 0th and 1st order coefficients of a set 
-        of quadratic equations (2nd order coefficient equals 1). The product of 
-        those quadratic equations gives the characteristic polynomials of CARMA. 
-        The input of this instructor are said coefficients of the quadratic equations. 
-        See Equation 30 in `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_. 
+        The roots can be parameterized as the 0th and 1st order coefficients of a set
+        of quadratic equations (2nd order coefficient equals 1). The product of
+        those quadratic equations gives the characteristic polynomials of CARMA.
+        The input of this instructor are said coefficients of the quadratic equations.
+        See Equation 30 in `Kelly et al. (2014) <https://arxiv.org/abs/1402.5978>`_.
         for more detail.
 
         Args:
@@ -789,8 +789,8 @@ class CARMA(Quasisep):
 
         Args:
             quads_coeffs: The 0th and 1st order coefficients of the quadractic
-                equations. The last entry is a scaling factor, which corresponds 
-                to the coefficient of the highest order term in the output full 
+                equations. The last entry is a scaling factor, which corresponds
+                to the coefficient of the highest order term in the output full
                 polynomial.
 
         Returns:
@@ -833,7 +833,7 @@ class CARMA(Quasisep):
 
         Returns:
             quads_coeffs: The 0th and 1st order coefficients of the quadractic
-                equations. The last entry is a scaling factor, which corresponds 
+                equations. The last entry is a scaling factor, which corresponds
                 to the coefficient of the highest order term in the full polynomial.
         """
 
@@ -922,12 +922,10 @@ class CARMA(Quasisep):
         diag_complex = jnp.diag(
             2
             * jnp.square(
-
-                    self.arroots.real
-                    / (self.arroots.imag + self._eta)
-                    * jnp.roll(self.complex_select, 1)
-                    * self.complex_mask
-
+                self.arroots.real
+                / (self.arroots.imag + self._eta)
+                * jnp.roll(self.complex_select, 1)
+                * self.complex_mask
             )
         )
         c_over_d = self.arroots.real / (self.arroots.imag + self._eta)
