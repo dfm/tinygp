@@ -648,9 +648,9 @@ class CARMA(Quasisep):
 
     defined following Equation 1 in `Kelly et al. (2014)
     <https://arxiv.org/abs/1402.5978>`_, where :math:`\alpha_p` and :math:`\beta_0`
-    are set to 1. In the current implementation, we absorb :math:`\sigma` into the
-    definition of :math:`\beta` parameters. That is :math:`\beta_new` =
-    :math:`\beta_old * \sigma`
+    are set to 1. In this implementation, we absorb :math:`\sigma` into the
+    definition of :math:`\beta` parameters. That is :math:`\beta_{new}` =
+    :math:`\beta * \sigma`.
 
     Unlike other kernels, this *must* be instantiated using the :func:`init`
     method instead of the usual constructor:
@@ -686,7 +686,7 @@ class CARMA(Quasisep):
 
         Args:
             alpha: The parameter :math:`\alpha` in the definition above, exlcuding
-                :math:`alpha_p`. This should be an array of length `p`.
+                :math:`\alpha_p`. This should be an array of length `p`.
             beta: The product of parameters :math:`\beta` and parameter :math:`\sigma`
                 in the definition above. This should be an array of length `q+1`,
                 where `q+1 <= p`.
@@ -750,7 +750,7 @@ class CARMA(Quasisep):
     def from_quads(
         cls, alpha_quads: JAXArray, beta_quads: JAXArray, beta_mult: JAXArray
     ) -> CARMA:
-        """Construct a CARMA kernel using the roots of its characteristic polynomials
+        r"""Construct a CARMA kernel using the roots of its characteristic polynomials
 
         The roots can be parameterized as the 0th and 1st order coefficients of a set
         of quadratic equations (2nd order coefficient equals 1). The product of
@@ -764,7 +764,8 @@ class CARMA(Quasisep):
                 equations corresponding to the :math:`\alpha` parameters.
             beta_quads: Coefficients of the moving-average (MA) quadratic
                 equations corresponding to the :math:`\beta` parameters.
-            beta_mult: Equivalent to beta[-1] used in the `init` constructor.
+            beta_mult: Equivalent to :math:`\beta_q`, the last entry of the 
+                :math:`\beta` parameters input to the `init` constructor.
         """
 
         alpha_quads = jnp.atleast_1d(alpha_quads)
@@ -866,7 +867,7 @@ class CARMA(Quasisep):
 
     @staticmethod
     def carma_acvf(arroots: JAXArray, arparam: JAXArray, maparam: JAXArray) -> JAXArray:
-        """Compute the coefficients of the autocovariance function (ACVF)
+        r"""Compute the coefficients of the autocovariance function (ACVF)
 
         Args:
              arroots: The roots of the autoregressive polynomial.
