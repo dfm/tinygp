@@ -42,7 +42,6 @@ def data(random):
         quasisep.Cosine(sigma=1.8, scale=1.5),
         1.8 * quasisep.Cosine(1.5),
         quasisep.CARMA.init(alpha=[1.4, 2.3, 1.5], beta=[0.1, 0.5]),
-        quasisep.CARMA.init(alpha=[1.4, 2.3, 1.5], beta=[0.1, 0.5]),
         quasisep.CARMA.init(alpha=[1, 1.2], beta=[1.0, 3.0]),
         quasisep.CARMA.init(alpha=[0.1, 1.1], beta=[1.0, 3.0]),
         quasisep.CARMA.init(alpha=[1.0 / 100], beta=[0.3]),
