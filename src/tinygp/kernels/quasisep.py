@@ -662,40 +662,40 @@ class CARMA(Quasisep):
     .. note::
         To construct a stationary CARMA kernel/process, the roots of the characteristic
         polynomials for Equation 1 in `Kelly et al. (2014)` must have negative real
-        parts. This condition can be met automatically by requiring positive input 
-        parameters when instantiating the kernel using the :func:`init` method for 
-        CARMA(1,0), CARMA(2,0), and CARMA(2,1) models or by requiring positive input 
+        parts. This condition can be met automatically by requiring positive input
+        parameters when instantiating the kernel using the :func:`init` method for
+        CARMA(1,0), CARMA(2,0), and CARMA(2,1) models or by requiring positive input
         parameters when instantiating the kernel using the :func:`from_quads` method.
     """
-    # ------------------------------ IMPLEMENTATION NOTES ----------------------------- 
-    # The logic behind this implementation is simple---finding the correct combination 
-    # of real/complex exponential kernels that resembles the autocovariance function 
-    # of the CARMA model. Note that the order also matters. This task is achieved using 
+    # ------------------------------ IMPLEMENTATION NOTES -----------------------------
+    # The logic behind this implementation is simple---finding the correct combination
+    # of real/complex exponential kernels that resembles the autocovariance function
+    # of the CARMA model. Note that the order also matters. This task is achieved using
     # the `acvf` method. Then the rest is coppied from the `Exp` and `Celerite` kernel.
     #
-    # Given the requirement of negative roots for stationarity, the `from_quads` method 
-    # is implemented to facilitate consturcting stationary higher-order CARMA models  
-    # beyond CARMA(2,1). The inputs for `from_quads` are the coefficients of the 
-    # quadratic equations factorized out of the full characteristic polynomial. 
-    # `poly2quads` is used to factorize a polynomial into a product of said quadractic 
+    # Given the requirement of negative roots for stationarity, the `from_quads` method
+    # is implemented to facilitate consturcting stationary higher-order CARMA models
+    # beyond CARMA(2,1). The inputs for `from_quads` are the coefficients of the
+    # quadratic equations factorized out of the full characteristic polynomial.
+    # `poly2quads` is used to factorize a polynomial into a product of said quadractic
     # equations, and `quads2poly` is used for the reverse process.
     #
-    # One last trick is the use of `_real_mask`, `_complex_mask`, and `complex_select`, 
-    # which are arrays of 0s and 1s. They are implemented to avoid control flows. More 
-    # specifically, some intermediate quantities are computed regardless, but are only 
-    # used if there is a matching real or complex exponential kernel for the specific 
+    # One last trick is the use of `_real_mask`, `_complex_mask`, and `complex_select`,
+    # which are arrays of 0s and 1s. They are implemented to avoid control flows. More
+    # specifically, some intermediate quantities are computed regardless, but are only
+    # used if there is a matching real or complex exponential kernel for the specific
     # CARMA kernel.
-    # ------------------------------ IMPLEMENTATION NOTES -----------------------------  
-    
+    # ------------------------------ IMPLEMENTATION NOTES -----------------------------
+
     alpha: JAXArray
     beta: JAXArray
     sigma: JAXArray
     arroots: JAXArray
-    acf: JAXArray    
+    acf: JAXArray
     _real_mask: JAXArray
     _complex_mask: JAXArray
     _complex_select: JAXArray
-    obsmodel: JAXArray    
+    obsmodel: JAXArray
     _eta: JAXArray
 
     @classmethod
@@ -784,13 +784,13 @@ class CARMA(Quasisep):
 
         Args:
             alpha_quads: Coefficients of the auto-regressive (AR) quadratic
-                equations corresponding to the :math:`\alpha` parameters. This should 
+                equations corresponding to the :math:`\alpha` parameters. This should
                 be an array of length `p`.
             beta_quads: Coefficients of the moving-average (MA) quadratic
-                equations corresponding to the :math:`\beta` parameters. This should 
+                equations corresponding to the :math:`\beta` parameters. This should
                 be an array of length `q`.
-            beta_mult: A multiplier of the MA coefficients, equivalent to 
-                :math:`\beta_q`---the last entry of the :math:`\beta` parameters input 
+            beta_mult: A multiplier of the MA coefficients, equivalent to
+                :math:`\beta_q`---the last entry of the :math:`\beta` parameters input
                 to the :func:`init` method.
         """
 
@@ -821,7 +821,7 @@ class CARMA(Quasisep):
                 polynomial.
 
         Returns:
-            Coefficients of the full polynomial. The first entry corresponds to 
+            Coefficients of the full polynomial. The first entry corresponds to
             the lowest order term.
         """
 
@@ -855,12 +855,12 @@ class CARMA(Quasisep):
         """Factorize a polynomial into a product of quadratic equations
 
         Args:
-            poly_coeffs: Coefficients of the input characteristic polynomial. The 
+            poly_coeffs: Coefficients of the input characteristic polynomial. The
                 first entry corresponds to the lowest order term.
 
         Returns:
-            The 0th and 1st order coefficients of the quadractic equations. The last 
-            entry is a multiplier, which corresponds to the coefficient of the highest 
+            The 0th and 1st order coefficients of the quadractic equations. The last
+            entry is a multiplier, which corresponds to the coefficient of the highest
             order term in the full polynomial.
         """
 
