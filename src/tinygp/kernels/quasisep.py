@@ -25,21 +25,22 @@ __all__ = [
     "CARMA",
 ]
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from typing import Any
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 
-from tinygp.helpers import JAXArray, dataclass, field
+from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
 
-class Quasisep(Kernel, metaclass=ABCMeta):
+class Quasisep(Kernel):
     """The base class for all quasiseparable kernels
 
     Instead of directly implementing the ``p``, ``q``, and ``a`` elements of the
@@ -195,8 +196,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         return h @ self.stationary_covariance() @ h
 
 
-@dataclass
-class Wrapper(Quasisep, metaclass=ABCMeta):
+class Wrapper(Quasisep):
     """A base class for wrapping kernels with some custom implementations"""
 
     kernel: Quasisep
@@ -219,7 +219,6 @@ class Wrapper(Quasisep, metaclass=ABCMeta):
         )
 
 
-@dataclass
 class Sum(Quasisep):
     """A helper to represent the sum of two quasiseparable kernels"""
 
@@ -256,7 +255,6 @@ class Sum(Quasisep):
         )
 
 
-@dataclass
 class Product(Quasisep):
     """A helper to represent the product of two quasiseparable kernels"""
 
@@ -293,7 +291,6 @@ class Product(Quasisep):
         )
 
 
-@dataclass
 class Scale(Wrapper):
     """The product of a scalar and a quasiseparable kernel"""
 
@@ -303,7 +300,6 @@ class Scale(Wrapper):
         return self.scale * self.kernel.stationary_covariance()
 
 
-@dataclass
 class Celerite(Quasisep):
     r"""The baseline kernel from the ``celerite`` package
 
@@ -345,6 +341,7 @@ class Celerite(Quasisep):
         )
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         a = self.a
         b = self.b
         c = self.c
@@ -364,7 +361,6 @@ class Celerite(Quasisep):
         return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]]).T
 
 
-@dataclass
 class SHO(Quasisep):
     r"""The damped, driven simple harmonic oscillator kernel
 
@@ -396,7 +392,7 @@ class SHO(Quasisep):
 
     omega: JAXArray
     quality: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         return jnp.array(
@@ -407,6 +403,7 @@ class SHO(Quasisep):
         return jnp.diag(jnp.array([1, jnp.square(self.omega)]))
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return jnp.array([self.sigma, 0])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -451,7 +448,6 @@ class SHO(Quasisep):
         )
 
 
-@dataclass
 class Exp(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Exp`
 
@@ -472,7 +468,7 @@ class Exp(Quasisep):
     """
 
     scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         return jnp.array([[-1 / self.scale]])
@@ -481,6 +477,7 @@ class Exp(Quasisep):
         return jnp.ones((1, 1))
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return jnp.array([self.sigma])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -488,7 +485,6 @@ class Exp(Quasisep):
         return jnp.exp(-dt[None, None] / self.scale)
 
 
-@dataclass
 class Matern32(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Matern32`
 
@@ -509,7 +505,7 @@ class Matern32(Quasisep):
     """
 
     scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def noise(self) -> JAXArray:
         f = np.sqrt(3) / self.scale
@@ -533,7 +529,6 @@ class Matern32(Quasisep):
         )
 
 
-@dataclass
 class Matern52(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Matern52`
 
@@ -555,7 +550,7 @@ class Matern52(Quasisep):
     """
 
     scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         f = np.sqrt(5) / self.scale
@@ -569,6 +564,7 @@ class Matern52(Quasisep):
         return jnp.array([[1, 0, -f2o3], [0, f2o3, 0], [-f2o3, 0, jnp.square(f2)]])
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return jnp.array([self.sigma, 0, 0])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -597,7 +593,6 @@ class Matern52(Quasisep):
         )
 
 
-@dataclass
 class Cosine(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Cosine`
 
@@ -618,7 +613,7 @@ class Cosine(Quasisep):
     """
 
     scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         f = 2 * np.pi / self.scale
@@ -650,7 +645,6 @@ def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
         raise NotImplementedError
 
 
-@dataclass
 class CARMA(Quasisep):
     r"""A continuous-time autoregressive moving average (CARMA) process kernel
 

@@ -2,15 +2,28 @@ from __future__ import annotations
 
 __all__ = ["Solver"]
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from typing import Any
+
+import equinox as eqx
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 from tinygp.noise import Noise
 
 
-class Solver(metaclass=ABCMeta):
+class Solver(eqx.Module):
+    def __init__(
+        self,
+        kernel: Kernel,
+        X: JAXArray,
+        noise: Noise,
+        *,
+        covariance: Any | None = None,
+    ):
+        del kernel, X, noise, covariance
+        raise NotImplementedError
+
     @classmethod
     def init(
         cls,
@@ -20,7 +33,7 @@ class Solver(metaclass=ABCMeta):
         *,
         covariance: Any | None = None,
     ) -> Solver:
-        raise NotImplementedError
+        return cls(kernel, X, noise, covariance=covariance)
 
     @abstractmethod
     def variance(self) -> JAXArray:

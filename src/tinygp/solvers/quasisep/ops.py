@@ -20,6 +20,7 @@ from tinygp.solvers.quasisep.core import (
 )
 
 
+@jax.jit
 def elementwise_add(a: QSM, b: QSM) -> QSM | None:
     diag_a, lower_a, upper_a = deconstruct(a)
     diag_b, lower_b, upper_b = deconstruct(b)
@@ -33,6 +34,7 @@ def elementwise_add(a: QSM, b: QSM) -> QSM | None:
     return construct(diag, lower, upper, is_symm_a and is_symm_b)
 
 
+@jax.jit
 def elementwise_mul(a: QSM, b: QSM) -> QSM | None:
     diag_a, lower_a, upper_a = deconstruct(a)
     diag_b, lower_b, upper_b = deconstruct(b)
@@ -46,6 +48,7 @@ def elementwise_mul(a: QSM, b: QSM) -> QSM | None:
     return construct(diag, lower, upper, is_symm_a and is_symm_b)
 
 
+@jax.jit
 def qsm_mul(a: QSM, b: QSM) -> QSM | None:
     diag_a, lower_a, upper_a = deconstruct(a)
     diag_b, lower_b, upper_b = deconstruct(b)
@@ -217,7 +220,7 @@ def deconstruct(
     elif isinstance(a, SymmQSM):
         upper = a.lower.transpose()
     elif hasattr(a, "upper"):
-        upper = a.upper
+        upper = a.upper  # type: ignore
     return diag, lower, upper
 
 
@@ -270,13 +273,13 @@ def add_two(a: F | None, b: F | None) -> F | None:
         return b
     if b is None:
         return a
-    return a.self_add(b)
+    return a.self_add(b)  # type: ignore
 
 
 def mul_two(a: F | None, b: F | None) -> F | None:
     if a is None or b is None:
         return None
-    return a.self_mul(b)
+    return a.self_mul(b)  # type: ignore
 
 
 def none_safe_add(a: JAXArray | None, b: JAXArray | None) -> JAXArray | None:

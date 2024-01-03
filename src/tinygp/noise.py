@@ -11,19 +11,20 @@ from __future__ import annotations
 
 __all__ = ["Diagonal", "Dense", "Banded"]
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from typing import TYPE_CHECKING
 
+import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray
 
 if TYPE_CHECKING:
     from tinygp.solvers.quasisep.core import DiagQSM, SymmQSM
 
 
-class Noise(metaclass=ABCMeta):
+class Noise(eqx.Module):
     """An abstract base class defining the noise model protocol"""
 
     __array_priority__ = 2001
@@ -51,7 +52,6 @@ class Noise(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-@dataclass
 class Diagonal(Noise):
     """A diagonal observation noise model
 
@@ -64,7 +64,7 @@ class Diagonal(Noise):
 
     diag: JAXArray
 
-    def __post_init__(self) -> None:
+    def __check_init__(self) -> None:
         if jnp.ndim(self.diag) != 1:
             raise ValueError(
                 "The diagonal for the noise model be the same shape as the data; "
@@ -95,7 +95,6 @@ class Diagonal(Noise):
         return DiagQSM(d=self.diag)
 
 
-@dataclass
 class Dense(Noise):
     """A full rank observation noise model
 
@@ -125,7 +124,6 @@ class Dense(Noise):
         raise NotImplementedError
 
 
-@dataclass
 class Banded(Noise):
     r"""A banded observation noise model
 
