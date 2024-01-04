@@ -24,6 +24,8 @@ class Solver(eqx.Module):
         del kernel, X, noise, covariance
         raise NotImplementedError
 
+    # TODO(dfm): Add a deprecation warning. This exists for backwards
+    # compatibility, but using __init__ directly is preferred.
     @classmethod
     def init(
         cls,
