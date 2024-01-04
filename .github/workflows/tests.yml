@@ -17,6 +17,8 @@ jobs:
         nox-session: ["test"]
         include:
           - python-version: "3.10"
+            nox-session: "comparison"
+          - python-version: "3.10"
             nox-session: "doctest"
 
     steps:

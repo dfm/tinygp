@@ -18,7 +18,8 @@ dynamic = ["version"]
 dependencies = ["jax", "jaxlib"]
 
 [project.optional-dependencies]
-test = ["pytest", "george", "celerite"]
+test = ["pytest", "chex"]
+comparison = ["george", "celerite"]
 docs = [
     "sphinx-book-theme",
     "myst-nb",

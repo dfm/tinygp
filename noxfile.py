@@ -13,6 +13,12 @@ def test(session: nox.Session) -> None:
 
 
 @nox.session(python=PYTHON_VERSIONS)
+def comparison(session: nox.Session) -> None:
+    session.install(".[test,comparison]")
+    session.run("pytest", *session.posargs, env={"JAX_ENABLE_X64": "1"})
+
+
+@nox.session(python=PYTHON_VERSIONS)
 def doctest(session: nox.Session) -> None:
     if platform.system() == "Windows":
         module = Path(session.virtualenv.location) / "Lib" / "site-packages" / "tinygp"

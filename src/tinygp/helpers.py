@@ -3,13 +3,11 @@ from __future__ import annotations
 __all__ = ["JAXArray", "dataclass", "field"]
 
 import dataclasses
-from typing import Any, Callable, TypeVar, Union
+from typing import Any, Callable, TypeVar
 
 import jax
-import jax.numpy as jnp
-import numpy as np
 
-JAXArray = Union[np.ndarray, jnp.ndarray]
+JAXArray = jax.Array  # Union[np.ndarray, jnp.ndarray]
 
 # This section is based closely on the implementation in flax:
 #
