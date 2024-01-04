@@ -2,24 +2,25 @@
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import pytest
+from numpy import random as np_random
 
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
 from tinygp.solvers import QuasisepSolver
 from tinygp.solvers.kalman import KalmanSolver, kalman_filter, kalman_gains
+from tinygp.test_utils import assert_allclose
 
 
 @pytest.fixture
 def random():
-    return np.random.default_rng(84930)
+    return np_random.default_rng(84930)
 
 
 @pytest.fixture
 def data(random):
-    x = np.sort(random.uniform(-3, 3, 50))
-    y = np.sin(x)
+    x = jnp.sort(random.uniform(-3, 3, 50))
+    y = jnp.sin(x)
     return x, y
 
 
@@ -36,7 +37,9 @@ def data(random):
         1.5 * quasisep.Matern52(1.5) + 0.3 * quasisep.Exp(1.5),
         quasisep.Matern52(1.5) * quasisep.SHO(omega=1.5, quality=0.1),
         1.5 * quasisep.Matern52(1.5) * quasisep.Celerite(1.1, 0.8, 0.9, 0.1),
-        quasisep.CARMA.init(alpha=np.array([1.4, 2.3, 1.5]), beta=np.array([0.1, 0.5])),
+        quasisep.CARMA.init(
+            alpha=jnp.array([1.4, 2.3, 1.5]), beta=jnp.array([0.1, 0.5])
+        ),
     ]
 )
 def kernel(request):
@@ -56,7 +59,7 @@ def test_filter(kernel, data):
     v = kalman_filter(A, H, K, y)
     logp = -0.5 * jnp.sum(jnp.square(v) / s + jnp.log(2 * jnp.pi * s))
 
-    np.testing.assert_allclose(logp, logp0)
+    assert_allclose(logp, logp0)
 
 
 def test_consistent_with_direct(kernel, data):
@@ -64,5 +67,5 @@ def test_consistent_with_direct(kernel, data):
     gp1 = GaussianProcess(kernel, x, diag=0.1, solver=KalmanSolver)
     gp2 = GaussianProcess(kernel, x, diag=0.1, solver=QuasisepSolver)
 
-    np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
-    np.testing.assert_allclose(gp1.solver.normalization(), gp2.solver.normalization())
+    assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
+    assert_allclose(gp1.solver.normalization(), gp2.solver.normalization())

@@ -2,15 +2,15 @@
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax.test_util import check_grads
 
 from tinygp.kernels import distance
+from tinygp.test_utils import assert_allclose
 
 
 def check(comp, expect, args, order=2, **kwargs):
-    np.testing.assert_allclose(expect(*args), comp(*args))
-    np.testing.assert_allclose(jax.grad(comp)(*args), jax.grad(expect)(*args))
+    assert_allclose(expect(*args), comp(*args))
+    assert_allclose(jax.grad(comp)(*args), jax.grad(expect)(*args))
     check_grads(comp, args, order=order, **kwargs)
 
 
@@ -29,5 +29,5 @@ def test_l2_distance_grad_at_zero():
     check(comp, expect, (x1, x2))
 
     g = jax.grad(comp)(x1, x1)
-    np.testing.assert_allclose(expect(x1, x1), comp(x1, x1))
-    assert np.all(np.isfinite(g))
+    assert_allclose(expect(x1, x1), comp(x1, x1))
+    assert jnp.all(jnp.isfinite(g))

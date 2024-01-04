@@ -2,15 +2,16 @@
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import pytest
+from numpy import random as np_random
 
 from tinygp import GaussianProcess, kernels
+from tinygp.test_utils import assert_allclose
 
 
 @pytest.fixture
 def random():
-    return np.random.default_rng(1058390)
+    return np_random.default_rng(1058390)
 
 
 @pytest.fixture
@@ -35,8 +36,8 @@ def test_sample(data):
 
         y = gp.sample(jax.random.PRNGKey(543), shape=(100_000,))
         assert y.shape == (100_000, len(X))
-        np.testing.assert_allclose(jnp.mean(y, axis=0), jnp.sum(X, axis=1), atol=0.015)
-        np.testing.assert_allclose(jnp.cov(y, rowvar=0), gp.covariance, atol=0.015)
+        assert_allclose(jnp.mean(y, axis=0), jnp.sum(X, axis=1), atol=0.015)
+        assert_allclose(jnp.cov(y, rowvar=False), gp.covariance, atol=0.015)
 
 
 def test_means(data):
@@ -46,10 +47,10 @@ def test_means(data):
     gp2 = GaussianProcess(kernels.Matern32(1.5), X, diag=0.01, mean=0.0)
     gp3 = GaussianProcess(kernels.Matern32(1.5), X, diag=0.01)
 
-    np.testing.assert_allclose(gp1.mean, gp2.mean)
-    np.testing.assert_allclose(gp1.mean, gp3.mean)
-    np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
-    np.testing.assert_allclose(gp1.log_probability(y), gp3.log_probability(y))
+    assert_allclose(gp1.mean, gp2.mean)
+    assert_allclose(gp1.mean, gp3.mean)
+    assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
+    assert_allclose(gp1.log_probability(y), gp3.log_probability(y))
 
 
 @pytest.mark.parametrize("tree", [True, False])

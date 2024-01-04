@@ -3,8 +3,8 @@
 from itertools import combinations
 
 import jax.numpy as jnp
-import numpy as np
 import pytest
+from numpy import random as np_random
 
 from tinygp.solvers.quasisep.core import (
     DiagQSM,
@@ -14,6 +14,7 @@ from tinygp.solvers.quasisep.core import (
     StrictUpperTriQSM,
     SymmQSM,
 )
+from tinygp.test_utils import assert_allclose
 
 
 @pytest.fixture(params=["random", "celerite"])
@@ -54,54 +55,54 @@ def some_nice_matrices():
 
 def get_matrices(name):
     N = 100
-    random = np.random.default_rng(1234)
-    diag = np.exp(random.normal(size=N))
+    random = np_random.default_rng(1234)
+    diag = jnp.exp(random.normal(size=N))
 
     if name == "random":
         J = 5
         p = random.normal(size=(N, J))
         q = random.normal(size=(N, J))
-        a = np.repeat(np.eye(J)[None, :, :], N, axis=0)
-        l = np.tril(p @ q.T, -1)
-        u = np.triu(q @ p.T, 1)
-        diag += np.sum(p * q, axis=1)
+        a = jnp.repeat(jnp.eye(J)[None, :, :], N, axis=0)
+        l = jnp.tril(p @ q.T, -1)
+        u = jnp.triu(q @ p.T, 1)
+        diag += jnp.sum(p * q, axis=1)
 
     elif name == "celerite":
-        t = np.sort(random.uniform(0, 10, N))
+        t = jnp.sort(random.uniform(0, 10, N))
 
-        a = np.array([1.0, 2.5])
-        b = np.array([0.5, 1.5])
-        c = np.array([1.2, 0.5])
-        d = np.array([0.5, 0.1])
+        a = jnp.array([1.0, 2.5])
+        b = jnp.array([0.5, 1.5])
+        c = jnp.array([1.2, 0.5])
+        d = jnp.array([0.5, 0.1])
 
-        tau = np.abs(t[:, None] - t[None, :])[:, :, None]
-        K = np.sum(
-            np.exp(-c[None, None] * tau)
+        tau = jnp.abs(t[:, None] - t[None, :])[:, :, None]
+        K = jnp.sum(
+            jnp.exp(-c[None, None] * tau)
             * (
-                a[None, None] * np.cos(d[None, None] * tau)
-                + b[None, None] * np.sin(d[None, None] * tau)
+                a[None, None] * jnp.cos(d[None, None] * tau)
+                + b[None, None] * jnp.sin(d[None, None] * tau)
             ),
             axis=-1,
         )
-        K[np.diag_indices_from(K)] += diag
-        diag = np.diag(K)
-        l = np.tril(K, -1)
-        u = np.triu(K, 1)
+        K += jnp.diag(diag)
+        diag = jnp.diag(K)
+        l = jnp.tril(K, -1)
+        u = jnp.triu(K, 1)
 
-        cos = np.cos(d[None] * t[:, None])
-        sin = np.sin(d[None] * t[:, None])
-        p = np.concatenate(
+        cos = jnp.cos(d[None] * t[:, None])
+        sin = jnp.sin(d[None] * t[:, None])
+        p = jnp.concatenate(
             (
                 a[None] * cos + b[None] * sin,
                 a[None] * sin - b[None] * cos,
             ),
             axis=1,
         )
-        q = np.concatenate((cos, sin), axis=1)
-        c = np.append(c, c)
-        dt = np.append(0, np.diff(t))
-        a = np.stack([np.diag(v) for v in np.exp(-c[None] * dt[:, None])], axis=0)
-        p = np.einsum("ni,nij->nj", p, a)
+        q = jnp.concatenate((cos, sin), axis=1)
+        c = jnp.append(c, c)
+        dt = jnp.append(0, jnp.diff(t))
+        a = jnp.stack([jnp.diag(v) for v in jnp.exp(-c[None] * dt[:, None])], axis=0)
+        p = jnp.einsum("ni,nij->nj", p, a)
 
     else:
         raise AssertionError()
@@ -112,7 +113,7 @@ def get_matrices(name):
 
 
 def test_quasisep_def():
-    random = np.random.default_rng(2022)
+    random = np_random.default_rng(2022)
     n = 17
     m1 = 3
     m2 = 5
@@ -133,19 +134,19 @@ def test_quasisep_def():
         if i == j:
             return d[i]
         if j < i:
-            tmp = np.copy(q[j])
+            tmp = jnp.copy(q[j])
             for k in range(j + 1, i):
                 tmp = a[k] @ tmp
             return p[i] @ tmp
         if j > i:
-            tmp = np.copy(h[i])
+            tmp = jnp.copy(h[i])
             for k in range(i + 1, j):
                 tmp = tmp @ b[k].T
             return tmp @ g[j]
 
     for i in range(n):
         for j in range(n):
-            np.testing.assert_allclose(get_value(i, j), m[i, j])
+            assert_allclose(get_value(i, j), m[i, j])
 
 
 def test_strict_tri_matmul(matrices):
@@ -153,34 +154,34 @@ def test_strict_tri_matmul(matrices):
     mat = StrictLowerTriQSM(p=p, q=q, a=a)
 
     # Check multiplication into identity / to dense
-    np.testing.assert_allclose(mat.to_dense(), l)
-    np.testing.assert_allclose(mat.T.to_dense(), u)
+    assert_allclose(mat.to_dense(), l)
+    assert_allclose(mat.T.to_dense(), u)
 
     # Check matvec
-    np.testing.assert_allclose(mat @ v, l @ v)
-    np.testing.assert_allclose(mat.T @ v, u @ v)
+    assert_allclose(mat @ v, l @ v)
+    assert_allclose(mat.T @ v, u @ v)
 
     # Check matmat
-    np.testing.assert_allclose(mat @ m, l @ m)
-    np.testing.assert_allclose(mat.T @ m, u @ m)
+    assert_allclose(mat @ m, l @ m)
+    assert_allclose(mat.T @ m, u @ m)
 
 
 def test_tri_matmul(matrices):
     diag, p, q, a, v, m, l, _ = matrices
     mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
-    dense = l + np.diag(diag)
+    dense = l + jnp.diag(diag)
 
     # Check multiplication into identity / to dense
-    np.testing.assert_allclose(mat.to_dense(), dense)
-    np.testing.assert_allclose(mat.T.to_dense(), dense.T)
+    assert_allclose(mat.to_dense(), dense)
+    assert_allclose(mat.T.to_dense(), dense.T)
 
     # Check matvec
-    np.testing.assert_allclose(mat @ v, dense @ v)
-    np.testing.assert_allclose(mat.T @ v, dense.T @ v)
+    assert_allclose(mat @ v, dense @ v)
+    assert_allclose(mat.T @ v, dense.T @ v)
 
     # Check matmat
-    np.testing.assert_allclose(mat @ m, dense @ m)
-    np.testing.assert_allclose(mat.T @ m, dense.T @ m)
+    assert_allclose(mat @ m, dense @ m)
+    assert_allclose(mat.T @ m, dense.T @ m)
 
 
 @pytest.mark.parametrize("symm", [True, False])
@@ -197,15 +198,15 @@ def test_square_matmul(symm, matrices):
 
     # Create and double check the dense reconstruction
     dense = mat.to_dense()
-    np.testing.assert_allclose(np.tril(dense, -1), l)
-    np.testing.assert_allclose(np.triu(dense, 1), u)
-    np.testing.assert_allclose(np.diag(dense), diag)
+    assert_allclose(jnp.tril(dense, -1), l)
+    assert_allclose(jnp.triu(dense, 1), u)
+    assert_allclose(jnp.diag(dense), diag)
 
     # Test matmuls
-    np.testing.assert_allclose(mat @ v, dense @ v)
-    np.testing.assert_allclose(mat @ m, dense @ m)
-    np.testing.assert_allclose(v.T @ mat, v.T @ dense)
-    np.testing.assert_allclose(m.T @ mat, m.T @ dense)
+    assert_allclose(mat @ v, dense @ v)
+    assert_allclose(mat @ m, dense @ m)
+    assert_allclose(v.T @ mat, v.T @ dense)
+    assert_allclose(m.T @ mat, m.T @ dense)
 
 
 @pytest.mark.parametrize("name", ["celerite"])
@@ -214,8 +215,8 @@ def test_tri_inv(matrices):
     mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = mat.to_dense()
     minv = mat.inv()
-    np.testing.assert_allclose(minv.to_dense(), jnp.linalg.inv(dense))
-    np.testing.assert_allclose(minv.matmul(dense), np.eye(len(diag)), atol=1e-12)
+    assert_allclose(minv.to_dense(), jnp.linalg.inv(dense))
+    assert_allclose(minv.matmul(dense), jnp.eye(len(diag)))
 
 
 @pytest.mark.parametrize("name", ["celerite"])
@@ -223,16 +224,16 @@ def test_tri_solve(matrices):
     diag, p, q, a, v, m, _, _ = matrices
     mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = mat.to_dense()
-    np.testing.assert_allclose(mat.solve(v), np.linalg.solve(dense, v))
-    np.testing.assert_allclose(mat.solve(m), np.linalg.solve(dense, m))
+    assert_allclose(mat.solve(v), jnp.linalg.solve(dense, v))
+    assert_allclose(mat.solve(m), jnp.linalg.solve(dense, m))
 
-    np.testing.assert_allclose(mat.T.solve(v), np.linalg.solve(dense.T, v))
-    np.testing.assert_allclose(mat.T.solve(m), np.linalg.solve(dense.T, m))
+    assert_allclose(mat.T.solve(v), jnp.linalg.solve(dense.T, v))
+    assert_allclose(mat.T.solve(m), jnp.linalg.solve(dense.T, m))
 
-    np.testing.assert_allclose(mat.inv().solve(v), dense @ v)
-    np.testing.assert_allclose(mat.inv().solve(m), dense @ m)
-    np.testing.assert_allclose(mat.T.inv().solve(v), dense.T @ v)
-    np.testing.assert_allclose(mat.T.inv().solve(m), dense.T @ m)
+    assert_allclose(mat.inv().solve(v), dense @ v)
+    assert_allclose(mat.inv().solve(m), dense @ m)
+    assert_allclose(mat.T.inv().solve(v), dense.T @ v)
+    assert_allclose(mat.T.inv().solve(m), dense.T @ m)
 
 
 @pytest.mark.parametrize("symm", [True, False])
@@ -249,28 +250,29 @@ def test_square_inv(symm, matrices):
 
     # Create and double check the dense reconstruction
     dense = mat.to_dense()
-    np.testing.assert_allclose(np.tril(dense, -1), l)
-    np.testing.assert_allclose(np.triu(dense, 1), u)
-    np.testing.assert_allclose(np.diag(dense), diag)
+    assert_allclose(jnp.tril(dense, -1), l)
+    assert_allclose(jnp.triu(dense, 1), u)
+    assert_allclose(jnp.diag(dense), diag)
 
     # Invert the QS matrix
     minv = mat.inv()
-    np.testing.assert_allclose(minv.to_dense(), jnp.linalg.inv(dense), rtol=2e-6)
-    np.testing.assert_allclose(minv.matmul(dense), np.eye(len(diag)), atol=1e-12)
+    assert_allclose(minv.to_dense(), jnp.linalg.inv(dense))
+    assert_allclose(minv.matmul(dense), jnp.eye(len(diag)))
 
     # In this case, we know our matrix to be symmetric - so should its inverse be!
     # This may change in the future as we expand test cases
     if not symm:
-        np.testing.assert_allclose(minv.lower.p, minv.upper.p)
-        np.testing.assert_allclose(minv.lower.q, minv.upper.q)
-        np.testing.assert_allclose(minv.lower.a, minv.upper.a)
+        assert_allclose(minv.lower.p, minv.upper.p)
+        assert_allclose(minv.lower.q, minv.upper.q)
+        assert_allclose(minv.lower.a, minv.upper.a)
 
     # The inverse of the inverse should be itself... don't actually do this!
     # Note: we can't actually directly compare the generators because there's
     # enough degrees of freedom that they won't necessarily round trip. It's
     # good enough to check that it produces the correct dense reconstruction.
-    mat2 = minv.inv()
-    np.testing.assert_allclose(mat2.to_dense(), dense, rtol=1e-4)
+    if dense.dtype == "float64":
+        mat2 = minv.inv()
+        assert_allclose(mat2.to_dense(), dense, rtol=1e-4)
 
 
 def test_gram(matrices):
@@ -281,11 +283,11 @@ def test_gram(matrices):
         upper=StrictUpperTriQSM(p=p, q=q, a=a),
     )
     dense = mat.to_dense()
-    np.testing.assert_allclose(mat.gram().to_dense(), dense.T @ dense)
+    assert_allclose(mat.gram().to_dense(), dense.T @ dense)
 
     mat = mat.inv()
     dense = mat.to_dense()
-    np.testing.assert_allclose(mat.gram().to_dense(), dense.T @ dense)
+    assert_allclose(mat.gram().to_dense(), dense.T @ dense)
 
     mat = SquareQSM(
         diag=DiagQSM(diag),
@@ -295,7 +297,7 @@ def test_gram(matrices):
         ),
     )
     dense = mat.to_dense()
-    np.testing.assert_allclose(mat.gram().to_dense(), dense.T @ dense)
+    assert_allclose(mat.gram().to_dense(), dense.T @ dense)
 
 
 @pytest.mark.parametrize("name", ["celerite"])
@@ -304,15 +306,15 @@ def test_cholesky(matrices):
     mat = SymmQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = mat.to_dense()
     chol = mat.cholesky()
-    np.testing.assert_allclose(chol.to_dense(), np.linalg.cholesky(dense))
+    assert_allclose(chol.to_dense(), jnp.linalg.cholesky(dense))
 
     mat = mat.inv()
     dense = mat.to_dense()
     chol = mat.cholesky()
-    np.testing.assert_allclose(chol.to_dense(), np.linalg.cholesky(dense))
+    assert_allclose(chol.to_dense(), jnp.linalg.cholesky(dense))
 
-    np.testing.assert_allclose(chol.solve(v), np.linalg.solve(chol.to_dense(), v))
-    np.testing.assert_allclose(chol.solve(m), np.linalg.solve(chol.to_dense(), m))
+    assert_allclose(chol.solve(v), jnp.linalg.solve(chol.to_dense(), v))
+    assert_allclose(chol.solve(m), jnp.linalg.solve(chol.to_dense(), m))
 
 
 def test_tri_qsmul(some_nice_matrices):
@@ -322,9 +324,9 @@ def test_tri_qsmul(some_nice_matrices):
         mat = mat1 @ mat2
         a = mat.to_dense()
         b = mat1.to_dense() @ mat2.to_dense()
-        np.testing.assert_allclose(np.diag(a), np.diag(b), atol=1e-12)
-        np.testing.assert_allclose(np.tril(a, -1), np.tril(b, -1), atol=1e-12)
-        np.testing.assert_allclose(np.triu(a, 1), np.triu(b, 1), atol=1e-12)
+        assert_allclose(jnp.diag(a), jnp.diag(b))
+        assert_allclose(jnp.tril(a, -1), jnp.tril(b, -1))
+        assert_allclose(jnp.triu(a, 1), jnp.triu(b, 1))
 
     minv = mat1.inv()
     mTinv = mat1.T.inv()
@@ -343,9 +345,9 @@ def test_square_qsmul(some_nice_matrices):
         mat = mat1 @ mat2
         a = mat.to_dense()
         b = mat1.to_dense() @ mat2.to_dense()
-        np.testing.assert_allclose(np.diag(a), np.diag(b), atol=1e-12)
-        np.testing.assert_allclose(np.tril(a, -1), np.tril(b, -1), atol=1e-12)
-        np.testing.assert_allclose(np.triu(a, 1), np.triu(b, 1), atol=1e-12)
+        assert_allclose(jnp.diag(a), jnp.diag(b))
+        assert_allclose(jnp.tril(a, -1), jnp.tril(b, -1))
+        assert_allclose(jnp.triu(a, 1), jnp.triu(b, 1))
 
     for m1, m2 in combinations([mat1, mat2, mat3, mat4, mat1.inv(), mat2.inv()], 2):
         check(m1, m2)
@@ -358,11 +360,11 @@ def test_ops(some_nice_matrices):
         for m1, m2 in combinations([mat1, mat2, mat1.lower, mat2.lower], 2):
             a = m1.to_dense()
             b = m2.to_dense()
-            np.testing.assert_allclose((-m1).to_dense(), -a, atol=1e-12)
-            np.testing.assert_allclose((m1 + m2).to_dense(), a + b, atol=1e-12)
-            np.testing.assert_allclose((m1 - m2).to_dense(), a - b, atol=1e-12)
-            np.testing.assert_allclose((m1 * m2).to_dense(), a * b, atol=1e-12)
-            np.testing.assert_allclose((2.5 * m1).to_dense(), 2.5 * a, atol=1e-12)
+            assert_allclose((-m1).to_dense(), -a)
+            assert_allclose((m1 + m2).to_dense(), a + b)
+            assert_allclose((m1 - m2).to_dense(), a - b)
+            assert_allclose((m1 * m2).to_dense(), a * b)
+            assert_allclose((2.5 * m1).to_dense(), 2.5 * a)
 
     for m1, m2 in combinations([mat1, mat2, mat3, mat4, mat1.inv(), mat2.inv()], 2):
         check(m1, m2)

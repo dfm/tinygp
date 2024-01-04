@@ -15,9 +15,17 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
         nox-session: ["test"]
+        x64: ["1"]
         include:
           - python-version: "3.10"
+            nox-session: "test"
+            x64: "0"
+          - python-version: "3.10"
+            nox-session: "comparison"
+            x64: "1"
+          - python-version: "3.10"
             nox-session: "doctest"
+            x64: "1"
 
     steps:
       - name: Checkout
@@ -36,6 +44,8 @@ jobs:
         run: |
           python -m nox --non-interactive --error-on-missing-interpreter \
             --session ${{ matrix.nox-session }} --python ${{ matrix.python-version }}
+        env:
+          JAX_ENABLE_X64: ${{ matrix.x64 }}
 
   build:
     runs-on: ubuntu-latest

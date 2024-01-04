@@ -2,16 +2,17 @@
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import pytest
+from numpy import random as np_random
 
 from tinygp import kernels, noise
 from tinygp.solvers import DirectSolver
+from tinygp.test_utils import assert_allclose
 
 
 @pytest.fixture
 def random():
-    return np.random.default_rng(1058390)
+    return np_random.default_rng(1058390)
 
 
 @pytest.fixture
@@ -25,9 +26,9 @@ def test_constant(data):
     x1, x2 = data
 
     # Check for dimension issues when evaluated
+    v = jnp.ones(3)
     with pytest.raises(ValueError):
         k1 = kernels.Constant(jnp.ones(3))
-        v = jnp.ones(3)
         k1.evaluate(v, v)
 
     # Check for dimension issues when multiplied and evaluated.
@@ -38,7 +39,7 @@ def test_constant(data):
     # Check that multiplication has the expected behavior
     factor = 2.5
     k1 = kernels.Matern32(2.5)
-    np.testing.assert_allclose(factor * k1(x1, x2), (factor * k1)(x1, x2))
+    assert_allclose(factor * k1(x1, x2), (factor * k1)(x1, x2))
 
 
 def test_custom(data):
@@ -50,7 +51,7 @@ def test_custom(data):
         lambda X1, X2: jnp.exp(-0.5 * jnp.sum(jnp.square((X1 - X2) / scale)))
     )
     k2 = kernels.ExpSquared(scale)
-    np.testing.assert_allclose(k1(x1, x2), k2(x1, x2))
+    assert_allclose(k1(x1, x2), k2(x1, x2))
 
     # Check that an invalid kernel raises as expected
     kernel = kernels.Custom(
@@ -66,8 +67,8 @@ def test_ops(data):
     k1 = 1.5 * kernels.Matern32(2.5)
     k2 = 0.9 * kernels.ExpSineSquared(scale=1.5, gamma=0.3)
 
-    np.testing.assert_allclose(k1(x1, x2) + k2(x1, x2), (k1 + k2)(x1, x2))
-    np.testing.assert_allclose(k1(x1, x2) * k2(x1, x2), (k1 * k2)(x1, x2))
+    assert_allclose(k1(x1, x2) + k2(x1, x2), (k1 + k2)(x1, x2))
+    assert_allclose(k1(x1, x2) * k2(x1, x2), (k1 * k2)(x1, x2))
 
 
 def test_conditioned(data):
@@ -78,7 +79,7 @@ def test_conditioned(data):
         K = k1(x1, x1) + 0.1 * jnp.eye(x1.shape[0])
         solver = DirectSolver.init(k1, x1, noise.Diagonal(jnp.full(x1.shape[0], 0.1)))
         cond = kernels.Conditioned(x1, solver, k2)
-        np.testing.assert_allclose(
+        assert_allclose(
             cond(x1, x2),
             k2(x1, x2) - k2(x1, x1) @ jnp.linalg.solve(K, k2(x1, x2)),
         )
@@ -87,7 +88,5 @@ def test_conditioned(data):
 def test_dot_product(data):
     x1, x2 = data
     kernel = kernels.DotProduct()
-    np.testing.assert_allclose(kernel(x1, x2), jnp.dot(x1, x2.T))
-    np.testing.assert_allclose(
-        kernel(x1[:, 0], x2[:, 0]), x1[:, 0][:, None] * x2[:, 0][None]
-    )
+    assert_allclose(kernel(x1, x2), jnp.dot(x1, x2.T))
+    assert_allclose(kernel(x1[:, 0], x2[:, 0]), x1[:, 0][:, None] * x2[:, 0][None])
