@@ -661,13 +661,6 @@ class CARMA(Quasisep):
     definition of :math:`\beta` parameters. That is :math:`\beta_{new}` =
     :math:`\beta * \sigma`.
 
-    Unlike other kernels, this *must* be instantiated using the :func:`init`
-    method instead of the usual constructor:
-
-    .. code-block:: python
-
-        kernel = CARMA.init(alpha=..., beta=...)
-
     .. note::
         To construct a stationary CARMA kernel/process, the roots of the
         characteristic polynomials for Equation 1 in `Kelly et al. (2014)` must
@@ -698,6 +691,13 @@ class CARMA(Quasisep):
         to avoid control flows. More specifically, some intermediate quantities
         are computed regardless, but are only used if there is a matching real
         or complex exponential kernel for the specific CARMA kernel.
+
+    Args:
+        alpha: The parameter :math:`\alpha` in the definition above, exlcuding
+            :math:`\alpha_p`. This should be an array of length `p`.
+        beta: The product of parameters :math:`\beta` and parameter :math:`\sigma`
+            in the definition above. This should be an array of length `q+1`,
+            where `q+1 <= p`.
     """
 
     alpha: JAXArray
@@ -710,17 +710,7 @@ class CARMA(Quasisep):
     _complex_select: JAXArray
     obsmodel: JAXArray
 
-    @classmethod
-    def init(cls, alpha: JAXArray, beta: JAXArray) -> CARMA:
-        r"""Construct a CARMA kernel using the alpha, (new) beta parameters
-
-        Args:
-            alpha: The parameter :math:`\alpha` in the definition above, exlcuding
-                :math:`\alpha_p`. This should be an array of length `p`.
-            beta: The product of parameters :math:`\beta` and parameter :math:`\sigma`
-                in the definition above. This should be an array of length `q+1`,
-                where `q+1 <= p`.
-        """
+    def __init__(self, alpha: JAXArray, beta: JAXArray):
         sigma = jnp.ones(())
         alpha = jnp.atleast_1d(alpha)
         beta = jnp.atleast_1d(beta)
@@ -762,19 +752,20 @@ class CARMA(Quasisep):
         # for complex roots, every conjugate pair match one full celerite term,
         # so, every other entry from om_complex is used.
         # same logic as for _complex_select
-        obsmodel = jnp.where(_real_mask, om_real, jnp.ravel(om_complex)[::2])
+        self.obsmodel = jnp.where(_real_mask, om_real, jnp.ravel(om_complex)[::2])
 
-        return cls(
-            alpha=alpha,
-            beta=beta,
-            sigma=sigma,
-            arroots=arroots,
-            acf=acf,
-            _real_mask=_real_mask,
-            _complex_mask=_complex_mask,
-            _complex_select=_complex_select,
-            obsmodel=obsmodel,
-        )
+        self.alpha = alpha
+        self.beta = beta
+        self.sigma = sigma
+        self.arroots = arroots
+        self.acf = acf
+        self._real_mask = _real_mask
+        self._complex_mask = _complex_mask
+        self._complex_select = _complex_select
+
+    @classmethod
+    def init(cls, alpha: JAXArray, beta: JAXArray) -> CARMA:
+        return cls(alpha, beta)
 
     @classmethod
     def from_quads(
@@ -808,7 +799,7 @@ class CARMA(Quasisep):
         alpha = carma_quads2poly(jnp.append(alpha_quads, jnp.array([1.0])))[:-1]
         beta = carma_quads2poly(jnp.append(beta_quads, beta_mult))
 
-        return cls.init(alpha, beta)
+        return cls(alpha, beta)
 
     def design_matrix(self) -> JAXArray:
         # for real exponential components
@@ -847,6 +838,7 @@ class CARMA(Quasisep):
         return diag + diag_complex + sc_complex_u + sc_complex_u.T
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return self.obsmodel
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -965,7 +957,7 @@ def carma_acvf(arroots: JAXArray, arparam: JAXArray, maparam: JAXArray) -> JAXAr
     Returns:
         ACVF coefficients, each entry corresponds to one root.
     """
-    from jax._src import dtypes
+    from jax._src import dtypes  # type: ignore
 
     arparam = jnp.atleast_1d(arparam)
     maparam = jnp.atleast_1d(maparam)
