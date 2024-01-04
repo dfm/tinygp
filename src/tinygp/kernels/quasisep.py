@@ -325,6 +325,7 @@ class Celerite(Quasisep):
     :math:`a\,c - b\,d > 0`, and you will see NaNs if you use parameters that
     don't satisfy this relationship.
     """
+
     a: JAXArray
     b: JAXArray
     c: JAXArray
@@ -506,6 +507,7 @@ class Matern32(Quasisep):
             boost compared to independently multiplying the kernel with a
             prefactor.
     """
+
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
@@ -614,6 +616,7 @@ class Cosine(Quasisep):
             boost compared to independently multiplying the kernel with a
             prefactor.
     """
+
     scale: JAXArray
     sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
 
@@ -633,6 +636,18 @@ class Cosine(Quasisep):
         cos = jnp.cos(f * dt)
         sin = jnp.sin(f * dt)
         return jnp.array([[cos, sin], [-sin, cos]])
+
+
+def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
+    i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
+    i = i.flatten()
+    j = j.flatten()
+    if a1.ndim == 1:
+        return a1[i] * a2[j]
+    elif a1.ndim == 2:
+        return a1[i[:, None], i[None, :]] * a2[j[:, None], j[None, :]]
+    else:
+        raise NotImplementedError
 
 
 @dataclass
@@ -660,32 +675,36 @@ class CARMA(Quasisep):
         kernel = CARMA.init(alpha=..., beta=...)
 
     .. note::
-        To construct a stationary CARMA kernel/process, the roots of the characteristic
-        polynomials for Equation 1 in `Kelly et al. (2014)` must have negative real
-        parts. This condition can be met automatically by requiring positive input
-        parameters when instantiating the kernel using the :func:`init` method for
-        CARMA(1,0), CARMA(2,0), and CARMA(2,1) models or by requiring positive input
-        parameters when instantiating the kernel using the :func:`from_quads` method.
+        To construct a stationary CARMA kernel/process, the roots of the
+        characteristic polynomials for Equation 1 in `Kelly et al. (2014)` must
+        have negative real parts. This condition can be met automatically by
+        requiring positive input parameters when instantiating the kernel using
+        the :func:`init` method for CARMA(1,0), CARMA(2,0), and CARMA(2,1)
+        models or by requiring positive input parameters when instantiating the
+        kernel using the :func:`from_quads` method.
+
+    .. note:: Implementation details
+
+        The logic behind this implementation is simple---finding the correct
+        combination of real/complex exponential kernels that resembles the
+        autocovariance function of the CARMA model. Note that the order also
+        matters. This task is achieved using the `acvf` method. Then the rest
+        is copied from the `Exp` and `Celerite` kernel.
+
+        Given the requirement of negative roots for stationarity, the
+        `from_quads` method is implemented to facilitate consturcting
+        stationary higher-order CARMA models beyond CARMA(2,1). The inputs for
+        `from_quads` are the coefficients of the quadratic equations factorized
+        out of the full characteristic polynomial. `poly2quads` is used to
+        factorize a polynomial into a product of said quadractic equations, and
+        `quads2poly` is used for the reverse process.
+
+        One last trick is the use of `_real_mask`, `_complex_mask`, and
+        `complex_select`, which are arrays of 0s and 1s. They are implemented
+        to avoid control flows. More specifically, some intermediate quantities
+        are computed regardless, but are only used if there is a matching real
+        or complex exponential kernel for the specific CARMA kernel.
     """
-    # ------------------------------ IMPLEMENTATION NOTES -----------------------------
-    # The logic behind this implementation is simple---finding the correct combination
-    # of real/complex exponential kernels that resembles the autocovariance function
-    # of the CARMA model. Note that the order also matters. This task is achieved using
-    # the `acvf` method. Then the rest is coppied from the `Exp` and `Celerite` kernel.
-    #
-    # Given the requirement of negative roots for stationarity, the `from_quads` method
-    # is implemented to facilitate consturcting stationary higher-order CARMA models
-    # beyond CARMA(2,1). The inputs for `from_quads` are the coefficients of the
-    # quadratic equations factorized out of the full characteristic polynomial.
-    # `poly2quads` is used to factorize a polynomial into a product of said quadractic
-    # equations, and `quads2poly` is used for the reverse process.
-    #
-    # One last trick is the use of `_real_mask`, `_complex_mask`, and `complex_select`,
-    # which are arrays of 0s and 1s. They are implemented to avoid control flows. More
-    # specifically, some intermediate quantities are computed regardless, but are only
-    # used if there is a matching real or complex exponential kernel for the specific
-    # CARMA kernel.
-    # ------------------------------ IMPLEMENTATION NOTES -----------------------------
 
     alpha: JAXArray
     beta: JAXArray
@@ -696,15 +715,9 @@ class CARMA(Quasisep):
     _complex_mask: JAXArray
     _complex_select: JAXArray
     obsmodel: JAXArray
-    _eta: JAXArray
 
     @classmethod
-    def init(
-        cls,
-        alpha: JAXArray,
-        beta: JAXArray,
-        eta: JAXArray | None = 1e-30,
-    ) -> CARMA:
+    def init(cls, alpha: JAXArray, beta: JAXArray) -> CARMA:
         r"""Construct a CARMA kernel using the alpha, (new) beta parameters
 
         Args:
@@ -713,9 +726,6 @@ class CARMA(Quasisep):
             beta: The product of parameters :math:`\beta` and parameter :math:`\sigma`
                 in the definition above. This should be an array of length `q+1`,
                 where `q+1 <= p`.
-            eta (optional): A tiny number to avoid division by zero error when
-                computing non-essential intermediate quantities. Defaults to 1e-30.
-                Only update this if the internal numerical precision < float16.
         """
         sigma = jnp.ones(())
         alpha = jnp.atleast_1d(alpha)
@@ -725,37 +735,38 @@ class CARMA(Quasisep):
         p = alpha.shape[0]
         assert beta.shape[0] <= p
 
-        ## find acvf <= Eqn. 4 in Kelly+14;
-        ## acvf gives the correct combination of real/complex exponential kernels
-        arroots = CARMA.roots(jnp.append(alpha, 1.0))
-        acf = CARMA.carma_acvf(arroots, alpha, beta * sigma)
+        # Find acvf using Eqn. 4 in Kelly+14, giving the correct combination of
+        # real/complex exponential kernels
+        arroots = carma_roots(jnp.append(alpha, 1.0))
+        acf = carma_acvf(arroots, alpha, beta * sigma)
 
-        ## mask for real/complex exponential kernels
-        _real_mask = jnp.where(arroots.imag == 0.0, jnp.ones(p), jnp.zeros(p))
-        _complex_mask = -_real_mask + 1
-        complex_idx = jnp.cumsum(-_real_mask + 1) * _complex_mask
+        # Mask for real/complex exponential kernels
+        _real_mask = jnp.abs(arroots.imag) < 10 * jnp.finfo(arroots.imag.dtype).eps
+        _complex_mask = ~_real_mask
+        complex_idx = jnp.cumsum(_complex_mask) * _complex_mask
         _complex_select = _complex_mask * complex_idx % 2
 
-        ## construct obs model => real + complex
+        # Construct the obsservation model => real + complex
         om_real = jnp.sqrt(jnp.abs(acf.real))
 
         a, b, c, d = (
-            2 * acf.real * _complex_mask,
-            2 * acf.imag * _complex_mask,
-            -arroots.real * _complex_mask,
-            -arroots.imag * _complex_mask,
+            2 * acf.real,
+            2 * acf.imag,
+            -arroots.real,
+            -arroots.imag,
         )
         c2 = jnp.square(c)
         d2 = jnp.square(d)
         s2 = c2 + d2
-        h2_2 = d2 * (a * c - b * d) / (2 * c * s2 + eta * _real_mask)
+        denom = jnp.where(_real_mask, 1.0, 2 * c * s2)
+        h2_2 = d2 * (a * c - b * d) / denom
         h2 = jnp.sqrt(h2_2)
-        h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / (d + eta * _real_mask)
+        denom = jnp.where(_real_mask, 1.0, d)
+        h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / denom
         om_complex = jnp.array([h1, h2])
 
-        obsmodel = (om_real * _real_mask) + jnp.ravel(om_complex)[::2] * _complex_mask
+        obsmodel = jnp.where(_real_mask, om_real, jnp.ravel(om_complex)[::2])
 
-        ## return class
         return cls(
             alpha=alpha,
             beta=beta,
@@ -766,7 +777,6 @@ class CARMA(Quasisep):
             _complex_mask=_complex_mask,
             _complex_select=_complex_select,
             obsmodel=obsmodel,
-            _eta=eta,
         )
 
     @classmethod
@@ -798,142 +808,18 @@ class CARMA(Quasisep):
         beta_quads = jnp.atleast_1d(beta_quads)
         beta_mult = jnp.atleast_1d(beta_mult)
 
-        alpha = CARMA.quads2poly(jnp.append(alpha_quads, jnp.array([1.0])))[:-1]
-        beta = CARMA.quads2poly(jnp.append(beta_quads, beta_mult))
+        alpha = carma_quads2poly(jnp.append(alpha_quads, jnp.array([1.0])))[:-1]
+        beta = carma_quads2poly(jnp.append(beta_quads, beta_mult))
 
-        return CARMA.init(alpha, beta)
-
-    @staticmethod
-    @jax.jit
-    def roots(poly_coeffs: JAXArray) -> JAXArray:
-        roots = jnp.roots(poly_coeffs[::-1], strip_zeros=False)
-        return roots[jnp.argsort(roots.real)]
-
-    @staticmethod
-    @jax.jit
-    def quads2poly(quads_coeffs: JAXArray) -> JAXArray:
-        """Expand a product of quadractic equations into a polynomial
-
-        Args:
-            quads_coeffs: The 0th and 1st order coefficients of the quadractic
-                equations. The last entry is a multiplier, which corresponds
-                to the coefficient of the highest order term in the output full
-                polynomial.
-
-        Returns:
-            Coefficients of the full polynomial. The first entry corresponds to
-            the lowest order term.
-        """
-
-        size = quads_coeffs.shape[0] - 1
-        remain = size % 2
-        nPair = size // 2
-        mult_f = quads_coeffs[-1:]  # The coeff of highest order term in the output
-
-        poly = jax.lax.cond(
-            remain == 1,
-            lambda x: jnp.array([1.0, x]),
-            lambda x: jnp.array([0.0, 1.0]),
-            quads_coeffs[-2],
-        )
-        poly = poly[-remain + 1 :]
-
-        for p in jnp.arange(nPair):
-            poly = jnp.convolve(
-                poly,
-                jnp.append(
-                    jnp.array([quads_coeffs[p * 2], quads_coeffs[p * 2 + 1]]),
-                    jnp.ones((1,)),
-                )[::-1],
-            )
-
-        # the returned is low->high following Kelly+14
-        return poly[::-1] * mult_f
-
-    @staticmethod
-    def poly2quads(poly_coeffs: JAXArray) -> tuple[JAXArray, JAXArray]:
-        """Factorize a polynomial into a product of quadratic equations
-
-        Args:
-            poly_coeffs: Coefficients of the input characteristic polynomial. The
-                first entry corresponds to the lowest order term.
-
-        Returns:
-            The 0th and 1st order coefficients of the quadractic equations. The last
-            entry is a multiplier, which corresponds to the coefficient of the highest
-            order term in the full polynomial.
-        """
-
-        quads = jnp.empty(0)
-        mult_f = poly_coeffs[-1]
-        roots = CARMA.roots(poly_coeffs / mult_f)
-        odd = bool(len(roots) & 0x1)
-
-        rootsComp = roots[roots.imag != 0]
-        rootsReal = roots[roots.imag == 0]
-        nCompPair = len(rootsComp) // 2
-        nRealPair = len(rootsReal) // 2
-
-        for i in range(nCompPair):
-            root1 = rootsComp[i]
-            root2 = rootsComp[i + 1]
-            quads = jnp.append(quads, (root1 * root2).real)
-            quads = jnp.append(quads, -(root1.real + root2.real))
-
-        for i in range(nRealPair):
-            root1 = rootsReal[i]
-            root2 = rootsReal[i + 1]
-            quads = jnp.append(quads, (root1 * root2).real)
-            quads = jnp.append(quads, -(root1.real + root2.real))
-
-        if odd:
-            quads = jnp.append(quads, -rootsReal[-1].real)
-
-        return jnp.append(quads, jnp.array(mult_f))
-
-    @staticmethod
-    def carma_acvf(arroots: JAXArray, arparam: JAXArray, maparam: JAXArray) -> JAXArray:
-        r"""Compute the coefficients of the autocovariance function (ACVF)
-
-        Args:
-            arroots: The roots of the autoregressive characteristic polynomial.
-            arparam: :math:`\alpha` parameters
-            maparam: :math:`\beta` parameters
-
-        Returns:
-            ACVF coefficients, each entry corresponds to one root.
-        """
-        arparam = jnp.atleast_1d(arparam)
-        maparam = jnp.atleast_1d(maparam)
-        p = arparam.shape[0]
-        q = maparam.shape[0] - 1
-        sigma = maparam[0]
-
-        # normalize beta_0 to 1
-        maparam = maparam / sigma
-
-        # init acf product terms
-        num_left = jnp.zeros(p, dtype=jnp.complex128)
-        num_right = jnp.zeros(p, dtype=jnp.complex128)
-        denom = -2 * arroots.real + jnp.zeros_like(arroots) * 1j
-
-        for k in range(q + 1):
-            num_left += maparam[k] * jnp.power(arroots, k)
-            num_right += maparam[k] * jnp.power(jnp.negative(arroots), k)
-
-        root_idx = jnp.arange(p)
-        for j in range(1, p):
-            root_k = arroots[jnp.roll(root_idx, j)]
-            denom *= (root_k - arroots) * (jnp.conj(root_k) + arroots)
-
-        return sigma**2 * num_left * num_right / denom
+        return cls.init(alpha, beta)
 
     def design_matrix(self) -> JAXArray:
-        ## for real exponential components
+        # for real exponential components
         dm_real = jnp.diag(self.arroots.real * self._real_mask)
 
-        ## for complex exponential components
+        # for complex exponential components
         dm_complex_diag = jnp.diag(self.arroots.real * self._complex_mask)
+
         # upper triangle entries
         dm_complex_u = jnp.diag((self.arroots.imag * self._complex_select)[:-1], k=1)
 
@@ -942,20 +828,22 @@ class CARMA(Quasisep):
     def stationary_covariance(self) -> JAXArray:
         p = self.acf.shape[0]
 
-        ## for real exponential components
+        # for real exponential components
         diag = jnp.diag(jnp.where(self.acf.real > 0, jnp.ones(p), -jnp.ones(p)))
 
-        ## for complex exponential components
+        # for complex exponential components
+        denom = jnp.where(self._real_mask, 1.0, self.arroots.imag)
         diag_complex = jnp.diag(
             2
             * jnp.square(
                 self.arroots.real
-                / (self.arroots.imag + self._eta)
+                / denom
                 * jnp.roll(self._complex_select, 1)
                 * self._complex_mask
             )
         )
-        c_over_d = self.arroots.real / (self.arroots.imag + self._eta)
+        c_over_d = self.arroots.real / denom
+
         # upper triangular entries
         sc_complex_u = jnp.diag((-c_over_d * self._complex_select)[:-1], k=1)
 
@@ -981,13 +869,131 @@ class CARMA(Quasisep):
         return tm_real + tm_complex_diag + -tm_complex_u.T + tm_complex_u
 
 
-def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
-    i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
-    i = i.flatten()
-    j = j.flatten()
-    if a1.ndim == 1:
-        return a1[i] * a2[j]
-    elif a1.ndim == 2:
-        return a1[i[:, None], i[None, :]] * a2[j[:, None], j[None, :]]
-    else:
-        raise NotImplementedError
+@jax.jit
+def carma_roots(poly_coeffs: JAXArray) -> JAXArray:
+    roots = jnp.roots(poly_coeffs[::-1], strip_zeros=False)
+    return roots[jnp.argsort(roots.real)]
+
+
+@jax.jit
+def carma_quads2poly(quads_coeffs: JAXArray) -> JAXArray:
+    """Expand a product of quadractic equations into a polynomial
+
+    Args:
+        quads_coeffs: The 0th and 1st order coefficients of the quadractic
+            equations. The last entry is a multiplier, which corresponds
+            to the coefficient of the highest order term in the output full
+            polynomial.
+
+    Returns:
+        Coefficients of the full polynomial. The first entry corresponds to
+        the lowest order term.
+    """
+
+    size = quads_coeffs.shape[0] - 1
+    remain = size % 2
+    nPair = size // 2
+    mult_f = quads_coeffs[-1:]  # The coeff of highest order term in the output
+
+    poly = jax.lax.cond(
+        remain == 1,
+        lambda x: jnp.array([1.0, x]),
+        lambda _: jnp.array([0.0, 1.0]),
+        quads_coeffs[-2],
+    )
+    poly = poly[-remain + 1 :]
+
+    for p in jnp.arange(nPair):
+        poly = jnp.convolve(
+            poly,
+            jnp.append(
+                jnp.array([quads_coeffs[p * 2], quads_coeffs[p * 2 + 1]]),
+                jnp.ones((1,)),
+            )[::-1],
+        )
+
+    # the returned is low->high following Kelly+14
+    return poly[::-1] * mult_f
+
+
+def carma_poly2quads(poly_coeffs: JAXArray) -> JAXArray:
+    """Factorize a polynomial into a product of quadratic equations
+
+    Args:
+        poly_coeffs: Coefficients of the input characteristic polynomial. The
+            first entry corresponds to the lowest order term.
+
+    Returns:
+        The 0th and 1st order coefficients of the quadractic equations. The last
+        entry is a multiplier, which corresponds to the coefficient of the highest
+        order term in the full polynomial.
+    """
+
+    quads = jnp.empty(0)
+    mult_f = poly_coeffs[-1]
+    roots = carma_roots(poly_coeffs / mult_f)
+    odd = bool(len(roots) & 0x1)
+
+    rootsComp = roots[roots.imag != 0]
+    rootsReal = roots[roots.imag == 0]
+    nCompPair = len(rootsComp) // 2
+    nRealPair = len(rootsReal) // 2
+
+    for i in range(nCompPair):
+        root1 = rootsComp[i]
+        root2 = rootsComp[i + 1]
+        quads = jnp.append(quads, (root1 * root2).real)
+        quads = jnp.append(quads, -(root1.real + root2.real))
+
+    for i in range(nRealPair):
+        root1 = rootsReal[i]
+        root2 = rootsReal[i + 1]
+        quads = jnp.append(quads, (root1 * root2).real)
+        quads = jnp.append(quads, -(root1.real + root2.real))
+
+    if odd:
+        quads = jnp.append(quads, -rootsReal[-1].real)
+
+    return jnp.append(quads, jnp.array(mult_f))
+
+
+def carma_acvf(arroots: JAXArray, arparam: JAXArray, maparam: JAXArray) -> JAXArray:
+    r"""Compute the coefficients of the autocovariance function (ACVF)
+
+    Args:
+        arroots: The roots of the autoregressive characteristic polynomial.
+        arparam: :math:`\alpha` parameters
+        maparam: :math:`\beta` parameters
+
+    Returns:
+        ACVF coefficients, each entry corresponds to one root.
+    """
+    from jax._src import dtypes
+
+    arparam = jnp.atleast_1d(arparam)
+    maparam = jnp.atleast_1d(maparam)
+
+    complex_dtype = dtypes.to_complex_dtype(arparam.dtype)
+
+    p = arparam.shape[0]
+    q = maparam.shape[0] - 1
+    sigma = maparam[0]
+
+    # normalize beta_0 to 1
+    maparam = maparam / sigma
+
+    # init acf product terms
+    num_left = jnp.zeros(p, dtype=complex_dtype)
+    num_right = jnp.zeros(p, dtype=complex_dtype)
+    denom = -2 * arroots.real + jnp.zeros_like(arroots) * 1j
+
+    for k in range(q + 1):
+        num_left += maparam[k] * jnp.power(arroots, k)
+        num_right += maparam[k] * jnp.power(jnp.negative(arroots), k)
+
+    root_idx = jnp.arange(p)
+    for j in range(1, p):
+        root_k = arroots[jnp.roll(root_idx, j)]
+        denom *= (root_k - arroots) * (jnp.conj(root_k) + arroots)
+
+    return sigma**2 * num_left * num_right / denom

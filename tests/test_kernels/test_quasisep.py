@@ -1,14 +1,13 @@
 # mypy: ignore-errors
 
 import jax
+import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 import pytest
 
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
-
-jax.config.update("jax_enable_x64", True)
 
 
 @pytest.fixture
@@ -41,10 +40,12 @@ def data(random):
         1.5 * quasisep.Matern52(1.5) * quasisep.Celerite(1.1, 0.8, 0.9, 0.1),
         quasisep.Cosine(sigma=1.8, scale=1.5),
         1.8 * quasisep.Cosine(1.5),
-        quasisep.CARMA.init(alpha=[1.4, 2.3, 1.5], beta=[0.1, 0.5]),
-        quasisep.CARMA.init(alpha=[1, 1.2], beta=[1.0, 3.0]),
-        quasisep.CARMA.init(alpha=[0.1, 1.1], beta=[1.0, 3.0]),
-        quasisep.CARMA.init(alpha=[1.0 / 100], beta=[0.3]),
+        quasisep.CARMA.init(
+            alpha=jnp.array([1.4, 2.3, 1.5]), beta=jnp.array([0.1, 0.5])
+        ),
+        quasisep.CARMA.init(alpha=jnp.array([1, 1.2]), beta=jnp.array([1.0, 3.0])),
+        quasisep.CARMA.init(alpha=jnp.array([0.1, 1.1]), beta=jnp.array([1.0, 3.0])),
+        quasisep.CARMA.init(alpha=jnp.array([1.0 / 100]), beta=jnp.array([0.3])),
     ]
 )
 def kernel(request):
@@ -88,9 +89,9 @@ def test_carma(data):
     x, y, t = data
     # CARMA kernels
     carma2_kernels = [
-        quasisep.CARMA.init(alpha=[0.01], beta=[0.1]),
-        quasisep.CARMA.init(alpha=[1.0, 1.2], beta=[1.0, 3.0]),
-        quasisep.CARMA.init(alpha=[0.1, 1.1], beta=[1.0, 3.0]),
+        quasisep.CARMA.init(alpha=jnp.array([0.01]), beta=jnp.array([0.1])),
+        quasisep.CARMA.init(alpha=jnp.array([1.0, 1.2]), beta=jnp.array([1.0, 3.0])),
+        quasisep.CARMA.init(alpha=jnp.array([0.1, 1.1]), beta=jnp.array([1.0, 3.0])),
     ]
     # Equivalent Celerite+Exp kernels for validation
     validate_kernels = [
@@ -122,15 +123,15 @@ def test_carma_jit(data):
         gp = build_gp(params)
         return -gp.log_probability(y)
 
-    params = {"alpha": [1.0, 1.2], "beta": [1.0, 3.0]}
+    params = {"alpha": jnp.array([1.0, 1.2]), "beta": jnp.array([1.0, 3.0])}
     loss(params)
 
 
 def test_carma_quads():
     alpha = np.array([1.4, 2.3, 1.5])
     beta = np.array([0.1, 0.5])
-    alpha_quads = quasisep.CARMA.poly2quads(np.append(alpha, 1.0))
-    beta_quads = quasisep.CARMA.poly2quads(beta)
+    alpha_quads = quasisep.carma_poly2quads(np.append(alpha, 1.0))
+    beta_quads = quasisep.carma_poly2quads(beta)
 
     # seperate quad coeffs from mult_f
     alpha_quads = alpha_quads[:-1]
