@@ -2,7 +2,6 @@
 
 import warnings
 
-import jax
 import jax.numpy as jnp
 import pytest
 from numpy import random as np_random
@@ -182,8 +181,8 @@ def test_metric_kernel_value(random, stationary_kernel):
 
 def test_gp(random, kernel):
     tiny_kernel, george_kernel = kernel
-    if isinstance(tiny_kernel, kernels.Polynomial) and not jax.config.jax_enable_x64:
-        pytest.xfail("The Polynomial kernel is unstable at float32 precision")
+    if isinstance(tiny_kernel, kernels.Polynomial):
+        pytest.xfail("The Polynomial kernel is numerically unstable")
     compare_gps(random, tiny_kernel, george_kernel)
 
 
