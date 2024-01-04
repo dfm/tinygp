@@ -37,9 +37,7 @@ def data(random):
         1.5 * quasisep.Matern52(1.5) + 0.3 * quasisep.Exp(1.5),
         quasisep.Matern52(1.5) * quasisep.SHO(omega=1.5, quality=0.1),
         1.5 * quasisep.Matern52(1.5) * quasisep.Celerite(1.1, 0.8, 0.9, 0.1),
-        quasisep.CARMA.init(
-            alpha=jnp.array([1.4, 2.3, 1.5]), beta=jnp.array([0.1, 0.5])
-        ),
+        quasisep.CARMA(alpha=jnp.array([1.4, 2.3, 1.5]), beta=jnp.array([0.1, 0.5])),
     ]
 )
 def kernel(request):

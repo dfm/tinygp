@@ -41,12 +41,10 @@ def data(random):
         1.5 * quasisep.Matern52(1.5) * quasisep.Celerite(1.1, 0.8, 0.9, 0.1),
         quasisep.Cosine(sigma=1.8, scale=1.5),
         1.8 * quasisep.Cosine(1.5),
-        quasisep.CARMA.init(
-            alpha=jnp.array([1.4, 2.3, 1.5]), beta=jnp.array([0.1, 0.5])
-        ),
-        quasisep.CARMA.init(alpha=jnp.array([1, 1.2]), beta=jnp.array([1.0, 3.0])),
-        quasisep.CARMA.init(alpha=jnp.array([0.1, 1.1]), beta=jnp.array([1.0, 3.0])),
-        quasisep.CARMA.init(alpha=jnp.array([1.0 / 100]), beta=jnp.array([0.3])),
+        quasisep.CARMA(alpha=jnp.array([1.4, 2.3, 1.5]), beta=jnp.array([0.1, 0.5])),
+        quasisep.CARMA(alpha=jnp.array([1, 1.2]), beta=jnp.array([1.0, 3.0])),
+        quasisep.CARMA(alpha=jnp.array([0.1, 1.1]), beta=jnp.array([1.0, 3.0])),
+        quasisep.CARMA(alpha=jnp.array([1.0 / 100]), beta=jnp.array([0.3])),
     ]
 )
 def kernel(request):
@@ -90,9 +88,9 @@ def test_carma(data):
     x, y, _ = data
     # CARMA kernels
     carma2_kernels = [
-        quasisep.CARMA.init(alpha=jnp.array([0.01]), beta=jnp.array([0.1])),
-        quasisep.CARMA.init(alpha=jnp.array([1.0, 1.2]), beta=jnp.array([1.0, 3.0])),
-        quasisep.CARMA.init(alpha=jnp.array([0.1, 1.1]), beta=jnp.array([1.0, 3.0])),
+        quasisep.CARMA(alpha=jnp.array([0.01]), beta=jnp.array([0.1])),
+        quasisep.CARMA(alpha=jnp.array([1.0, 1.2]), beta=jnp.array([1.0, 3.0])),
+        quasisep.CARMA(alpha=jnp.array([0.1, 1.1]), beta=jnp.array([1.0, 3.0])),
     ]
     # Equivalent Celerite+Exp kernels for validation
     validate_kernels = [
@@ -115,7 +113,7 @@ def test_carma_jit(data):
     x, y, _ = data
 
     def build_gp(params):
-        carma_kernel = quasisep.CARMA.init(alpha=params["alpha"], beta=params["beta"])
+        carma_kernel = quasisep.CARMA(alpha=params["alpha"], beta=params["beta"])
         return GaussianProcess(carma_kernel, x, diag=0.01, mean=0.0)
 
     @jax.jit
