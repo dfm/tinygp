@@ -765,6 +765,9 @@ class CARMA(Quasisep):
         h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / denom
         om_complex = jnp.array([h1, h2])
 
+        # for complex roots, every conjugate pair match one full celerite term,
+        # so, every other entry from om_complex is used.
+        # same logic as for _complex_select
         obsmodel = jnp.where(_real_mask, om_real, jnp.ravel(om_complex)[::2])
 
         return cls(
