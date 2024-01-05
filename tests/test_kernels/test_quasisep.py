@@ -1,5 +1,3 @@
-# mypy: ignore-errors
-
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
@@ -60,11 +58,19 @@ def test_quasisep_kernels(data, kernel):
     assert_allclose(kernel.matmul(x, y), K @ y)
     assert_allclose(kernel.matmul(t, x, y), kernel(t, x) @ y)
 
-    # Test that F and are defined consistently
+    # Test that F is defined consistently
     x1 = x[0]
     x2 = x[1]
     num_A = jsp.linalg.expm(kernel.design_matrix().T * (x2 - x1))
     assert_allclose(kernel.transition_matrix(x1, x2), num_A)
+
+
+def test_quasisep_kernel_as_pytree(data, kernel):
+    x, _, _ = data
+    expect = jax.jit(lambda kernel_: kernel_.to_symm_qsm(x).to_dense())(kernel)
+    flat, spec = jax.tree_util.tree_flatten(kernel)
+    calc = jax.tree_util.tree_unflatten(spec, flat).to_symm_qsm(x).to_dense()
+    assert_allclose(calc, expect)
 
 
 def test_celerite(data):

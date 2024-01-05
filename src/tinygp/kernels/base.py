@@ -161,7 +161,7 @@ class Custom(Kernel):
             :func:`Kernel.evaluate`.
     """
 
-    function: Callable[[Any, Any], Any]
+    function: Callable[[Any, Any], Any] = eqx.field(static=True)
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.function(X1, X2)
@@ -200,13 +200,13 @@ class Constant(Kernel):
         c: The parameter :math:`c` in the above equation.
     """
 
-    value: JAXArray
+    value: JAXArray | float
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         del X1, X2
         if jnp.ndim(self.value) != 0:
             raise ValueError("The value of a constant kernel must be a scalar")
-        return self.value
+        return jnp.asarray(self.value)
 
 
 class DotProduct(Kernel):
@@ -239,9 +239,9 @@ class Polynomial(Kernel):
         sigma: The parameter :math:`\sigma`.
     """
 
-    order: JAXArray
-    scale: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
-    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.zeros(()))
+    order: JAXArray | float
+    scale: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.zeros(()))
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return (

@@ -294,7 +294,7 @@ class Product(Quasisep):
 class Scale(Wrapper):
     """The product of a scalar and a quasiseparable kernel"""
 
-    scale: JAXArray
+    scale: JAXArray | float
 
     def stationary_covariance(self) -> JAXArray:
         return self.scale * self.kernel.stationary_covariance()
@@ -322,10 +322,10 @@ class Celerite(Quasisep):
     don't satisfy this relationship.
     """
 
-    a: JAXArray
-    b: JAXArray
-    c: JAXArray
-    d: JAXArray
+    a: JAXArray | float
+    b: JAXArray | float
+    c: JAXArray | float
+    d: JAXArray | float
 
     def design_matrix(self) -> JAXArray:
         return jnp.array([[-self.c, -self.d], [self.d, -self.c]])
@@ -390,9 +390,9 @@ class SHO(Quasisep):
             prefactor.
     """
 
-    omega: JAXArray
-    quality: JAXArray
-    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
+    omega: JAXArray | float
+    quality: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         return jnp.array(
@@ -467,8 +467,8 @@ class Exp(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         return jnp.array([[-1 / self.scale]])
@@ -504,8 +504,8 @@ class Matern32(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def noise(self) -> JAXArray:
         f = np.sqrt(3) / self.scale
@@ -549,8 +549,8 @@ class Matern52(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         f = np.sqrt(5) / self.scale
@@ -612,8 +612,8 @@ class Cosine(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = eqx.field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         f = 2 * np.pi / self.scale
@@ -710,10 +710,10 @@ class CARMA(Quasisep):
     _complex_select: JAXArray
     obsmodel: JAXArray
 
-    def __init__(self, alpha: JAXArray, beta: JAXArray):
+    def __init__(self, alpha: Any, beta: Any):
         sigma = jnp.ones(())
-        alpha = jnp.atleast_1d(alpha)
-        beta = jnp.atleast_1d(beta)
+        alpha = jnp.atleast_1d(jnp.asarray(alpha))
+        beta = jnp.atleast_1d(jnp.asarray(beta))
         assert alpha.ndim == 1
         assert beta.ndim == 1
         p = alpha.shape[0]
