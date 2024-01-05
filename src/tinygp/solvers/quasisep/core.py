@@ -16,16 +16,18 @@ __all__ = [
     "SymmQSM",
 ]
 
-from abc import ABCMeta, abstractmethod
+import dataclasses
+from abc import abstractmethod
 from functools import wraps
 from typing import Any, Callable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.scipy.linalg import block_diag
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray
 
 
 def handle_matvec_shapes(
@@ -40,7 +42,7 @@ def handle_matvec_shapes(
     return wrapped
 
 
-class QSM(metaclass=ABCMeta):
+class QSM(eqx.Module):
     """The base class for all square quasiseparable matrices
 
     This class has blanket implementations of the standard operations that are
@@ -50,10 +52,6 @@ class QSM(metaclass=ABCMeta):
 
     # Must be higher than jax's
     __array_priority__ = 2000
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # Stub for mypy
-        raise NotImplementedError
 
     @abstractmethod
     def transpose(self) -> Any:
@@ -94,19 +92,16 @@ class QSM(metaclass=ABCMeta):
         return (n, n)
 
     def __iter__(self):  # type: ignore
-        return self.iter_elems()  # type: ignore
+        return (getattr(self, f.name) for f in dataclasses.fields(self))
 
-    @jax.jit
     def __sub__(self, other: Any) -> Any:
         return self.__add__(-other)
 
-    @jax.jit
     def __add__(self, other: Any) -> Any:
         from tinygp.solvers.quasisep.ops import elementwise_add
 
         return elementwise_add(self, other)
 
-    @jax.jit
     def __mul__(self, other: Any) -> Any:
         if isinstance(other, QSM):
             from tinygp.solvers.quasisep.ops import elementwise_mul
@@ -116,13 +111,11 @@ class QSM(metaclass=ABCMeta):
             assert jnp.ndim(other) <= 1
             return self.scale(other)
 
-    @jax.jit
     def __rmul__(self, other: Any) -> Any:
         assert not isinstance(other, QSM)
         assert jnp.ndim(other) <= 1
         return self.scale(other)
 
-    @jax.jit
     def __matmul__(self, other: Any) -> Any:
         if isinstance(other, QSM):
             from tinygp.solvers.quasisep.ops import qsm_mul
@@ -131,13 +124,11 @@ class QSM(metaclass=ABCMeta):
         else:
             return self.matmul(other)
 
-    @jax.jit
     def __rmatmul__(self, other: Any) -> Any:
         assert not isinstance(other, QSM)
         return (self.transpose() @ other.transpose()).transpose()
 
 
-@dataclass
 class DiagQSM(QSM):
     """A diagonal quasiseparable matrix
 
@@ -174,7 +165,6 @@ class DiagQSM(QSM):
         return DiagQSM(d=-self.d)
 
 
-@dataclass
 class StrictLowerTriQSM(QSM):
     """A strictly lower triangular order ``m`` quasiseparable matrix
 
@@ -242,7 +232,6 @@ class StrictLowerTriQSM(QSM):
         return StrictLowerTriQSM(p=-self.p, q=self.q, a=self.a)
 
 
-@dataclass
 class StrictUpperTriQSM(QSM):
     """A strictly upper triangular order ``m`` quasiseparable matrix
 
@@ -296,7 +285,6 @@ class StrictUpperTriQSM(QSM):
         return StrictUpperTriQSM(p=-self.p, q=self.q, a=self.a)
 
 
-@dataclass
 class LowerTriQSM(QSM):
     """A lower triangular quasiseparable matrix
 
@@ -353,7 +341,6 @@ class LowerTriQSM(QSM):
         return LowerTriQSM(diag=-self.diag, lower=-self.lower)
 
 
-@dataclass
 class UpperTriQSM(QSM):
     """A upper triangular quasiseparable matrix
 
@@ -404,7 +391,6 @@ class UpperTriQSM(QSM):
         return UpperTriQSM(diag=-self.diag, upper=-self.upper)
 
 
-@dataclass
 class SquareQSM(QSM):
     """A general square order ``(m1, m2)`` quasiseparable matrix
 
@@ -497,7 +483,6 @@ class SquareQSM(QSM):
         return SquareQSM(diag=-self.diag, lower=-self.lower, upper=-self.upper)
 
 
-@dataclass
 class SymmQSM(QSM):
     """A symmetric order ``m`` quasiseparable matrix
 

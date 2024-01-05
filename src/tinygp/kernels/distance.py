@@ -11,14 +11,15 @@ from __future__ import annotations
 
 __all__ = ["Distance", "L1Distance", "L2Distance"]
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 
+import equinox as eqx
 import jax.numpy as jnp
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray
 
 
-class Distance(metaclass=ABCMeta):
+class Distance(eqx.Module):
     """An abstract base class defining a distance metric interface"""
 
     @abstractmethod
@@ -37,7 +38,6 @@ class Distance(metaclass=ABCMeta):
         return jnp.square(self.distance(X1, X2))
 
 
-@dataclass
 class L1Distance(Distance):
     """The L1 or Manhattan distance between two coordinates"""
 
@@ -45,7 +45,6 @@ class L1Distance(Distance):
         return jnp.sum(jnp.abs(X1 - X2))
 
 
-@dataclass
 class L2Distance(Distance):
     """The L2 or Euclidean distance between two coordinates"""
 

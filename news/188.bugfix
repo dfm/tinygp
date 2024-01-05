@@ -1,1 +1,1 @@
-Fixed use of `jnp.roots` and `np.roll` to make CARMA kernel jit-compliant
+Fixed use of `jnp.roots` and `np.roll` to make CARMA kernel jit-compliant.

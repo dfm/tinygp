@@ -1,29 +1,26 @@
 # mypy: ignore-errors
 
 import jax
-import numpy as np
+import jax.numpy as jnp
 import pytest
+from numpy import random as np_random
 
 from tinygp import GaussianProcess, kernels
 from tinygp.kernels import quasisep
 from tinygp.solvers import DirectSolver, QuasisepSolver
-
-try:
-    import celerite
-except ImportError:
-    celerite = None
+from tinygp.test_utils import assert_allclose
 
 
 @pytest.fixture
 def random():
-    return np.random.default_rng(84930)
+    return np_random.default_rng(84930)
 
 
 @pytest.fixture
 def data(random):
-    x = np.sort(random.uniform(-3, 3, 50))
-    y = np.sin(x)
-    t = np.sort(random.uniform(-3, 3, 10))
+    x = jnp.sort(random.uniform(-3, 3, 50))
+    y = jnp.sin(x)
+    t = jnp.sort(random.uniform(-3, 3, 10))
     return x, y, t
 
 
@@ -62,13 +59,13 @@ def test_consistent_with_direct(kernel_pair, data):
     gp1 = GaussianProcess(kernel1, x, diag=0.1, solver=QuasisepSolver)
     gp2 = GaussianProcess(kernel2, x, diag=0.1, solver=DirectSolver)
 
-    np.testing.assert_allclose(gp1.covariance, gp2.covariance)
-    np.testing.assert_allclose(gp1.solver.normalization(), gp2.solver.normalization())
-    np.testing.assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
-    np.testing.assert_allclose(
+    assert_allclose(gp1.covariance, gp2.covariance)
+    assert_allclose(gp1.solver.normalization(), gp2.solver.normalization())
+    assert_allclose(gp1.log_probability(y), gp2.log_probability(y))
+    assert_allclose(
         gp1.sample(jax.random.PRNGKey(0)), gp2.sample(jax.random.PRNGKey(0))
     )
-    np.testing.assert_allclose(
+    assert_allclose(
         gp1.sample(jax.random.PRNGKey(0), shape=(5, 7)),
         gp2.sample(jax.random.PRNGKey(0), shape=(5, 7)),
     )
@@ -76,36 +73,37 @@ def test_consistent_with_direct(kernel_pair, data):
     gp1p = gp1.condition(y)
     gp2p = gp2.condition(y)
     assert isinstance(gp1p.gp.solver, QuasisepSolver)
-    np.testing.assert_allclose(gp1p.log_probability, gp2p.log_probability)
-    np.testing.assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
-    np.testing.assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
-    np.testing.assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7)
+    assert_allclose(gp1p.log_probability, gp2p.log_probability)
+    assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
+    assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
+    assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance)
 
     gp1p = gp1.condition(y, kernel=kernel0)
     gp2p = gp2.condition(y, kernel=kernel0)
     assert isinstance(gp1p.gp.solver, QuasisepSolver)
-    np.testing.assert_allclose(gp1p.log_probability, gp2p.log_probability)
-    np.testing.assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
-    np.testing.assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
-    np.testing.assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7)
+    assert_allclose(gp1p.log_probability, gp2p.log_probability)
+    assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
+    assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
+    assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance)
 
     gp1p = gp1.condition(y, X_test=t, kernel=kernel0)
     gp2p = gp2.condition(y, X_test=t, kernel=kernel0)
     assert not isinstance(gp1p.gp.solver, QuasisepSolver)
-    np.testing.assert_allclose(gp1p.log_probability, gp2p.log_probability)
-    np.testing.assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
-    np.testing.assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
-    np.testing.assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance, atol=1e-7)
+    assert_allclose(gp1p.log_probability, gp2p.log_probability)
+    assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
+    assert_allclose(gp1p.gp.variance, gp2p.gp.variance)
+    assert_allclose(gp1p.gp.covariance, gp2p.gp.covariance)
 
 
-@pytest.mark.skipif(celerite is None, reason="'celerite' must be installed")
 def test_celerite(data):
+    celerite = pytest.importorskip("celerite")
+
     x, y, _ = data
     yerr = 0.1
 
     a, b, c, d = 1.1, 0.8, 0.9, 0.1
     celerite_kernel = celerite.terms.ComplexTerm(
-        np.log(a), np.log(b), np.log(c), np.log(d)
+        jnp.log(a), jnp.log(b), jnp.log(c), jnp.log(d)
     )
     celerite_gp = celerite.GP(celerite_kernel)
     celerite_gp.compute(x, yerr)
@@ -115,11 +113,11 @@ def test_celerite(data):
     gp = GaussianProcess(kernel, x, diag=yerr**2)
     calc = gp.log_probability(y)
 
-    np.testing.assert_allclose(calc, expected)
+    assert_allclose(calc, expected)
 
 
 def test_unsorted(data):
-    random = np.random.default_rng(0)
+    random = np_random.default_rng(0)
     inds = random.permutation(len(data[0]))
     x_ = data[0][inds]
     y_ = data[1][inds]

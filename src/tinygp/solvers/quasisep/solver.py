@@ -8,14 +8,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 from tinygp.noise import Noise
 from tinygp.solvers.quasisep.core import LowerTriQSM, SymmQSM
 from tinygp.solvers.solver import Solver
 
 
-@dataclass
 class QuasisepSolver(Solver):
     """A scalable solver that uses quasiseparable matrices
 
@@ -31,16 +30,15 @@ class QuasisepSolver(Solver):
     matrix: SymmQSM
     factor: LowerTriQSM
 
-    @classmethod
-    def init(
-        cls,
+    def __init__(
+        self,
         kernel: Kernel,
         X: JAXArray,
         noise: Noise,
         *,
         covariance: Any | None = None,
         assume_sorted: bool = False,
-    ) -> QuasisepSolver:
+    ):
         """Build a :class:`QuasisepSolver` for a given kernel and coordinates
 
         Args:
@@ -70,8 +68,9 @@ class QuasisepSolver(Solver):
             if TYPE_CHECKING:
                 assert isinstance(covariance, SymmQSM)
             matrix = covariance
-        factor = matrix.cholesky()
-        return cls(X=X, matrix=matrix, factor=factor)
+        self.X = X
+        self.matrix = matrix
+        self.factor = matrix.cholesky()
 
     def variance(self) -> JAXArray:
         return self.matrix.diag.d

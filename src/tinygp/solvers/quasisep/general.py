@@ -17,12 +17,13 @@ from __future__ import annotations
 __all__ = ["GeneralQSM"]
 
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray
 
 
 def handle_matvec_shapes(
@@ -37,8 +38,7 @@ def handle_matvec_shapes(
     return wrapped
 
 
-@dataclass
-class GeneralQSM:
+class GeneralQSM(eqx.Module):
     """A rectangular ``(n1,n2)`` quasiseparable matrix with order ``m``
 
     Args:
@@ -56,11 +56,6 @@ class GeneralQSM:
     qu: JAXArray
     a: JAXArray
     idx: JAXArray
-
-    if TYPE_CHECKING:
-
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
 
     @property
     def shape(self) -> tuple[int, int]:

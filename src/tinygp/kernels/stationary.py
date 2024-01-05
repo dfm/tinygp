@@ -26,15 +26,15 @@ __all__ = [
 ]
 
 
+import equinox as eqx
 import jax.numpy as jnp
 import numpy as np
 
-from tinygp.helpers import JAXArray, dataclass, field
+from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 from tinygp.kernels.distance import Distance, L1Distance, L2Distance
 
 
-@dataclass
 class Stationary(Kernel):
     """A stationary kernel is defined with respect to a distance metric
 
@@ -52,11 +52,10 @@ class Stationary(Kernel):
             ``distance`` isn't provided.
     """
 
-    scale: JAXArray = field(default_factory=lambda: jnp.ones(()))
-    distance: Distance = L1Distance()
+    scale: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
+    distance: Distance = eqx.field(default_factory=L1Distance)
 
 
-@dataclass
 class Exp(Stationary):
     r"""The exponential kernel
 
@@ -83,7 +82,6 @@ class Exp(Stationary):
         return jnp.exp(-self.distance.distance(X1, X2) / self.scale)
 
 
-@dataclass
 class ExpSquared(Stationary):
     r"""The exponential squared or radial basis function kernel
 
@@ -101,14 +99,13 @@ class ExpSquared(Stationary):
         scale: The parameter :math:`\ell`.
     """
 
-    distance: Distance = L2Distance()
+    distance: Distance = eqx.field(default_factory=L2Distance)
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         r2 = self.distance.squared_distance(X1, X2) / jnp.square(self.scale)
         return jnp.exp(-0.5 * r2)
 
 
-@dataclass
 class Matern32(Stationary):
     r"""The Matern-3/2 kernel
 
@@ -132,7 +129,6 @@ class Matern32(Stationary):
         return (1 + arg) * jnp.exp(-arg)
 
 
-@dataclass
 class Matern52(Stationary):
     r"""The Matern-5/2 kernel
 
@@ -157,7 +153,6 @@ class Matern52(Stationary):
         return (1 + arg + jnp.square(arg) / 3) * jnp.exp(-arg)
 
 
-@dataclass
 class Cosine(Stationary):
     r"""The cosine kernel
 
@@ -180,7 +175,6 @@ class Cosine(Stationary):
         return jnp.cos(2 * jnp.pi * r)
 
 
-@dataclass
 class ExpSineSquared(Stationary):
     r"""The exponential sine squared or quasiperiodic kernel
 
@@ -199,17 +193,18 @@ class ExpSineSquared(Stationary):
         gamma: The parameter :math:`\Gamma`.
     """
 
-    gamma: JAXArray | None = None
+    gamma: JAXArray | float | None = None
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __check_init__(self):
         if self.gamma is None:
             raise ValueError("Missing required argument 'gamma'")
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         assert self.gamma is not None
         r = self.distance.distance(X1, X2) / self.scale
         return jnp.exp(-self.gamma * jnp.square(jnp.sin(jnp.pi * r)))
 
 
-@dataclass
 class RationalQuadratic(Stationary):
     r"""The rational quadratic
 
@@ -228,11 +223,13 @@ class RationalQuadratic(Stationary):
         alpha: The parameter :math:`\alpha`.
     """
 
-    alpha: JAXArray | None = None
+    alpha: JAXArray | float | None = None
 
-    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+    def __check_init__(self):
         if self.alpha is None:
             raise ValueError("Missing required argument 'alpha'")
+
+    def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         assert self.alpha is not None
         r2 = self.distance.squared_distance(X1, X2) / jnp.square(self.scale)
         return (1.0 + 0.5 * r2 / self.alpha) ** -self.alpha

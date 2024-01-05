@@ -9,12 +9,11 @@ import numpy as np
 from jax.scipy import linalg
 
 from tinygp import kernels
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray
 from tinygp.noise import Noise
 from tinygp.solvers.solver import Solver
 
 
-@dataclass
 class DirectSolver(Solver):
     """A direct solver that uses ``jax``'s built in Cholesky factorization
 
@@ -28,15 +27,14 @@ class DirectSolver(Solver):
     covariance_value: JAXArray
     scale_tril: JAXArray
 
-    @classmethod
-    def init(
-        cls,
+    def __init__(
+        self,
         kernel: kernels.Kernel,
         X: JAXArray,
         noise: Noise,
         *,
         covariance: Any | None = None,
-    ) -> DirectSolver:
+    ):
         """Build a :class:`DirectSolver` for a given kernel and coordinates
 
         Args:
@@ -47,16 +45,12 @@ class DirectSolver(Solver):
                 matrix. This should be equal to the result of calling ``kernel``
                 and adding ``diag``, but that is not checked.
         """
-        variance = kernel(X) + noise.diagonal()
+        self.X = X
+        self.variance_value = kernel(X) + noise.diagonal()
         if covariance is None:
             covariance = kernel(X, X) + noise
-        scale_tril = linalg.cholesky(covariance, lower=True)
-        return cls(
-            X=X,
-            variance_value=variance,
-            covariance_value=covariance,
-            scale_tril=scale_tril,
-        )
+        self.covariance_value = covariance
+        self.scale_tril = linalg.cholesky(covariance, lower=True)
 
     def variance(self) -> JAXArray:
         return self.variance_value

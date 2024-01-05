@@ -12,14 +12,14 @@ from collections.abc import Sequence
 from functools import partial
 from typing import Any, Callable
 
+import equinox as eqx
 import jax.numpy as jnp
 from jax.scipy import linalg
 
-from tinygp.helpers import JAXArray, dataclass
+from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 
 
-@dataclass
 class Transform(Kernel):
     """Apply a transformation to the input coordinates of the kernel
 
@@ -29,14 +29,13 @@ class Transform(Kernel):
         kernel (Kernel): The kernel to use in the transformed space.
     """
 
-    transform: Callable[[Any], Any]
+    transform: Callable[[Any], Any] = eqx.field(static=True)
     kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.kernel.evaluate(self.transform(X1), self.transform(X2))
 
 
-@dataclass
 class Linear(Kernel):
     """Apply a linear transformation to the input coordinates of the kernel
 
@@ -72,7 +71,6 @@ class Linear(Kernel):
         return self.kernel.evaluate(transform(X1), transform(X2))
 
 
-@dataclass
 class Cholesky(Kernel):
     """Apply a Cholesky transformation to the input coordinates of the kernel
 
@@ -135,7 +133,6 @@ class Cholesky(Kernel):
         return cls(factor, kernel)
 
 
-@dataclass
 class Subspace(Kernel):
     """A kernel transform that selects a subset of the input dimensions
 
@@ -158,7 +155,7 @@ class Subspace(Kernel):
         kernel (Kernel): The kernel to use in the transformed space.
     """
 
-    axis: Sequence[int] | int
+    axis: Sequence[int] | int = eqx.field(static=True)
     kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:

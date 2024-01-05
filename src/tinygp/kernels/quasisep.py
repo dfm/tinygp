@@ -25,21 +25,22 @@ __all__ = [
     "CARMA",
 ]
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from typing import Any
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 
-from tinygp.helpers import JAXArray, dataclass, field
+from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
 
-class Quasisep(Kernel, metaclass=ABCMeta):
+class Quasisep(Kernel):
     """The base class for all quasiseparable kernels
 
     Instead of directly implementing the ``p``, ``q``, and ``a`` elements of the
@@ -195,8 +196,7 @@ class Quasisep(Kernel, metaclass=ABCMeta):
         return h @ self.stationary_covariance() @ h
 
 
-@dataclass
-class Wrapper(Quasisep, metaclass=ABCMeta):
+class Wrapper(Quasisep):
     """A base class for wrapping kernels with some custom implementations"""
 
     kernel: Quasisep
@@ -219,7 +219,6 @@ class Wrapper(Quasisep, metaclass=ABCMeta):
         )
 
 
-@dataclass
 class Sum(Quasisep):
     """A helper to represent the sum of two quasiseparable kernels"""
 
@@ -256,7 +255,6 @@ class Sum(Quasisep):
         )
 
 
-@dataclass
 class Product(Quasisep):
     """A helper to represent the product of two quasiseparable kernels"""
 
@@ -293,17 +291,15 @@ class Product(Quasisep):
         )
 
 
-@dataclass
 class Scale(Wrapper):
     """The product of a scalar and a quasiseparable kernel"""
 
-    scale: JAXArray
+    scale: JAXArray | float
 
     def stationary_covariance(self) -> JAXArray:
         return self.scale * self.kernel.stationary_covariance()
 
 
-@dataclass
 class Celerite(Quasisep):
     r"""The baseline kernel from the ``celerite`` package
 
@@ -326,10 +322,10 @@ class Celerite(Quasisep):
     don't satisfy this relationship.
     """
 
-    a: JAXArray
-    b: JAXArray
-    c: JAXArray
-    d: JAXArray
+    a: JAXArray | float
+    b: JAXArray | float
+    c: JAXArray | float
+    d: JAXArray | float
 
     def design_matrix(self) -> JAXArray:
         return jnp.array([[-self.c, -self.d], [self.d, -self.c]])
@@ -345,6 +341,7 @@ class Celerite(Quasisep):
         )
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         a = self.a
         b = self.b
         c = self.c
@@ -364,7 +361,6 @@ class Celerite(Quasisep):
         return jnp.exp(-self.c * dt) * jnp.array([[cos, -sin], [sin, cos]]).T
 
 
-@dataclass
 class SHO(Quasisep):
     r"""The damped, driven simple harmonic oscillator kernel
 
@@ -394,9 +390,9 @@ class SHO(Quasisep):
             prefactor.
     """
 
-    omega: JAXArray
-    quality: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    omega: JAXArray | float
+    quality: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         return jnp.array(
@@ -407,6 +403,7 @@ class SHO(Quasisep):
         return jnp.diag(jnp.array([1, jnp.square(self.omega)]))
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return jnp.array([self.sigma, 0])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -451,7 +448,6 @@ class SHO(Quasisep):
         )
 
 
-@dataclass
 class Exp(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Exp`
 
@@ -471,8 +467,8 @@ class Exp(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         return jnp.array([[-1 / self.scale]])
@@ -481,6 +477,7 @@ class Exp(Quasisep):
         return jnp.ones((1, 1))
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return jnp.array([self.sigma])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -488,7 +485,6 @@ class Exp(Quasisep):
         return jnp.exp(-dt[None, None] / self.scale)
 
 
-@dataclass
 class Matern32(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Matern32`
 
@@ -508,8 +504,8 @@ class Matern32(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def noise(self) -> JAXArray:
         f = np.sqrt(3) / self.scale
@@ -533,7 +529,6 @@ class Matern32(Quasisep):
         )
 
 
-@dataclass
 class Matern52(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Matern52`
 
@@ -554,8 +549,8 @@ class Matern52(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         f = np.sqrt(5) / self.scale
@@ -569,6 +564,7 @@ class Matern52(Quasisep):
         return jnp.array([[1, 0, -f2o3], [0, f2o3, 0], [-f2o3, 0, jnp.square(f2)]])
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return jnp.array([self.sigma, 0, 0])
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -597,7 +593,6 @@ class Matern52(Quasisep):
         )
 
 
-@dataclass
 class Cosine(Quasisep):
     r"""A scalable implementation of :class:`tinygp.kernels.stationary.Cosine`
 
@@ -617,8 +612,8 @@ class Cosine(Quasisep):
             prefactor.
     """
 
-    scale: JAXArray
-    sigma: JAXArray = field(default_factory=lambda: jnp.ones(()))
+    scale: JAXArray | float
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
 
     def design_matrix(self) -> JAXArray:
         f = 2 * np.pi / self.scale
@@ -650,7 +645,6 @@ def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
         raise NotImplementedError
 
 
-@dataclass
 class CARMA(Quasisep):
     r"""A continuous-time autoregressive moving average (CARMA) process kernel
 
@@ -666,13 +660,6 @@ class CARMA(Quasisep):
     are set to 1. In this implementation, we absorb :math:`\sigma` into the
     definition of :math:`\beta` parameters. That is :math:`\beta_{new}` =
     :math:`\beta * \sigma`.
-
-    Unlike other kernels, this *must* be instantiated using the :func:`init`
-    method instead of the usual constructor:
-
-    .. code-block:: python
-
-        kernel = CARMA.init(alpha=..., beta=...)
 
     .. note::
         To construct a stationary CARMA kernel/process, the roots of the
@@ -704,6 +691,13 @@ class CARMA(Quasisep):
         to avoid control flows. More specifically, some intermediate quantities
         are computed regardless, but are only used if there is a matching real
         or complex exponential kernel for the specific CARMA kernel.
+
+    Args:
+        alpha: The parameter :math:`\alpha` in the definition above, exlcuding
+            :math:`\alpha_p`. This should be an array of length `p`.
+        beta: The product of parameters :math:`\beta` and parameter :math:`\sigma`
+            in the definition above. This should be an array of length `q+1`,
+            where `q+1 <= p`.
     """
 
     alpha: JAXArray
@@ -716,20 +710,10 @@ class CARMA(Quasisep):
     _complex_select: JAXArray
     obsmodel: JAXArray
 
-    @classmethod
-    def init(cls, alpha: JAXArray, beta: JAXArray) -> CARMA:
-        r"""Construct a CARMA kernel using the alpha, (new) beta parameters
-
-        Args:
-            alpha: The parameter :math:`\alpha` in the definition above, exlcuding
-                :math:`\alpha_p`. This should be an array of length `p`.
-            beta: The product of parameters :math:`\beta` and parameter :math:`\sigma`
-                in the definition above. This should be an array of length `q+1`,
-                where `q+1 <= p`.
-        """
+    def __init__(self, alpha: Any, beta: Any):
         sigma = jnp.ones(())
-        alpha = jnp.atleast_1d(alpha)
-        beta = jnp.atleast_1d(beta)
+        alpha = jnp.atleast_1d(jnp.asarray(alpha))
+        beta = jnp.atleast_1d(jnp.asarray(beta))
         assert alpha.ndim == 1
         assert beta.ndim == 1
         p = alpha.shape[0]
@@ -768,19 +752,20 @@ class CARMA(Quasisep):
         # for complex roots, every conjugate pair match one full celerite term,
         # so, every other entry from om_complex is used.
         # same logic as for _complex_select
-        obsmodel = jnp.where(_real_mask, om_real, jnp.ravel(om_complex)[::2])
+        self.obsmodel = jnp.where(_real_mask, om_real, jnp.ravel(om_complex)[::2])
 
-        return cls(
-            alpha=alpha,
-            beta=beta,
-            sigma=sigma,
-            arroots=arroots,
-            acf=acf,
-            _real_mask=_real_mask,
-            _complex_mask=_complex_mask,
-            _complex_select=_complex_select,
-            obsmodel=obsmodel,
-        )
+        self.alpha = alpha
+        self.beta = beta
+        self.sigma = sigma
+        self.arroots = arroots
+        self.acf = acf
+        self._real_mask = _real_mask
+        self._complex_mask = _complex_mask
+        self._complex_select = _complex_select
+
+    @classmethod
+    def init(cls, alpha: JAXArray, beta: JAXArray) -> CARMA:
+        return cls(alpha, beta)
 
     @classmethod
     def from_quads(
@@ -814,7 +799,7 @@ class CARMA(Quasisep):
         alpha = carma_quads2poly(jnp.append(alpha_quads, jnp.array([1.0])))[:-1]
         beta = carma_quads2poly(jnp.append(beta_quads, beta_mult))
 
-        return cls.init(alpha, beta)
+        return cls(alpha, beta)
 
     def design_matrix(self) -> JAXArray:
         # for real exponential components
@@ -853,6 +838,7 @@ class CARMA(Quasisep):
         return diag + diag_complex + sc_complex_u + sc_complex_u.T
 
     def observation_model(self, X: JAXArray) -> JAXArray:
+        del X
         return self.obsmodel
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -971,7 +957,7 @@ def carma_acvf(arroots: JAXArray, arparam: JAXArray, maparam: JAXArray) -> JAXAr
     Returns:
         ACVF coefficients, each entry corresponds to one root.
     """
-    from jax._src import dtypes
+    from jax._src import dtypes  # type: ignore
 
     arparam = jnp.atleast_1d(arparam)
     maparam = jnp.atleast_1d(maparam)

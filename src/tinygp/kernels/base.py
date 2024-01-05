@@ -11,34 +11,29 @@ __all__ = [
     "Polynomial",
 ]
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Callable, Union
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from tinygp.helpers import JAXArray, dataclass, field
+from tinygp.helpers import JAXArray
 
 if TYPE_CHECKING:
     from tinygp.solvers.solver import Solver
 
-
 Axis = Union[int, Sequence[int]]
 
 
-class Kernel(metaclass=ABCMeta):
+class Kernel(eqx.Module):
     """The base class for all kernel implementations
 
     This subclass provides default implementations to add and multiply kernels.
     Subclasses should accept parameters in their ``__init__`` and then override
     :func:`Kernel.evaluate` with custom behavior.
     """
-
-    if TYPE_CHECKING:
-
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
 
     @abstractmethod
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
@@ -58,6 +53,7 @@ class Kernel(metaclass=ABCMeta):
            ``(n_data, n_dim)``, and you should let the :class:`Kernel` ``vmap``
            magic handle all the broadcasting for you.
         """
+        del X1, X2
         raise NotImplementedError
 
     def evaluate_diag(self, X: JAXArray) -> JAXArray:
@@ -130,7 +126,6 @@ class Kernel(metaclass=ABCMeta):
         return Product(Constant(other), self)
 
 
-@dataclass
 class Conditioned(Kernel):
     """A kernel used when conditioning a process on data
 
@@ -158,7 +153,6 @@ class Conditioned(Kernel):
         return self.kernel.evaluate_diag(X) - K.transpose() @ K
 
 
-@dataclass
 class Custom(Kernel):
     """A custom kernel class implemented as a callable
 
@@ -167,13 +161,12 @@ class Custom(Kernel):
             :func:`Kernel.evaluate`.
     """
 
-    function: Callable[[Any, Any], Any]
+    function: Callable[[Any, Any], Any] = eqx.field(static=True)
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return self.function(X1, X2)
 
 
-@dataclass
 class Sum(Kernel):
     """A helper to represent the sum of two kernels"""
 
@@ -184,7 +177,6 @@ class Sum(Kernel):
         return self.kernel1.evaluate(X1, X2) + self.kernel2.evaluate(X1, X2)
 
 
-@dataclass
 class Product(Kernel):
     """A helper to represent the product of two kernels"""
 
@@ -195,7 +187,6 @@ class Product(Kernel):
         return self.kernel1.evaluate(X1, X2) * self.kernel2.evaluate(X1, X2)
 
 
-@dataclass
 class Constant(Kernel):
     r"""This kernel returns the constant
 
@@ -209,15 +200,15 @@ class Constant(Kernel):
         c: The parameter :math:`c` in the above equation.
     """
 
-    value: JAXArray
+    value: JAXArray | float
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        del X1, X2
         if jnp.ndim(self.value) != 0:
             raise ValueError("The value of a constant kernel must be a scalar")
-        return self.value
+        return jnp.asarray(self.value)
 
 
-@dataclass
 class DotProduct(Kernel):
     r"""The dot product kernel
 
@@ -234,7 +225,6 @@ class DotProduct(Kernel):
         return X1 @ X2
 
 
-@dataclass
 class Polynomial(Kernel):
     r"""A polynomial kernel
 
@@ -249,9 +239,9 @@ class Polynomial(Kernel):
         sigma: The parameter :math:`\sigma`.
     """
 
-    order: JAXArray
-    scale: JAXArray = field(default_factory=lambda: jnp.ones(()))
-    sigma: JAXArray = field(default_factory=lambda: jnp.zeros(()))
+    order: JAXArray | float
+    scale: JAXArray | float = eqx.field(default_factory=lambda: jnp.ones(()))
+    sigma: JAXArray | float = eqx.field(default_factory=lambda: jnp.zeros(()))
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
         return (

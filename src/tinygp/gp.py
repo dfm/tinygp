@@ -11,8 +11,10 @@ from typing import (
     NamedTuple,
 )
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
@@ -20,12 +22,13 @@ from tinygp.kernels.quasisep import Quasisep
 from tinygp.noise import Diagonal, Noise
 from tinygp.solvers import DirectSolver, QuasisepSolver
 from tinygp.solvers.quasisep.core import SymmQSM
+from tinygp.solvers.solver import Solver
 
 if TYPE_CHECKING:
     from tinygp.numpyro_support import TinyDistribution
 
 
-class GaussianProcess:
+class GaussianProcess(eqx.Module):
     """An interface for designing a Gaussian Process regression model
 
     Args:
@@ -50,6 +53,15 @@ class GaussianProcess:
             algebra.
     """
 
+    num_data: int = eqx.field(static=True)
+    dtype: np.dtype = eqx.field(static=True)
+    kernel: kernels.Kernel
+    X: JAXArray
+    mean_function: means.MeanBase
+    mean: JAXArray
+    noise: Noise
+    solver: Solver
+
     def __init__(
         self,
         kernel: kernels.Kernel,
@@ -57,7 +69,7 @@ class GaussianProcess:
         *,
         diag: JAXArray | None = None,
         noise: Noise | None = None,
-        mean: Callable[[JAXArray], JAXArray] | JAXArray | None = None,
+        mean: means.MeanBase | Callable[[JAXArray], JAXArray] | JAXArray | None = None,
         solver: Any | None = None,
         mean_value: JAXArray | None = None,
         covariance_value: Any | None = None,
@@ -66,7 +78,7 @@ class GaussianProcess:
         self.kernel = kernel
         self.X = X
 
-        if callable(mean):
+        if isinstance(mean, means.MeanBase):
             self.mean_function = mean
         elif mean is None:
             self.mean_function = means.Mean(jnp.zeros(()))
@@ -76,7 +88,7 @@ class GaussianProcess:
             mean_value = jax.vmap(self.mean_function)(self.X)
         self.num_data = mean_value.shape[0]
         self.dtype = mean_value.dtype
-        self.loc = self.mean = mean_value
+        self.mean = mean_value
         if self.mean.ndim != 1:
             raise ValueError(
                 "Invalid mean shape: " f"expected ndim = 1, got ndim={self.mean.ndim}"
@@ -92,13 +104,17 @@ class GaussianProcess:
                 solver = QuasisepSolver
             else:
                 solver = DirectSolver
-        self.solver = solver.init(
+        self.solver = solver(
             kernel,
             self.X,
             self.noise,
             covariance=covariance_value,
             **solver_kwargs,
         )
+
+    @property
+    def loc(self) -> JAXArray:
+        return self.mean
 
     @property
     def variance(self) -> JAXArray:
@@ -209,7 +225,6 @@ class GaussianProcess:
 
     @partial(
         jax.jit,
-        static_argnums=(0,),
         static_argnames=("include_mean", "return_var", "return_cov"),
     )
     def predict(
@@ -281,7 +296,7 @@ class GaussianProcess:
 
         return TinyDistribution(self, **kwargs)
 
-    @partial(jax.jit, static_argnums=(0, 2))
+    @partial(jax.jit, static_argnums=(2,))
     def _sample(
         self,
         key: jax.random.KeyArray,
@@ -296,16 +311,16 @@ class GaussianProcess:
             self.solver.dot_triangular(normal_samples), 0, -1
         )
 
-    @partial(jax.jit, static_argnums=0)
+    @jax.jit
     def _compute_log_prob(self, alpha: JAXArray) -> JAXArray:
         loglike = -0.5 * jnp.sum(jnp.square(alpha)) - self.solver.normalization()
         return jnp.where(jnp.isfinite(loglike), loglike, -jnp.inf)
 
-    @partial(jax.jit, static_argnums=0)
+    @jax.jit
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return self.solver.solve_triangular(y - self.loc)
 
-    @partial(jax.jit, static_argnums=(0, 3))
+    @partial(jax.jit, static_argnums=(3,))
     def _condition(
         self,
         y: JAXArray,
