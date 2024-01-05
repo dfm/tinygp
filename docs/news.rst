@@ -5,6 +5,23 @@ Release Notes
 
 .. towncrier release notes start
 
+tinygp 0.3.0 (2024-01-05)
+-------------------------
+
+Features
+~~~~~~~~
+
+- Added a more robust and better tested implementation of the ``CARMA`` kernel for
+  use with the ``QuasisepSolver``. (`#90 <https://github.com/dfm/tinygp/issues/90>`_)
+- Switched all base classes to `equinox.Module <https://docs.kidger.site/equinox/api/module/module/>`_ objects to simplify dataclass handling. (`#200 <https://github.com/dfm/tinygp/issues/200>`_)
+
+
+Bugfixes
+~~~~~~~~
+
+- Fixed use of `jnp.roots` and `np.roll` to make CARMA kernel jit-compliant. (`#188 <https://github.com/dfm/tinygp/issues/188>`_)
+
+
 tinygp 0.2.4 (2023-09-29)
 -------------------------
 
