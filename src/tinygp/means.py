@@ -17,6 +17,7 @@ from typing import Callable
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
@@ -42,11 +43,11 @@ class Mean(MeanBase):
     value: JAXArray | None = None
     func: Callable[[JAXArray], JAXArray] | None = eqx.field(default=None, static=True)
 
-    def __init__(self, value: JAXArray | Callable[[JAXArray], JAXArray]):
+    def __init__(self, value: JAXArray | float | Callable[[JAXArray], JAXArray]):
         if callable(value):
             self.func = value
         else:
-            self.value = value
+            self.value = jnp.asarray(value)
 
     def __call__(self, X: JAXArray) -> JAXArray:
         if self.value is None:

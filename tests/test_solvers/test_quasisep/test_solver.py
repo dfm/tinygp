@@ -1,5 +1,3 @@
-# mypy: ignore-errors
-
 import jax
 import jax.numpy as jnp
 import pytest
@@ -116,7 +114,7 @@ def test_celerite(data):
     assert_allclose(calc, expected)
 
 
-def test_unsorted(data):
+def test_check_sorted(data):
     random = np_random.default_rng(0)
     inds = random.permutation(len(data[0]))
     x_ = data[0][inds]
@@ -124,12 +122,28 @@ def test_unsorted(data):
 
     kernel = quasisep.Matern32(sigma=1.8, scale=1.5)
     with pytest.raises(ValueError):
-        GaussianProcess(kernel, x_, diag=0.1)
+        GaussianProcess(kernel, x_, diag=0.1, check_sorted=True)
 
     @jax.jit
     def impl(X, y):
-        return GaussianProcess(kernel, X, diag=0.1).log_probability(y)
+        return GaussianProcess(kernel, X, diag=0.1, check_sorted=True).log_probability(
+            y
+        )
 
-    with pytest.raises(jax.lib.xla_extension.XlaRuntimeError) as exc_info:
+    with pytest.raises(jax.lib.xla_extension.XlaRuntimeError) as exc_info:  # type: ignore
         impl(x_, y_).block_until_ready()
     assert exc_info.match(r"Input coordinates must be sorted")
+
+
+def test_unsorted(data):
+    random = np_random.default_rng(0)
+    inds = random.permutation(len(data[0]))
+    x_ = data[0][inds]
+    y_ = data[1][inds]
+
+    gp0 = GaussianProcess(1.8**2 * kernels.Matern32(1.5), x_, diag=0.1)
+    gp1 = GaussianProcess(quasisep.Matern32(sigma=1.8, scale=1.5), x_, diag=0.1)
+
+    assert_allclose(gp0.log_probability(y_), gp1.log_probability(y_))
+    assert_allclose(gp0.predict(y_), gp1.predict(y_))
+    assert_allclose(gp0.predict(y_, data[0]), gp1.predict(y_, data[0]))

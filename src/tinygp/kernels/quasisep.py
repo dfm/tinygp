@@ -136,11 +136,19 @@ class Quasisep(Kernel):
             y = X2
             X2 = None
 
+        def _apply_sort(X: JAXArray, inds: JAXArray) -> JAXArray:
+            return jax.tree_util.tree_map(lambda v: v[inds], X)
+
+        i1 = jnp.argsort(self.coord_to_sortable(X1))
+        unsort = jnp.argsort(i1)
+        X1 = _apply_sort(X1, i1)
         if X2 is None:
-            return self.to_symm_qsm(X1) @ y
+            return (self.to_symm_qsm(X1) @ y[i1])[unsort]
 
         else:
-            return self.to_general_qsm(X1, X2) @ y
+            i2 = jnp.argsort(self.coord_to_sortable(X2))
+            X2 = _apply_sort(X2, i2)
+            return (self.to_general_qsm(X1, X2) @ y[i2])[unsort]
 
     def __add__(self, other: Kernel | JAXArray) -> Kernel:
         if not isinstance(other, Quasisep):

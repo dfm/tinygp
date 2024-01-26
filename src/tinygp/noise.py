@@ -47,7 +47,7 @@ class Noise(eqx.Module):
         raise NotImplementedError
 
     @abstractmethod
-    def to_qsm(self) -> SymmQSM | DiagQSM:
+    def to_qsm(self, argsort_inds: JAXArray | None = None) -> SymmQSM | DiagQSM:
         """This noise model represented as a quasiseparable matrix"""
         raise NotImplementedError
 
@@ -89,10 +89,13 @@ class Diagonal(Noise):
         else:
             return self.diag[:, None] * other
 
-    def to_qsm(self) -> DiagQSM:
+    def to_qsm(self, argsort_inds: JAXArray | None = None) -> DiagQSM:
         from tinygp.solvers.quasisep.core import DiagQSM
 
-        return DiagQSM(d=self.diag)
+        if argsort_inds is not None:
+            return DiagQSM(d=self.diag[argsort_inds])
+        else:
+            return DiagQSM(d=self.diag)
 
 
 class Dense(Noise):
@@ -119,8 +122,9 @@ class Dense(Noise):
     def __matmul__(self, other: JAXArray) -> JAXArray:
         return self.value @ other
 
-    def to_qsm(self) -> SymmQSM | DiagQSM:
+    def to_qsm(self, argsort_inds: JAXArray | None = None) -> SymmQSM | DiagQSM:
         """This cannot be compactly represented as a quasiseparable matrix"""
+        del argsort_inds
         raise NotImplementedError
 
 
@@ -222,14 +226,19 @@ class Banded(Noise):
     def __matmul__(self, other: JAXArray) -> JAXArray:
         return self.to_qsm() @ other
 
-    def to_qsm(self) -> SymmQSM:
+    def to_qsm(self, argsort_inds: JAXArray | None = None) -> SymmQSM:
         from tinygp.solvers.quasisep import core
 
         N, J = jnp.shape(self.off_diags)
         p = jnp.repeat(jnp.eye(1, J), N, axis=0)
-        q = self.off_diags
+        if argsort_inds is not None:
+            d = self.diag[argsort_inds]
+            q = self.off_diags[argsort_inds]
+        else:
+            d = self.diag
+            q = self.off_diags
         a = jnp.repeat(jnp.eye(J, k=1)[None], N, axis=0)
         return core.SymmQSM(
-            diag=core.DiagQSM(d=self.diag),
+            diag=core.DiagQSM(d=d),
             lower=core.StrictLowerTriQSM(p=p, q=q, a=a),
         )

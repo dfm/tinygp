@@ -67,9 +67,13 @@ class GaussianProcess(eqx.Module):
         kernel: kernels.Kernel,
         X: JAXArray,
         *,
-        diag: JAXArray | None = None,
+        diag: JAXArray | float | None = None,
         noise: Noise | None = None,
-        mean: means.MeanBase | Callable[[JAXArray], JAXArray] | JAXArray | None = None,
+        mean: means.MeanBase
+        | Callable[[JAXArray], JAXArray]
+        | JAXArray
+        | float
+        | None = None,
         solver: Any | None = None,
         mean_value: JAXArray | None = None,
         covariance_value: Any | None = None,
