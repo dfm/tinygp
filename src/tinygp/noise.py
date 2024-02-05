@@ -167,6 +167,7 @@ class Banded(Noise):
     Where ``*`` represents an element that can have any arbitrary value, since it
     won't ever be accessed.
     """
+
     diag: JAXArray
     off_diags: JAXArray
 

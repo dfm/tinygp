@@ -94,7 +94,11 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
         upper_b: StrictUpperTriQSM | None,
         phi: JAXArray | None,
         psi: JAXArray | None,
-    ) -> tuple[DiagQSM | None, StrictLowerTriQSM | None, StrictUpperTriQSM | None,]:
+    ) -> tuple[
+        DiagQSM | None,
+        StrictLowerTriQSM | None,
+        StrictUpperTriQSM | None,
+    ]:
         # Note: the order of g and h is flipped vs the paper!
 
         alpha = None
@@ -160,9 +164,7 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
             ell = (
                 lower_a.a
                 if lower_a is not None
-                else lower_b.a
-                if lower_b is not None
-                else None
+                else lower_b.a if lower_b is not None else None
             )
 
         if upper_a is not None and upper_b is not None:
@@ -186,19 +188,21 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
             delta = (
                 upper_a.a
                 if upper_a is not None
-                else upper_b.a
-                if upper_b is not None
-                else None
+                else upper_b.a if upper_b is not None else None
             )
 
         return (
             DiagQSM(d=lam) if lam is not None else None,
-            StrictLowerTriQSM(p=jnp.concatenate(t), q=jnp.concatenate(s), a=ell)
-            if len(t) and len(s) and ell is not None
-            else None,
-            StrictUpperTriQSM(p=jnp.concatenate(u), q=jnp.concatenate(v), a=delta)
-            if len(u) and len(v) and delta is not None
-            else None,
+            (
+                StrictLowerTriQSM(p=jnp.concatenate(t), q=jnp.concatenate(s), a=ell)
+                if len(t) and len(s) and ell is not None
+                else None
+            ),
+            (
+                StrictUpperTriQSM(p=jnp.concatenate(u), q=jnp.concatenate(v), a=delta)
+                if len(u) and len(v) and delta is not None
+                else None
+            ),
         )
 
     diag, lower, upper = impl(
