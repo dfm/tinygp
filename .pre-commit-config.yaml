@@ -9,16 +9,16 @@ repos:
       - id: end-of-file-fixer
         exclude_types: [json, binary]
   - repo: https://github.com/psf/black
-    rev: "23.12.1"
+    rev: "24.1.1"
     hooks:
       - id: black-jupyter
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.1.9"
+    rev: "v0.2.0"
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
   - repo: https://github.com/kynan/nbstripout
-    rev: "0.6.1"
+    rev: "0.7.1"
     hooks:
       - id: nbstripout
         exclude: docs/benchmarks.ipynb
