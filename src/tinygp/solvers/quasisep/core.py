@@ -336,6 +336,10 @@ class LowerTriQSM(QSM):
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.lower.matmul(x)
 
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return self.diag.parallel_matmul(x) + self.lower.parallel_matmul(x)
+
     def scale(self, other: JAXArray) -> LowerTriQSM:
         return LowerTriQSM(diag=self.diag.scale(other), lower=self.lower.scale(other))
 
@@ -392,6 +396,10 @@ class UpperTriQSM(QSM):
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.upper.matmul(x)
 
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return self.diag.parallel_matmul(x) + self.upper.parallel_matmul(x)
+
     def scale(self, other: JAXArray) -> UpperTriQSM:
         return UpperTriQSM(diag=self.diag.scale(other), upper=self.upper.scale(other))
 
@@ -447,6 +455,14 @@ class SquareQSM(QSM):
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.lower.matmul(x) + self.upper.matmul(x)
+
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return (
+            self.diag.parallel_matmul(x)
+            + self.lower.parallel_matmul(x)
+            + self.upper.parallel_matmul(x)
+        )
 
     def scale(self, other: JAXArray) -> SquareQSM:
         return SquareQSM(
@@ -536,6 +552,14 @@ class SymmQSM(QSM):
             self.diag.matmul(x)
             + self.lower.matmul(x)
             + self.lower.transpose().matmul(x)
+        )
+
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return (
+            self.diag.parallel_matmul(x)
+            + self.lower.parallel_matmul(x)
+            + self.lower.transpose().parallel_matmul(x)
         )
 
     def scale(self, other: JAXArray) -> SymmQSM:
