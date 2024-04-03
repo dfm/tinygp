@@ -68,8 +68,9 @@ class QSM(eqx.Module):
         """
         raise NotImplementedError
 
+    @abstractmethod
     def parallel_matmul(self, x: JAXArray) -> JAXArray:
-        return self.matmul(x)
+        raise NotImplementedError
 
     @abstractmethod
     def scale(self, other: JAXArray) -> QSM:
@@ -160,6 +161,10 @@ class DiagQSM(QSM):
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.d[:, None] * x
+
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return self.matmul(x)
 
     def scale(self, other: JAXArray) -> DiagQSM:
         return DiagQSM(d=self.d * other)
