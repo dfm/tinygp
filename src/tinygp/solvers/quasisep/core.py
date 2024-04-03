@@ -125,14 +125,6 @@ class QSM(eqx.Module):
             from tinygp.solvers.quasisep.ops import qsm_mul
 
             return qsm_mul(self, other)
-
-        elif any(d.platform != "cpu" for d in jnp.asarray(other).devices()):
-            # When using a hardware accelerator, we can sometimes get better
-            # performance using a special purpose matmul implementation. This
-            # will fall back on the standard matmul implementation if the
-            # parallel version doesn't exist.
-            return self.parallel_matmul(other)
-
         else:
             return self.matmul(other)
 
