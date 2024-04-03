@@ -68,6 +68,9 @@ class QSM(eqx.Module):
         """
         raise NotImplementedError
 
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return self.matmul(x)
+
     @abstractmethod
     def scale(self, other: JAXArray) -> QSM:
         """The multiplication of this matrix times a scalar, as a QSM"""
@@ -121,6 +124,14 @@ class QSM(eqx.Module):
             from tinygp.solvers.quasisep.ops import qsm_mul
 
             return qsm_mul(self, other)
+
+        elif any(d.platform != "cpu" for d in jnp.asarray(other).devices()):
+            # When using a hardware accelerator, we can sometimes get better
+            # performance using a special purpose matmul implementation. This
+            # will fall back on the standard matmul implementation if the
+            # parallel version doesn't exist.
+            return self.parallel_matmul(other)
+
         else:
             return self.matmul(other)
 
@@ -197,6 +208,17 @@ class StrictLowerTriQSM(QSM):
         _, f = jax.lax.scan(impl, init, (self.q, self.a, x))
         return jax.vmap(jnp.dot)(self.p, f)
 
+    @jax.jit
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        def impl(sm, sn):
+            return (sn[0] @ sm[0], sn[0] @ sm[1] + sn[1])
+
+        states = jax.vmap(lambda l, x: (l.a, jnp.outer(l.q, x)))(self, x)
+        f = jax.lax.associative_scan(impl, states)[1]
+        f = jnp.concatenate((jnp.zeros_like(f[:1]), f[:-1]), axis=0)
+        return jax.vmap(jnp.dot)(self.p, f)
+
     def scale(self, other: JAXArray) -> StrictLowerTriQSM:
         return StrictLowerTriQSM(p=self.p * other, q=self.q, a=self.a)
 
@@ -268,6 +290,17 @@ class StrictUpperTriQSM(QSM):
 
         init = jnp.zeros_like(jnp.outer(self.p[-1], x[-1]))
         _, f = jax.lax.scan(impl, init, (self.p, self.a, x), reverse=True)
+        return jax.vmap(jnp.dot)(self.q, f)
+
+    @jax.jit
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        def impl(sm, sn):
+            return (sn[0] @ sm[0], sn[0] @ sm[1] + sn[1])
+
+        states = jax.vmap(lambda u, x: (u.a, jnp.outer(u.p, x)))(self, x)
+        f = jax.lax.associative_scan(impl, states, reverse=True)[1]
+        f = jnp.concatenate((f[1:], jnp.zeros_like(f[:1])), axis=0)
         return jax.vmap(jnp.dot)(self.q, f)
 
     def scale(self, other: JAXArray) -> StrictUpperTriQSM:

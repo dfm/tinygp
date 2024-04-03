@@ -166,6 +166,20 @@ def test_strict_tri_matmul(matrices):
     assert_allclose(mat.T @ m, u @ m)
 
 
+def test_strict_lower_tri_parallel_matmul(matrices):
+    _, p, q, a, v, m, _, _ = matrices
+    mat = StrictLowerTriQSM(p=p, q=q, a=a)
+    assert_allclose(mat.parallel_matmul(v), mat.matmul(v))
+    assert_allclose(mat.parallel_matmul(m), mat.matmul(m))
+
+
+def test_strict_upper_tri_parallel_matmul(matrices):
+    _, p, q, a, v, m, _, _ = matrices
+    mat = StrictLowerTriQSM(p=p, q=q, a=a).T
+    assert_allclose(mat.parallel_matmul(v), mat.matmul(v))
+    assert_allclose(mat.parallel_matmul(m), mat.matmul(m))
+
+
 def test_tri_matmul(matrices):
     diag, p, q, a, v, m, l, _ = matrices
     mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
