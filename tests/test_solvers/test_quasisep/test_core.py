@@ -109,11 +109,11 @@ def get_matrices(name):
         t = jnp.sort(random.uniform(0, 10, N))
         kernel = Matern52(1.5, 1.0)
         matrix = kernel.to_symm_qsm(t)
-        diag = matrix.diag.d
+        diag += matrix.diag.d
         p = matrix.lower.p
         q = matrix.lower.q
         a = matrix.lower.a
-        l = matrix.to_dense()
+        l = matrix.lower.to_dense()
         u = l.T
 
     else:
