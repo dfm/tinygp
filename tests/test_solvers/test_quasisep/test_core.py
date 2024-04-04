@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import pytest
 from numpy import random as np_random
 
+from tinygp.kernels.quasisep import Matern52
 from tinygp.solvers.quasisep.core import (
     DiagQSM,
     LowerTriQSM,
@@ -17,7 +18,7 @@ from tinygp.solvers.quasisep.core import (
 from tinygp.test_utils import assert_allclose
 
 
-@pytest.fixture(params=["random", "celerite"])
+@pytest.fixture(params=["random", "celerite", "matern"])
 def name(request):
     return request.param
 
@@ -103,6 +104,17 @@ def get_matrices(name):
         dt = jnp.append(0, jnp.diff(t))
         a = jnp.stack([jnp.diag(v) for v in jnp.exp(-c[None] * dt[:, None])], axis=0)
         p = jnp.einsum("ni,nij->nj", p, a)
+
+    elif name == "matern":
+        t = jnp.sort(random.uniform(0, 10, N))
+        kernel = Matern52(1.5, 1.0)
+        matrix = kernel.to_symm_qsm(t)
+        diag = matrix.diag.d
+        p = matrix.lower.p
+        q = matrix.lower.q
+        a = matrix.lower.a
+        l = matrix.to_dense()
+        u = l.T
 
     else:
         raise AssertionError()

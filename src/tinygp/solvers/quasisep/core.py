@@ -295,7 +295,7 @@ class StrictUpperTriQSM(QSM):
         def impl(sm, sn):
             return (sn[0] @ sm[0], sn[0] @ sm[1] + sn[1])
 
-        states = jax.vmap(lambda u, x: (u.a, jnp.outer(u.p, x)))(self, x)
+        states = jax.vmap(lambda u, x: (u.a.T, jnp.outer(u.p, x)))(self, x)
         f = jax.lax.associative_scan(impl, states, reverse=True)[1]
         f = jnp.concatenate((f[1:], jnp.zeros_like(f[:1])), axis=0)
         return jax.vmap(jnp.dot)(self.q, f)
