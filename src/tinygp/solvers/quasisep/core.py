@@ -31,7 +31,7 @@ from tinygp.helpers import JAXArray
 
 
 def handle_matvec_shapes(
-    func: Callable[[Any, JAXArray], JAXArray]
+    func: Callable[[Any, JAXArray], JAXArray],
 ) -> Callable[[Any, JAXArray], JAXArray]:
     @wraps(func)
     def wrapped(self: Any, x: JAXArray) -> JAXArray:
