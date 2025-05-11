@@ -34,6 +34,5 @@ If you installed from source, you can run the unit tests. From the root of the
 source directory, run:
 
 ```bash
-python -m pip install nox
-python -m nox -s test -p 3.10
+uv run --extra test pytest
 ```

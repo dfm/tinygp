@@ -13,39 +13,53 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
-        nox-session: ["test"]
-        x64: ["1"]
+        python-version: ["3.10"]
+        x64: ["0"]
         include:
-          - python-version: "3.10"
-            nox-session: "test"
-            x64: "0"
-          - python-version: "3.10"
-            nox-session: "comparison"
+          - python-version: "3.13"
             x64: "1"
-          - python-version: "3.10"
-            nox-session: "doctest"
-            x64: "1"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: |
-          python -m pip install -U pip
-          python -m pip install nox
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
       - name: Run tests
         run: |
-          python -m nox --non-interactive --error-on-missing-interpreter \
-            --session ${{ matrix.nox-session }} --python ${{ matrix.python-version }}
+          uv run --extra test --python ${{ matrix.python-version }} pytest -n auto tests
         env:
           JAX_ENABLE_X64: ${{ matrix.x64 }}
+
+  comparison:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+      - name: Run tests
+        run: |
+          uv run --extra test --extra comparison --python 3.12 pytest -n auto tests
+        env:
+          JAX_ENABLE_X64: "1"
+
+  doctest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+      - name: Run tests
+        run: |
+          uv run --extra test --extra doctest --python 3.12 pytest --doctest-modules -v src/tinygp
+        env:
+          JAX_ENABLE_X64: "1"
 
   build:
     runs-on: ubuntu-latest
@@ -53,18 +67,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
-        name: Install Python
-        with:
-          python-version: "3.10"
-      - name: Install dependencies
-        run: |
-          python -m pip install -U pip
-          python -m pip install -U build twine
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
       - name: Build the distribution
-        run: python -m build .
+        run: uv build
       - name: Check the distribution
-        run: python -m twine check --strict dist/*
+        run: uv run --with twine python -m twine check --strict dist/*
       - uses: actions/upload-artifact@v4
         with:
           path: dist/*
@@ -75,7 +83,7 @@ jobs:
       url: https://pypi.org/p/tinygp
     permissions:
       id-token: write
-    needs: [tests, build]
+    needs: [tests, comparison, doctest, build]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:

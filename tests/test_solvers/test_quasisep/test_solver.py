@@ -130,6 +130,6 @@ def test_unsorted(data):
     def impl(X, y):
         return GaussianProcess(kernel, X, diag=0.1).log_probability(y)
 
-    with pytest.raises(jax.lib.xla_extension.XlaRuntimeError) as exc_info:
+    with pytest.raises(jax.errors.JaxRuntimeError) as exc_info:
         impl(x_, y_).block_until_ready()
     assert exc_info.match(r"Input coordinates must be sorted")
