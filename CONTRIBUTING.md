@@ -34,8 +34,7 @@ Tracker](https://github.com/dfm/tinygp/issues).
 ## How to test the project
 
 ```bash
-python -m pip install nox
-python -m nox -s test -p 3.10
+uv run --extra test pytest
 ```
 
 ## How to submit changes

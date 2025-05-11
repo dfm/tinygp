@@ -3,7 +3,7 @@ name = "tinygp"
 description = "The tiniest of Gaussian Process libraries"
 authors = [{ name = "Dan Foreman-Mackey", email = "foreman.mackey@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -15,11 +15,12 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dynamic = ["version"]
-dependencies = ["jax", "jaxlib", "equinox"]
+dependencies = ["jax", "equinox"]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "pytest-xdist"]
 comparison = ["george", "celerite"]
+doctest = ["numpyro"]
 docs = [
     "sphinx-book-theme",
     "myst-nb",
