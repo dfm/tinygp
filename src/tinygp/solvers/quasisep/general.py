@@ -85,16 +85,17 @@ class GeneralQSM(eqx.Module):
         lower = jax.vmap(jnp.dot)(jnp.where(mask[:, None], self.pl, 0), f[idx])
 
         # Then a backward pass to apply the "upper" matrix
-        def backward(f, data):  # type: ignore
+        def backward(carry, data):  # type: ignore
+            f, ap = carry
             p, a, x = data
-            fn = a.T @ f + jnp.outer(p, x)
-            return fn, fn
+            fn = ap.T @ f + jnp.outer(p, x)
+            return (fn, a), fn
 
-        init = jnp.zeros_like(jnp.outer(self.pu[-1], x[-1]))
+        init = jnp.zeros_like(jnp.outer(self.pu[-1], x[-1])), self.a[0]
         _, f = jax.lax.scan(
             backward,
             init,
-            (self.pu, jnp.roll(self.a, -1, axis=0), x),
+            (self.pu, self.a, x),
             reverse=True,
         )
         idx = jnp.clip(self.idx + 1, 0, f.shape[0] - 1)
