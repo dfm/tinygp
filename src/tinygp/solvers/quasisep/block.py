@@ -25,7 +25,7 @@ class Block(eqx.Module):
 
     @property
     def ndim(self) -> int:
-        ndim, = {np.ndim(b) for b in self.blocks}
+        (ndim,) = {np.ndim(b) for b in self.blocks}
         return ndim
 
     @property
