@@ -101,6 +101,8 @@ def kalman_gains(
         return Pk, (sk, Kk)
 
     init = Pinf
+    if hasattr(init, "to_dense"):
+        init = init.to_dense()
     return jax.lax.scan(step, init, (A, H, diag))[1]
 
 

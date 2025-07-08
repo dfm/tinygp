@@ -31,11 +31,11 @@ from typing import Any
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import jax.scipy as jsp
 import numpy as np
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
+from tinygp.solvers.quasisep.block import Block
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
@@ -96,7 +96,7 @@ class Quasisep(Kernel):
         q = h
         p = h @ Pinf
         d = jnp.sum(p * q, axis=1)
-        p = jax.vmap(jnp.dot)(p, a)
+        p = jax.vmap(lambda x, y: x @ y)(p, a)
         return SymmQSM(diag=DiagQSM(d=d), lower=StrictLowerTriQSM(p=p, q=q, a=a))
 
     def to_general_qsm(self, X1: JAXArray, X2: JAXArray) -> GeneralQSM:
@@ -117,11 +117,11 @@ class Quasisep(Kernel):
 
         i = jnp.clip(idx, 0, ql.shape[0] - 1)
         Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
-        pl = jax.vmap(jnp.dot)(pl, jax.vmap(self.transition_matrix)(Xi, X1))
+        pl = jax.vmap(lambda x, y: x @ y)(pl, jax.vmap(self.transition_matrix)(Xi, X1))
 
         i = jnp.clip(idx + 1, 0, pu.shape[0] - 1)
         Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
-        qu = jax.vmap(jnp.dot)(jax.vmap(self.transition_matrix)(X1, Xi), qu)
+        qu = jax.vmap(lambda x, y: x @ y)(jax.vmap(self.transition_matrix)(X1, Xi), qu)
 
         return GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)
 
@@ -230,12 +230,10 @@ class Sum(Quasisep):
         return self.kernel1.coord_to_sortable(X)
 
     def design_matrix(self) -> JAXArray:
-        return jsp.linalg.block_diag(
-            self.kernel1.design_matrix(), self.kernel2.design_matrix()
-        )
+        return Block(self.kernel1.design_matrix(), self.kernel2.design_matrix())
 
     def stationary_covariance(self) -> JAXArray:
-        return jsp.linalg.block_diag(
+        return Block(
             self.kernel1.stationary_covariance(),
             self.kernel2.stationary_covariance(),
         )
@@ -249,7 +247,7 @@ class Sum(Quasisep):
         )
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return jsp.linalg.block_diag(
+        return Block(
             self.kernel1.transition_matrix(X1, X2),
             self.kernel2.transition_matrix(X1, X2),
         )

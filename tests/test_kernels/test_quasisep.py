@@ -61,8 +61,14 @@ def test_quasisep_kernels(data, kernel):
     # Test that F is defined consistently
     x1 = x[0]
     x2 = x[1]
-    num_A = jsp.linalg.expm(kernel.design_matrix().T * (x2 - x1))
-    assert_allclose(kernel.transition_matrix(x1, x2), num_A)
+    arg = kernel.design_matrix().T * (x2 - x1)
+    if hasattr(arg, "to_dense"):
+        arg = arg.to_dense()
+    expected = jsp.linalg.expm(arg)
+    calculated = kernel.transition_matrix(x1, x2)
+    if hasattr(calculated, "to_dense"):
+        calculated = calculated.to_dense()
+    assert_allclose(calculated, expected)
 
 
 def test_quasisep_kernel_as_pytree(data, kernel):
