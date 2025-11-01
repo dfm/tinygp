@@ -24,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
       - name: Run tests
         run: |
           uv run --extra test --python ${{ matrix.python-version }} pytest -n auto tests
@@ -39,7 +39,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
       - name: Run tests
         run: |
           uv run --extra test --extra comparison --python 3.12 pytest -n auto tests
@@ -54,7 +54,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
       - name: Run tests
         run: |
           uv run --extra test --extra doctest --python 3.12 pytest --doctest-modules -v src/tinygp
@@ -68,7 +68,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
       - name: Build the distribution
         run: uv build
       - name: Check the distribution
