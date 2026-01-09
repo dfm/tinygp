@@ -69,6 +69,10 @@ class QSM(eqx.Module):
         raise NotImplementedError
 
     @abstractmethod
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        raise NotImplementedError
+
+    @abstractmethod
     def scale(self, other: JAXArray) -> QSM:
         """The multiplication of this matrix times a scalar, as a QSM"""
         raise NotImplementedError
@@ -150,6 +154,10 @@ class DiagQSM(QSM):
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.d[:, None] * x
 
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return self.matmul(x)
+
     def scale(self, other: JAXArray) -> DiagQSM:
         return DiagQSM(d=self.d * other)
 
@@ -195,6 +203,17 @@ class StrictLowerTriQSM(QSM):
 
         init = jnp.zeros_like(jnp.outer(self.q[0], x[0]))
         _, f = jax.lax.scan(impl, init, (self.q, self.a, x))
+        return jax.vmap(jnp.dot)(self.p, f)
+
+    @jax.jit
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        def impl(sm, sn):
+            return (sn[0] @ sm[0], sn[0] @ sm[1] + sn[1])
+
+        states = jax.vmap(lambda l, x: (l.a, jnp.outer(l.q, x)))(self, x)
+        f = jax.lax.associative_scan(impl, states)[1]
+        f = jnp.concatenate((jnp.zeros_like(f[:1]), f[:-1]), axis=0)
         return jax.vmap(jnp.dot)(self.p, f)
 
     def scale(self, other: JAXArray) -> StrictLowerTriQSM:
@@ -270,6 +289,17 @@ class StrictUpperTriQSM(QSM):
         _, f = jax.lax.scan(impl, init, (self.p, self.a, x), reverse=True)
         return jax.vmap(jnp.dot)(self.q, f)
 
+    @jax.jit
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        def impl(sm, sn):
+            return (sn[0] @ sm[0], sn[0] @ sm[1] + sn[1])
+
+        states = jax.vmap(lambda u, x: (u.a.T, jnp.outer(u.p, x)))(self, x)
+        f = jax.lax.associative_scan(impl, states, reverse=True)[1]
+        f = jnp.concatenate((f[1:], jnp.zeros_like(f[:1])), axis=0)
+        return jax.vmap(jnp.dot)(self.q, f)
+
     def scale(self, other: JAXArray) -> StrictUpperTriQSM:
         return StrictUpperTriQSM(p=self.p, q=self.q * other, a=self.a)
 
@@ -302,6 +332,10 @@ class LowerTriQSM(QSM):
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.lower.matmul(x)
+
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return self.diag.parallel_matmul(x) + self.lower.parallel_matmul(x)
 
     def scale(self, other: JAXArray) -> LowerTriQSM:
         return LowerTriQSM(diag=self.diag.scale(other), lower=self.lower.scale(other))
@@ -359,6 +393,10 @@ class UpperTriQSM(QSM):
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.upper.matmul(x)
 
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return self.diag.parallel_matmul(x) + self.upper.parallel_matmul(x)
+
     def scale(self, other: JAXArray) -> UpperTriQSM:
         return UpperTriQSM(diag=self.diag.scale(other), upper=self.upper.scale(other))
 
@@ -414,6 +452,14 @@ class SquareQSM(QSM):
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
         return self.diag.matmul(x) + self.lower.matmul(x) + self.upper.matmul(x)
+
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return (
+            self.diag.parallel_matmul(x)
+            + self.lower.parallel_matmul(x)
+            + self.upper.parallel_matmul(x)
+        )
 
     def scale(self, other: JAXArray) -> SquareQSM:
         return SquareQSM(
@@ -503,6 +549,14 @@ class SymmQSM(QSM):
             self.diag.matmul(x)
             + self.lower.matmul(x)
             + self.lower.transpose().matmul(x)
+        )
+
+    @handle_matvec_shapes
+    def parallel_matmul(self, x: JAXArray) -> JAXArray:
+        return (
+            self.diag.parallel_matmul(x)
+            + self.lower.parallel_matmul(x)
+            + self.lower.transpose().parallel_matmul(x)
         )
 
     def scale(self, other: JAXArray) -> SymmQSM:
