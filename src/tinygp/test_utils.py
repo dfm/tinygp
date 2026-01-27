@@ -52,6 +52,7 @@ def jax_enable_x64():
     else:
         # deprecated in jax>=0.9
         from jax.experimental import enable_x64 as _enable_x64
+
         cm = _enable_x64()
 
     with _as_context_manager(cm):
