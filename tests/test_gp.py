@@ -6,7 +6,7 @@ import pytest
 from numpy import random as np_random
 
 from tinygp import GaussianProcess, kernels
-from tinygp.test_utils import assert_allclose
+from tinygp.test_utils import assert_allclose, jax_enable_x64
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def data(random):
 def test_sample(data):
     X, _ = data
 
-    with jax.experimental.enable_x64(True):
+    with jax_enable_x64():
         gp = GaussianProcess(
             kernels.Matern32(1.5), X, diag=0.01, mean=lambda x: jnp.sum(x)
         )
