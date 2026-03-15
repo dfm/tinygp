@@ -25,9 +25,7 @@ def test_sample(data):
     X, _ = data
 
     with jax.enable_x64(True):
-        gp = GaussianProcess(
-            kernels.Matern32(1.5), X, diag=0.01, mean=lambda x: jnp.sum(x)
-        )
+        gp = GaussianProcess(kernels.Matern32(1.5), X, diag=0.01, mean=jnp.sum)
         y = gp.sample(jax.random.PRNGKey(543))
         assert y.shape == (len(X),)
 
