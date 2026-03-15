@@ -61,6 +61,7 @@ ignore = [
     "PLR0915", # Allow many statements
     "PLR2004", # Allow magic numbers in comparisons
     "B905",    # Allow zip() without explicit `strict=` parameter
+    "UP047",   # PEP 695 type params require Python 3.12+; project supports 3.11+
 ]
 exclude = []
 
