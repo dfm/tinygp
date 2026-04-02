@@ -159,9 +159,7 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
             lb_a = _ensure_dense(lower_b.a)
             ell = jnp.concatenate(
                 (
-                    jnp.concatenate(
-                        (la_a, jnp.outer(lower_a.q, lower_b.p)), axis=-1
-                    ),
+                    jnp.concatenate((la_a, jnp.outer(lower_a.q, lower_b.p)), axis=-1),
                     jnp.concatenate(
                         (
                             jnp.zeros((lb_a.shape[0], la_a.shape[0])),
@@ -191,9 +189,7 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
                         ),
                         axis=-1,
                     ),
-                    jnp.concatenate(
-                        (jnp.outer(upper_b.q, upper_a.p), ub_a), axis=-1
-                    ),
+                    jnp.concatenate((jnp.outer(upper_b.q, upper_a.p), ub_a), axis=-1),
                 ),
                 axis=0,
             )

@@ -229,9 +229,7 @@ def test_sum_kernel_use_block_consistency(data):
     x, y, _ = data
     N = len(x)
     k_block = quasisep.Cosine(1.0) + quasisep.Cosine(2.0)
-    k_dense = quasisep.Sum(
-        quasisep.Cosine(1.0), quasisep.Cosine(2.0), use_block=False
-    )
+    k_dense = quasisep.Sum(quasisep.Cosine(1.0), quasisep.Cosine(2.0), use_block=False)
     gp_block = GaussianProcess(k_block, x, diag=0.1 * jnp.ones(N))
     gp_dense = GaussianProcess(k_dense, x, diag=0.1 * jnp.ones(N))
     assert_allclose(gp_block.log_probability(y), gp_dense.log_probability(y))
