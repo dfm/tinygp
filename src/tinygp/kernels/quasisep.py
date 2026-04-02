@@ -33,9 +33,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from jax.scipy.linalg import block_diag as jsp_block_diag
+
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
-from tinygp.solvers.quasisep.block import Block
+from tinygp.solvers.quasisep.block import Block, ensure_dense
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
@@ -244,8 +246,6 @@ class Sum(Quasisep):
     def _block_or_dense(self, m1: JAXArray, m2: JAXArray) -> JAXArray:
         if self.use_block:
             return Block(m1, m2)
-        from jax.scipy.linalg import block_diag as jsp_block_diag
-
         return jsp_block_diag(m1, m2)
 
     def design_matrix(self) -> JAXArray:
@@ -653,10 +653,8 @@ class Cosine(Quasisep):
 
 
 def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
-    if isinstance(a1, Block):
-        a1 = a1.to_dense()
-    if isinstance(a2, Block):
-        a2 = a2.to_dense()
+    a1 = ensure_dense(a1)
+    a2 = ensure_dense(a2)
     i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
     i = i.flatten()
     j = j.flatten()

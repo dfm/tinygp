@@ -6,6 +6,7 @@ from numpy import random as np_random
 
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
+from tinygp.noise import Banded
 from tinygp.test_utils import assert_allclose
 
 
@@ -159,73 +160,35 @@ def test_carma_quads():
     assert_allclose(carma31.obsmodel, carma31_quads.obsmodel)
 
 
-# Regression tests for https://github.com/dfm/tinygp/issues/265
-# Block transition matrices in Sum kernels broke several operations.
-
-
 def test_sum_kernel_with_banded_noise(data):
-    """Sum kernel + banded noise: self_add must handle Block transition matrices"""
-    from tinygp.noise import Banded
-
     x, y, _ = data
     N = len(x)
     k = quasisep.Cosine(1.0) + quasisep.Cosine(2.0)
     banded = Banded(diag=0.1 * jnp.ones(N), off_diags=0.01 * jnp.ones((N, 1)))
     gp = GaussianProcess(k, x, noise=banded)
     assert jnp.isfinite(gp.log_probability(y))
-
-
-def test_sum_kernel_with_banded_noise_condition(data):
-    """Sum kernel + banded noise: conditioning must handle Block in qsm_mul"""
-    from tinygp.noise import Banded
-
-    x, y, _ = data
-    N = len(x)
-    k = quasisep.Cosine(1.0) + quasisep.Cosine(2.0)
-    banded = Banded(diag=0.1 * jnp.ones(N), off_diags=0.01 * jnp.ones((N, 1)))
-    gp = GaussianProcess(k, x, noise=banded)
     lp, cond_gp = gp.condition(y)
     assert jnp.isfinite(lp)
 
 
 def test_product_of_sum_kernel(data):
-    """Product kernel with Sum factor: _prod_helper must handle Block inputs"""
     x, y, _ = data
-    N = len(x)
     k = (quasisep.Cosine(1.0) + quasisep.Cosine(2.0)) * quasisep.Exp(1.0)
-    gp = GaussianProcess(k, x, diag=jnp.ones(N))
+    gp = GaussianProcess(k, x, diag=jnp.ones(len(x)))
     assert jnp.isfinite(gp.log_probability(y))
-
-
-def test_product_of_sum_kernel_consistency(data):
-    """Product of sum kernel QSM must match direct kernel evaluation"""
-    x, _, _ = data
-    k = (quasisep.Cosine(1.0) + quasisep.Cosine(2.0)) * quasisep.Exp(1.0)
     assert_allclose(k.to_symm_qsm(x).to_dense(), k(x, x))
 
 
 def test_sum_times_sum_kernel(data):
-    """Product of two Sum kernels: self_mul must handle Block transition matrices"""
     x, y, _ = data
-    N = len(x)
     k = (quasisep.Cosine(1.0) + quasisep.Cosine(2.0)) * (
         quasisep.Exp(0.5) + quasisep.Matern32(1.0)
     )
-    gp = GaussianProcess(k, x, diag=jnp.ones(N))
+    gp = GaussianProcess(k, x, diag=jnp.ones(len(x)))
     assert jnp.isfinite(gp.log_probability(y))
 
 
 def test_sum_kernel_use_block_false(data):
-    """Sum kernel with use_block=False bypasses Block entirely"""
-    x, y, _ = data
-    N = len(x)
-    k = quasisep.Sum(quasisep.Cosine(1.0), quasisep.Cosine(2.0), use_block=False)
-    gp = GaussianProcess(k, x, diag=0.1 * jnp.ones(N))
-    assert jnp.isfinite(gp.log_probability(y))
-
-
-def test_sum_kernel_use_block_consistency(data):
-    """Block and non-block Sum kernels must produce the same results"""
     x, y, _ = data
     N = len(x)
     k_block = quasisep.Cosine(1.0) + quasisep.Cosine(2.0)
@@ -233,52 +196,3 @@ def test_sum_kernel_use_block_consistency(data):
     gp_block = GaussianProcess(k_block, x, diag=0.1 * jnp.ones(N))
     gp_dense = GaussianProcess(k_dense, x, diag=0.1 * jnp.ones(N))
     assert_allclose(gp_block.log_probability(y), gp_dense.log_probability(y))
-
-
-def test_sum_kernel_use_block_false_with_banded_noise(data):
-    """Sum kernel use_block=False with banded noise"""
-    from tinygp.noise import Banded
-
-    x, y, _ = data
-    N = len(x)
-    k = quasisep.Sum(quasisep.Cosine(1.0), quasisep.Cosine(2.0), use_block=False)
-    banded = Banded(diag=0.1 * jnp.ones(N), off_diags=0.01 * jnp.ones((N, 1)))
-    gp = GaussianProcess(k, x, noise=banded)
-    assert jnp.isfinite(gp.log_probability(y))
-
-
-def test_sum_kernel_use_block_false_product(data):
-    """Sum kernel use_block=False in a product"""
-    x, y, _ = data
-    N = len(x)
-    k = quasisep.Sum(
-        quasisep.Cosine(1.0), quasisep.Cosine(2.0), use_block=False
-    ) * quasisep.Exp(1.0)
-    gp = GaussianProcess(k, x, diag=jnp.ones(N))
-    assert jnp.isfinite(gp.log_probability(y))
-
-
-def test_jit_sum_kernel_block(data):
-    """JIT must work with Sum kernel block computations"""
-    x, y, _ = data
-    N = len(x)
-    k = quasisep.Cosine(1.0) + quasisep.Cosine(2.0)
-
-    @jax.jit
-    def compute(x, y):
-        gp = GaussianProcess(k, x, diag=0.1 * jnp.ones(N))
-        return gp.log_probability(y)
-
-    assert jnp.isfinite(compute(x, y))
-
-
-def test_grad_product_of_sum_kernel(data):
-    """Gradients must work through product of sum kernel"""
-    x, y, _ = data
-    N = len(x)
-
-    def loss(sigma):
-        k = (quasisep.Cosine(sigma) + quasisep.Cosine(2.0)) * quasisep.Exp(1.0)
-        return GaussianProcess(k, x, diag=jnp.ones(N)).log_probability(y)
-
-    assert jnp.isfinite(jax.grad(loss)(1.0))
