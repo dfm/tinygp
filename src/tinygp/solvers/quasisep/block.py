@@ -9,6 +9,13 @@ from jax.scipy.linalg import block_diag
 from tinygp.helpers import JAXArray
 
 
+def ensure_dense(x: Any) -> Any:
+    """Convert a Block to a dense array, passing through non-Block inputs."""
+    if isinstance(x, Block):
+        return x.to_dense()
+    return x
+
+
 class Block(eqx.Module):
     blocks: tuple[Any, ...]
     __array_priority__ = 1999

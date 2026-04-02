@@ -29,6 +29,7 @@ import numpy as np
 from jax.scipy.linalg import block_diag
 
 from tinygp.helpers import JAXArray
+from tinygp.solvers.quasisep.block import ensure_dense
 
 
 def handle_matvec_shapes(
@@ -213,20 +214,24 @@ class StrictLowerTriQSM(QSM):
             return StrictLowerTriQSM(
                 p=jnp.concatenate((p1, p2)),
                 q=jnp.concatenate((q1, q2)),
-                a=block_diag(a1, a2),
+                a=block_diag(ensure_dense(a1), ensure_dense(a2)),
             )
 
         return impl(self, other)
 
     def self_mul(self, other: StrictLowerTriQSM) -> StrictLowerTriQSM:
         """The elementwise product of two :class:`StrictLowerTriQSM` matrices"""
+        # vmap is needed because a batched Block has 3D block arrays that
+        # block_diag (used by to_dense) cannot handle without unbatching.
+        self_a = jax.vmap(ensure_dense)(self.a)
+        other_a = jax.vmap(ensure_dense)(other.a)
         i, j = np.meshgrid(np.arange(self.p.shape[1]), np.arange(other.p.shape[1]))
         i = i.flatten()
         j = j.flatten()
         return StrictLowerTriQSM(
             p=self.p[:, i] * other.p[:, j],
             q=self.q[:, i] * other.q[:, j],
-            a=self.a[:, i[:, None], i[None, :]] * other.a[:, j[:, None], j[None, :]],
+            a=self_a[:, i[:, None], i[None, :]] * other_a[:, j[:, None], j[None, :]],
         )
 
     def __neg__(self) -> StrictLowerTriQSM:

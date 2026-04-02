@@ -32,10 +32,11 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.scipy.linalg import block_diag as jsp_block_diag
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
-from tinygp.solvers.quasisep.block import Block
+from tinygp.solvers.quasisep.block import Block, ensure_dense
 from tinygp.solvers.quasisep.core import DiagQSM, StrictLowerTriQSM, SymmQSM
 from tinygp.solvers.quasisep.general import GeneralQSM
 
@@ -220,20 +221,39 @@ class Wrapper(Quasisep):
 
 
 class Sum(Quasisep):
-    """A helper to represent the sum of two quasiseparable kernels"""
+    """A helper to represent the sum of two quasiseparable kernels
+
+    Args:
+        kernel1: The first kernel.
+        kernel2: The second kernel.
+        use_block: If ``True`` (default), use :class:`Block` diagonal matrices
+            for the transition matrices, design matrices, and stationary
+            covariance. If ``False``, use dense ``block_diag`` representations
+            instead, which avoids compatibility issues with some operations
+            (e.g. banded noise, product kernels) at a small performance cost
+            for the state-space matrices.
+    """
 
     kernel1: Quasisep
     kernel2: Quasisep
+    use_block: bool = eqx.field(static=True, default=True)
 
     def coord_to_sortable(self, X: JAXArray) -> JAXArray:
         """We assume that both kernels use the same coordinates"""
         return self.kernel1.coord_to_sortable(X)
 
+    def _block_or_dense(self, m1: JAXArray, m2: JAXArray) -> JAXArray:
+        if self.use_block:
+            return Block(m1, m2)
+        return jsp_block_diag(m1, m2)
+
     def design_matrix(self) -> JAXArray:
-        return Block(self.kernel1.design_matrix(), self.kernel2.design_matrix())
+        return self._block_or_dense(
+            self.kernel1.design_matrix(), self.kernel2.design_matrix()
+        )
 
     def stationary_covariance(self) -> JAXArray:
-        return Block(
+        return self._block_or_dense(
             self.kernel1.stationary_covariance(),
             self.kernel2.stationary_covariance(),
         )
@@ -247,7 +267,7 @@ class Sum(Quasisep):
         )
 
     def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return Block(
+        return self._block_or_dense(
             self.kernel1.transition_matrix(X1, X2),
             self.kernel2.transition_matrix(X1, X2),
         )
@@ -632,6 +652,8 @@ class Cosine(Quasisep):
 
 
 def _prod_helper(a1: JAXArray, a2: JAXArray) -> JAXArray:
+    a1 = ensure_dense(a1)
+    a2 = ensure_dense(a2)
     i, j = np.meshgrid(np.arange(a1.shape[0]), np.arange(a2.shape[0]))
     i = i.flatten()
     j = j.flatten()

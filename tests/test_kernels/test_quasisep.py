@@ -6,6 +6,7 @@ from numpy import random as np_random
 
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
+from tinygp.noise import Banded
 from tinygp.test_utils import assert_allclose
 
 
@@ -157,3 +158,41 @@ def test_carma_quads():
     assert_allclose(carma31.arroots, carma31_quads.arroots)
     assert_allclose(carma31.acf, carma31_quads.acf)
     assert_allclose(carma31.obsmodel, carma31_quads.obsmodel)
+
+
+def test_sum_kernel_with_banded_noise(data):
+    x, y, _ = data
+    N = len(x)
+    k = quasisep.Cosine(1.0) + quasisep.Cosine(2.0)
+    banded = Banded(diag=0.1 * jnp.ones(N), off_diags=0.01 * jnp.ones((N, 1)))
+    gp = GaussianProcess(k, x, noise=banded)
+    assert jnp.isfinite(gp.log_probability(y))
+    lp, cond_gp = gp.condition(y)
+    assert jnp.isfinite(lp)
+
+
+def test_product_of_sum_kernel(data):
+    x, y, _ = data
+    k = (quasisep.Cosine(1.0) + quasisep.Cosine(2.0)) * quasisep.Exp(1.0)
+    gp = GaussianProcess(k, x, diag=jnp.ones(len(x)))
+    assert jnp.isfinite(gp.log_probability(y))
+    assert_allclose(k.to_symm_qsm(x).to_dense(), k(x, x))
+
+
+def test_sum_times_sum_kernel(data):
+    x, y, _ = data
+    k = (quasisep.Cosine(1.0) + quasisep.Cosine(2.0)) * (
+        quasisep.Exp(0.5) + quasisep.Matern32(1.0)
+    )
+    gp = GaussianProcess(k, x, diag=jnp.ones(len(x)))
+    assert jnp.isfinite(gp.log_probability(y))
+
+
+def test_sum_kernel_use_block_false(data):
+    x, y, _ = data
+    N = len(x)
+    k_block = quasisep.Cosine(1.0) + quasisep.Cosine(2.0)
+    k_dense = quasisep.Sum(quasisep.Cosine(1.0), quasisep.Cosine(2.0), use_block=False)
+    gp_block = GaussianProcess(k_block, x, diag=0.1 * jnp.ones(N))
+    gp_dense = GaussianProcess(k_dense, x, diag=0.1 * jnp.ones(N))
+    assert_allclose(gp_block.log_probability(y), gp_dense.log_probability(y))
