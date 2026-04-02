@@ -203,6 +203,7 @@ class StrictLowerTriQSM(QSM):
 
     def self_add(self, other: StrictLowerTriQSM) -> StrictLowerTriQSM:
         """The sum of two :class:`StrictLowerTriQSM` matrices"""
+        from tinygp.solvers.quasisep.block import Block
 
         @jax.vmap
         def impl(
@@ -210,6 +211,10 @@ class StrictLowerTriQSM(QSM):
         ) -> StrictLowerTriQSM:
             p1, q1, a1 = self
             p2, q2, a2 = other
+            if isinstance(a1, Block):
+                a1 = a1.to_dense()
+            if isinstance(a2, Block):
+                a2 = a2.to_dense()
             return StrictLowerTriQSM(
                 p=jnp.concatenate((p1, p2)),
                 q=jnp.concatenate((q1, q2)),
@@ -220,13 +225,21 @@ class StrictLowerTriQSM(QSM):
 
     def self_mul(self, other: StrictLowerTriQSM) -> StrictLowerTriQSM:
         """The elementwise product of two :class:`StrictLowerTriQSM` matrices"""
+        from tinygp.solvers.quasisep.block import Block
+
+        self_a = self.a
+        other_a = other.a
+        if isinstance(self_a, Block):
+            self_a = jax.vmap(lambda b: b.to_dense())(self_a)
+        if isinstance(other_a, Block):
+            other_a = jax.vmap(lambda b: b.to_dense())(other_a)
         i, j = np.meshgrid(np.arange(self.p.shape[1]), np.arange(other.p.shape[1]))
         i = i.flatten()
         j = j.flatten()
         return StrictLowerTriQSM(
             p=self.p[:, i] * other.p[:, j],
             q=self.q[:, i] * other.q[:, j],
-            a=self.a[:, i[:, None], i[None, :]] * other.a[:, j[:, None], j[None, :]],
+            a=self_a[:, i[:, None], i[None, :]] * other_a[:, j[:, None], j[None, :]],
         )
 
     def __neg__(self) -> StrictLowerTriQSM:

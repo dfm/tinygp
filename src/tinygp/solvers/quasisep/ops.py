@@ -8,6 +8,16 @@ import jax
 import jax.numpy as jnp
 
 from tinygp.helpers import JAXArray
+from tinygp.solvers.quasisep.block import Block
+
+
+def _ensure_dense(x: JAXArray) -> JAXArray:
+    """Convert Block to dense array if needed."""
+    if isinstance(x, Block):
+        return x.to_dense()
+    return x
+
+
 from tinygp.solvers.quasisep.core import (
     QSM,
     DiagQSM,
@@ -145,15 +155,17 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
         u += [upper_b.p] if upper_b is not None else []
 
         if lower_a is not None and lower_b is not None:
+            la_a = _ensure_dense(lower_a.a)
+            lb_a = _ensure_dense(lower_b.a)
             ell = jnp.concatenate(
                 (
                     jnp.concatenate(
-                        (lower_a.a, jnp.outer(lower_a.q, lower_b.p)), axis=-1
+                        (la_a, jnp.outer(lower_a.q, lower_b.p)), axis=-1
                     ),
                     jnp.concatenate(
                         (
-                            jnp.zeros((lower_b.a.shape[0], lower_a.a.shape[0])),
-                            lower_b.a,
+                            jnp.zeros((lb_a.shape[0], la_a.shape[0])),
+                            lb_a,
                         ),
                         axis=-1,
                     ),
@@ -162,23 +174,25 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
             )
         else:
             ell = (
-                lower_a.a
+                _ensure_dense(lower_a.a)
                 if lower_a is not None
-                else lower_b.a if lower_b is not None else None
+                else _ensure_dense(lower_b.a) if lower_b is not None else None
             )
 
         if upper_a is not None and upper_b is not None:
+            ua_a = _ensure_dense(upper_a.a)
+            ub_a = _ensure_dense(upper_b.a)
             delta = jnp.concatenate(
                 (
                     jnp.concatenate(
                         (
-                            upper_a.a,
-                            jnp.zeros((upper_a.a.shape[0], upper_b.a.shape[0])),
+                            ua_a,
+                            jnp.zeros((ua_a.shape[0], ub_a.shape[0])),
                         ),
                         axis=-1,
                     ),
                     jnp.concatenate(
-                        (jnp.outer(upper_b.q, upper_a.p), upper_b.a), axis=-1
+                        (jnp.outer(upper_b.q, upper_a.p), ub_a), axis=-1
                     ),
                 ),
                 axis=0,
@@ -186,9 +200,9 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
 
         else:
             delta = (
-                upper_a.a
+                _ensure_dense(upper_a.a)
                 if upper_a is not None
-                else upper_b.a if upper_b is not None else None
+                else _ensure_dense(upper_b.a) if upper_b is not None else None
             )
 
         return (
