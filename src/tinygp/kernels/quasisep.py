@@ -32,7 +32,6 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-
 from jax.scipy.linalg import block_diag as jsp_block_diag
 
 from tinygp.helpers import JAXArray
