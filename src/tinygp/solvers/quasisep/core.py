@@ -84,6 +84,182 @@ def _strict_lower_tri_matmul_associative_scan(
 _strict_lower_tri_matmul = _strict_lower_tri_matmul_scan
 
 
+def _cholesky_scan(
+    d: JAXArray, p: JAXArray, q: JAXArray, a: JAXArray
+) -> tuple[JAXArray, JAXArray]:
+    """Sequential O(n) Cholesky using jax.lax.scan."""
+
+    def impl(carry, data):  # type: ignore
+        fp = carry
+        dk, pk, qk, ak = data
+        ck = jnp.sqrt(dk - pk @ fp @ pk)
+        tmp = fp @ ak.T
+        wk = (qk - pk @ tmp) / ck
+        fk = ak @ tmp + jnp.outer(wk, wk)
+        return fk, (ck, wk)
+
+    init = jnp.zeros_like(jnp.outer(q[0], q[0]))
+    _, (c, w) = jax.lax.scan(impl, init, (d, p, q, a))
+    return c, w
+
+
+def _cholesky_associative_scan(
+    d: JAXArray, p: JAXArray, q: JAXArray, a: JAXArray
+) -> tuple[JAXArray, JAXArray]:
+    """Parallel O(n log n) Cholesky using jax.lax.associative_scan.
+
+    The sequential Cholesky involves a discrete Riccati recursion:
+
+        F[0] = 0
+        c[k] = sqrt(d[k] - p[k]^T F[k] p[k])
+        w[k] = (q[k] - p[k]^T F[k] a[k]^T) / c[k]
+        F[k+1] = a[k] F[k] a[k]^T + outer(w[k], w[k])
+
+    This Riccati recursion can be represented as a Linear Fractional
+    Transformation (LFT / Möbius transformation) on m×m matrices:
+
+        F[k+1] = (M11[k] F[k] + M12[k]) (M21[k] F[k] + M22[k])^{-1}
+
+    where M[k] is a 2m×2m matrix. LFTs compose by matrix multiplication,
+    so a parallel prefix scan over M[k] gives the composed LFT at each
+    position, from which F[k] can be extracted.
+
+    For numerical stability, each scan element tracks both the LFT matrix
+    M and the accumulated F value as a pair. The F component is computed
+    via short-range LFT applications (at most O(log n) depth), avoiding
+    the exponential condition number growth of long matrix products.
+    """
+    N = d.shape[0]
+    m = q.shape[1]
+
+    # --- Step 1: Compute the 2m×2m LFT matrix for each step via SVD ---
+    Ms = _compute_cholesky_lft_matrices(d, p, q, a, m)
+
+    # Normalize each M to unit Frobenius norm
+    norms = jnp.linalg.norm(Ms.reshape(N, -1), axis=1)
+    Ms = Ms / norms[:, None, None]
+
+    # Initial F values: LFT(M_k, 0) = M12 @ inv(M22)
+    def lft_at_zero(Mk):  # type: ignore
+        M12 = Mk[:m, m:]
+        M22 = Mk[m:, m:]
+        return jnp.linalg.solve(M22.T, M12.T).T
+
+    F_locals = jax.vmap(lft_at_zero)(Ms)
+
+    # --- Step 2: Associative scan with (M, F) pair ---
+    def combine(left, right):  # type: ignore
+        M_left, F_left = left
+        M_right, F_right = right
+
+        # Apply LFT(M_right, F_left) for stable F propagation
+        M11 = M_right[..., :m, :m]
+        M12 = M_right[..., :m, m:]
+        M21 = M_right[..., m:, :m]
+        M22 = M_right[..., m:, m:]
+        numer = M11 @ F_left + M12
+        denom = M21 @ F_left + M22
+        FpT = jnp.linalg.solve(
+            jnp.swapaxes(denom, -2, -1), jnp.swapaxes(numer, -2, -1)
+        )
+        F_combined = jnp.swapaxes(FpT, -2, -1)
+
+        # Compose M with normalization to prevent overflow
+        M_combined = M_right @ M_left
+        M_combined = M_combined / jnp.linalg.norm(
+            M_combined, axis=(-2, -1), keepdims=True
+        )
+
+        return (M_combined, F_combined)
+
+    _, Fs_scanned = jax.lax.associative_scan(combine, (Ms, F_locals))
+    # Fs_scanned[k] = F_{k+1}, so shift right and prepend F_0 = 0
+    F0 = jnp.zeros((m, m), dtype=d.dtype)
+    Fs = jnp.concatenate([F0[None], Fs_scanned[:-1]], axis=0)
+
+    # --- Step 3: Compute c[k] and w[k] from F[k] ---
+    def compute_cw(dk, pk, qk, ak, Fk):  # type: ignore
+        ck = jnp.sqrt(dk - pk @ Fk @ pk)
+        tmp = Fk @ ak.T
+        wk = (qk - pk @ tmp) / ck
+        return ck, wk
+
+    c, w = jax.vmap(compute_cw)(d, p, q, a, Fs)
+    return c, w
+
+
+def _compute_cholesky_lft_matrices(
+    d: JAXArray, p: JAXArray, q: JAXArray, a: JAXArray, m: int
+) -> JAXArray:
+    """Compute 2m×2m LFT matrices for each Cholesky step via SVD.
+
+    For each step k, finds M_k such that the Riccati step
+    F' = f(F, d_k, p_k, q_k, a_k) equals the LFT
+    F' = (M11 F + M12)(M21 F + M22)^{-1}.
+
+    M_k is determined (up to scale) by evaluating the Riccati step at
+    several probe matrices and finding the null space of the resulting
+    linear system via SVD.
+    """
+    idx = jnp.arange(m, dtype=d.dtype)
+    Im = jnp.eye(m, dtype=d.dtype)
+    Imm = jnp.eye(m * m, dtype=d.dtype)
+
+    # Deterministic probe matrices (symmetric, moderate scale)
+    n_probes = 10
+
+    def _make_probe(k):  # type: ignore
+        B = jnp.sin(
+            (k + 1.0) * (idx[:, None] * m + idx[None, :] + 1.0) * 0.73
+        )
+        return 0.05 * (B + B.T) / 2
+
+    probes = jnp.stack([_make_probe(k) for k in range(n_probes)])
+
+    def _compute_one_M(dk, pk, qk, ak):  # type: ignore
+        def riccati_step(F):  # type: ignore
+            ck = jnp.sqrt(dk - pk @ F @ pk)
+            tmp = F @ ak.T
+            wk = (qk - pk @ tmp) / ck
+            return ak @ tmp + jnp.outer(wk, wk)
+
+        Fps = jax.vmap(riccati_step)(probes)
+
+        # Build linear system: for each probe (F, F'),
+        # (I⊗F^T) vec(M11) + vec(M12) - (F'⊗F^T) vec(M21)
+        #   - (F'⊗I) vec(M22) = 0
+        def build_row_block(F, Fp):  # type: ignore
+            return jnp.concatenate(
+                [
+                    jnp.kron(Im, F.T),
+                    Imm,
+                    -jnp.kron(Fp, F.T),
+                    -jnp.kron(Fp, Im),
+                ],
+                axis=1,
+            )
+
+        rows = jax.vmap(build_row_block)(probes, Fps)
+        system = rows.reshape(-1, 4 * m * m)
+
+        _, S, Vt = jnp.linalg.svd(system, full_matrices=True)
+        null_vec = Vt[-1]
+
+        M11 = null_vec[0 * m * m : 1 * m * m].reshape(m, m)
+        M12 = null_vec[1 * m * m : 2 * m * m].reshape(m, m)
+        M21 = null_vec[2 * m * m : 3 * m * m].reshape(m, m)
+        M22 = null_vec[3 * m * m : 4 * m * m].reshape(m, m)
+
+        return jnp.block([[M11, M12], [M21, M22]])
+
+    return jax.vmap(_compute_one_M)(d, p, q, a)
+
+
+# Default to the sequential implementation; swap to
+# _cholesky_associative_scan for GPU parallelism.
+_cholesky = _cholesky_scan
+
+
 def handle_matvec_shapes(
     func: Callable[[Any, JAXArray], JAXArray],
 ) -> Callable[[Any, JAXArray], JAXArray]:
@@ -603,18 +779,7 @@ class SymmQSM(QSM):
         """
         (d,) = self.diag
         p, q, a = self.lower
-
-        def impl(carry, data):  # type: ignore
-            fp = carry
-            dk, pk, qk, ak = data
-            ck = jnp.sqrt(dk - pk @ fp @ pk)
-            tmp = fp @ ak.T
-            wk = (qk - pk @ tmp) / ck
-            fk = ak @ tmp + jnp.outer(wk, wk)
-            return fk, (ck, wk)
-
-        init = jnp.zeros_like(jnp.outer(q[0], q[0]))
-        _, (c, w) = jax.lax.scan(impl, init, (d, p, q, a))
+        c, w = _cholesky(d, p, q, a)
         return LowerTriQSM(diag=DiagQSM(c), lower=StrictLowerTriQSM(p=p, q=w, a=a))
 
     def __neg__(self) -> SymmQSM:
