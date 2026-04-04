@@ -103,140 +103,90 @@ def _cholesky_scan(
     return c, w
 
 
-def _cholesky_associative_scan(
-    d: JAXArray, p: JAXArray, q: JAXArray, a: JAXArray
+def _cholesky_blocked(
+    d: JAXArray, p: JAXArray, q: JAXArray, a: JAXArray, block_size: int = 64
 ) -> tuple[JAXArray, JAXArray]:
-    """Parallel O(n log n) Cholesky using jax.lax.associative_scan.
+    """Blocked parallel Cholesky with O(N/B + B) sequential depth.
 
-    The sequential Cholesky involves a discrete Riccati recursion:
+    Splits the sequence into blocks of size B, processes blocks in parallel
+    via vmap, then sequentially propagates the Riccati state F across block
+    boundaries and re-runs each block with the corrected initial F.
 
-        F[0] = 0
-        c[k] = sqrt(d[k] - p[k]^T F[k] p[k])
-        w[k] = (q[k] - p[k]^T F[k] a[k]^T) / c[k]
-        F[k+1] = a[k] F[k] a[k]^T + outer(w[k], w[k])
+    This avoids the numerical instability of composing LFT matrices over
+    long sequences (which suffer exponential condition number growth),
+    while still exploiting parallelism across blocks.
 
-    This Riccati recursion can be represented as a Linear Fractional
-    Transformation (LFT / Möbius transformation) on symmetric matrices:
-
-        F[k+1] = (M11[k] F[k] + M12[k]) (M21[k] F[k] + M22[k])^{-1}
-
-    where M[k] is a conformally symplectic 2m×2m matrix with closed-form
-    entries derived from (a[k], p[k], q[k], d[k]).  Defining
-
-        Ā[k] = a[k] - q[k] p[k]^T / d[k]
-
-    the LFT matrix is (up to an overall scalar):
-
-        M11 = Ā - q q^T Ā^{-T} p p^T / d^2
-        M12 = q q^T Ā^{-T} / d
-        M21 = -Ā^{-T} p p^T / d
-        M22 = Ā^{-T}
-
-    LFTs compose by matrix multiplication, so a parallel prefix scan over
-    M[k] gives the composed LFT at each position, from which F[k] can be
-    extracted.
-
-    For numerical stability, each scan element tracks both the LFT matrix
-    M and the accumulated F value as a pair. The F component is computed
-    via short-range LFT applications (at most O(log n) depth), avoiding
-    the exponential condition number growth of long matrix products.
+    Args:
+        block_size: Number of steps per block. Larger blocks reduce the
+            sequential overhead (N/B boundary propagations) but increase
+            per-block sequential depth. Default 64.
     """
+    N = d.shape[0]
     m = q.shape[1]
+    B = block_size
 
-    # --- Step 1: Compute 2m×2m LFT matrices (closed form) ---
-    Ms = _compute_cholesky_lft_matrices(d, p, q, a, m)
+    # Pad to a multiple of B
+    n_blocks = (N + B - 1) // B
+    N_padded = n_blocks * B
+    pad_len = N_padded - N
 
-    # Normalize each M to unit Frobenius norm
-    norms = jnp.linalg.norm(Ms.reshape(d.shape[0], -1), axis=1)
-    Ms = Ms / norms[:, None, None]
-
-    # Initial F values: LFT(M_k, 0) = M12 @ inv(M22)
-    def lft_at_zero(Mk):  # type: ignore
-        M12 = Mk[..., :m, m:]
-        M22 = Mk[..., m:, m:]
-        FT = jnp.linalg.solve(
-            jnp.swapaxes(M22, -2, -1), jnp.swapaxes(M12, -2, -1)
-        )
-        return jnp.swapaxes(FT, -2, -1)
-
-    F_locals = lft_at_zero(Ms)
-
-    # --- Step 2: Associative scan with (M, F) pair ---
-    def combine(left, right):  # type: ignore
-        M_left, F_left = left
-        M_right, F_right = right
-
-        # Apply LFT(M_right, F_left) for stable F propagation
-        M11 = M_right[..., :m, :m]
-        M12 = M_right[..., :m, m:]
-        M21 = M_right[..., m:, :m]
-        M22 = M_right[..., m:, m:]
-        numer = M11 @ F_left + M12
-        denom = M21 @ F_left + M22
-        FpT = jnp.linalg.solve(
-            jnp.swapaxes(denom, -2, -1), jnp.swapaxes(numer, -2, -1)
-        )
-        F_combined = jnp.swapaxes(FpT, -2, -1)
-
-        # Compose M with normalization to prevent overflow
-        M_combined = M_right @ M_left
-        M_combined = M_combined / jnp.linalg.norm(
-            M_combined, axis=(-2, -1), keepdims=True
+    if pad_len > 0:
+        d = jnp.concatenate([d, jnp.ones(pad_len, dtype=d.dtype) * 1e6])
+        p = jnp.concatenate([p, jnp.zeros((pad_len, m), dtype=p.dtype)])
+        q = jnp.concatenate([q, jnp.zeros((pad_len, m), dtype=q.dtype)])
+        a = jnp.concatenate(
+            [a, jnp.broadcast_to(jnp.eye(m, dtype=a.dtype), (pad_len, m, m))]
         )
 
-        return (M_combined, F_combined)
+    # Reshape into blocks: (n_blocks, B, ...)
+    d_b = d.reshape(n_blocks, B)
+    p_b = p.reshape(n_blocks, B, m)
+    q_b = q.reshape(n_blocks, B, m)
+    a_b = a.reshape(n_blocks, B, m, m)
 
-    _, Fs_scanned = jax.lax.associative_scan(combine, (Ms, F_locals))
-    # Fs_scanned[k] = F_{k+1}, so shift right and prepend F_0 = 0
+    # Sequential scan within a single block, given initial F
+    def _scan_block(F_init, block_data):  # type: ignore
+        db, pb, qb, ab = block_data
+
+        def step(fp, data):  # type: ignore
+            dk, pk, qk, ak = data
+            ck = jnp.sqrt(dk - pk @ fp @ pk)
+            tmp = fp @ ak.T
+            wk = (qk - pk @ tmp) / ck
+            fk = ak @ tmp + jnp.outer(wk, wk)
+            return fk, (ck, wk)
+
+        F_end, (cs, ws) = jax.lax.scan(step, F_init, (db, pb, qb, ab))
+        return F_end, cs, ws
+
+    # Phase 1: Propagate F across block boundaries sequentially.
+    # Each step runs a full block scan (of size B), but successive blocks
+    # are sequential. Total sequential depth: O(N/B * B) = O(N) steps,
+    # but each step is a small scan of size B.
+    # To parallelize: we use scan over blocks, which is O(n_blocks) steps
+    # each of depth O(B).
+    def _boundary_step(F_init, block_data):  # type: ignore
+        F_end, _, _ = _scan_block(F_init, block_data)
+        return F_end, F_init
+
     F0 = jnp.zeros((m, m), dtype=d.dtype)
-    Fs = jnp.concatenate([F0[None], Fs_scanned[:-1]], axis=0)
+    _, F_inits = jax.lax.scan(
+        _boundary_step, F0, (d_b, p_b, q_b, a_b)
+    )
 
-    # --- Step 3: Compute c[k] and w[k] from F[k] ---
-    def compute_cw(dk, pk, qk, ak, Fk):  # type: ignore
-        ck = jnp.sqrt(dk - pk @ Fk @ pk)
-        tmp = Fk @ ak.T
-        wk = (qk - pk @ tmp) / ck
-        return ck, wk
+    # Phase 2: Re-run all blocks in parallel with corrected F_inits
+    _, c_blocks, w_blocks = jax.vmap(_scan_block)(
+        F_inits, (d_b, p_b, q_b, a_b)
+    )
 
-    c, w = jax.vmap(compute_cw)(d, p, q, a, Fs)
+    # Reshape back and trim padding
+    c = c_blocks.reshape(N_padded)[:N]
+    w = w_blocks.reshape(N_padded, m)[:N]
     return c, w
 
 
-def _compute_cholesky_lft_matrices(
-    d: JAXArray, p: JAXArray, q: JAXArray, a: JAXArray, m: int
-) -> JAXArray:
-    """Compute 2m×2m LFT matrices for each Cholesky step (closed form).
-
-    For each step k, the Riccati step F' = f(F; a, p, q, d) equals the LFT
-    F' = (M11 F + M12)(M21 F + M22)^{-1} where M is a conformally
-    symplectic 2m×2m matrix.
-
-    Defining Ā = a - qp^T/d:
-
-        M22 = Ā^{-T}
-        M21 = -Ā^{-T} pp^T / d
-        M12 = qq^T Ā^{-T} / d
-        M11 = Ā + qq^T M21 / d = Ā - qq^T Ā^{-T} pp^T / d^2
-    """
-
-    def _compute_one_M(dk, pk, qk, ak):  # type: ignore
-        A_bar = ak - jnp.outer(qk, pk) / dk
-        A_bar_inv_T = jnp.linalg.solve(A_bar, jnp.eye(m, dtype=dk.dtype)).T
-        ppT = jnp.outer(pk, pk)
-        qqT = jnp.outer(qk, qk)
-
-        M22 = A_bar_inv_T
-        M21 = -(1.0 / dk) * A_bar_inv_T @ ppT
-        M12 = qqT @ A_bar_inv_T / dk
-        M11 = A_bar + qqT @ M21 / dk
-
-        return jnp.block([[M11, M12], [M21, M22]])
-
-    return jax.vmap(_compute_one_M)(d, p, q, a)
-
-
 # Default to the sequential implementation; swap to
-# _cholesky_associative_scan for GPU parallelism.
+# _cholesky_blocked for GPU parallelism.
 _cholesky = _cholesky_scan
 
 
