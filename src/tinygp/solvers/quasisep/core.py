@@ -32,6 +32,58 @@ from tinygp.helpers import JAXArray
 from tinygp.solvers.quasisep.block import ensure_dense
 
 
+def _strict_lower_tri_matmul_scan(
+    p: JAXArray, q: JAXArray, a: JAXArray, x: JAXArray
+) -> JAXArray:
+    """Sequential O(n) matmul using jax.lax.scan."""
+
+    def impl(f, data):  # type: ignore
+        q_n, a_n, x_n = data
+        return a_n @ f + jnp.outer(q_n, x_n), f
+
+    init = jnp.zeros_like(jnp.outer(q[0], x[0]))
+    _, f = jax.lax.scan(impl, init, (q, a, x))
+    return jax.vmap(jnp.dot)(p, f)
+
+
+def _strict_lower_tri_matmul_associative_scan(
+    p: JAXArray, q: JAXArray, a: JAXArray, x: JAXArray
+) -> JAXArray:
+    """Parallel O(n log n) matmul using jax.lax.associative_scan.
+
+    The sequential recurrence is the affine map:
+
+        f[0] = 0
+        f[n] = a[n-1] @ f[n-1] + outer(q[n-1], x[n-1])
+
+    Each step is an affine map (A_k, b_k): x -> A_k @ x + b_k, and the
+    composition of two such maps is associative:
+
+        (A_R, b_R) . (A_L, b_L) = (A_R @ A_L, A_R @ b_L + b_R)
+
+    An inclusive prefix scan over these elements yields the composed map at each
+    position. The b-component of result[n] equals f[n+1], so we shift right by
+    one and prepend zeros to recover f[0..N-1].
+    """
+
+    def combine(left, right):  # type: ignore
+        A_l, b_l = left
+        A_r, b_r = right
+        return (A_r @ A_l, A_r @ b_l + b_r)
+
+    b = jax.vmap(jnp.outer)(q, x)  # (N, m, k)
+    _, cumul_b = jax.lax.associative_scan(combine, (a, b))
+
+    # cumul_b[n] = f[n+1], so shift right and prepend zeros
+    f = jnp.concatenate([jnp.zeros_like(b[:1]), cumul_b[:-1]], axis=0)
+    return jax.vmap(jnp.dot)(p, f)
+
+
+# Default to the sequential implementation; swap to
+# _strict_lower_tri_matmul_associative_scan for GPU parallelism.
+_strict_lower_tri_matmul = _strict_lower_tri_matmul_scan
+
+
 def handle_matvec_shapes(
     func: Callable[[Any, JAXArray], JAXArray],
 ) -> Callable[[Any, JAXArray], JAXArray]:
@@ -191,13 +243,7 @@ class StrictLowerTriQSM(QSM):
     @jax.jit
     @handle_matvec_shapes
     def matmul(self, x: JAXArray) -> JAXArray:
-        def impl(f, data):  # type: ignore
-            q, a, x = data
-            return a @ f + jnp.outer(q, x), f
-
-        init = jnp.zeros_like(jnp.outer(self.q[0], x[0]))
-        _, f = jax.lax.scan(impl, init, (self.q, self.a, x))
-        return jax.vmap(jnp.dot)(self.p, f)
+        return _strict_lower_tri_matmul(self.p, self.q, self.a, x)
 
     def scale(self, other: JAXArray) -> StrictLowerTriQSM:
         return StrictLowerTriQSM(p=self.p * other, q=self.q, a=self.a)
