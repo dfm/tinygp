@@ -245,12 +245,11 @@ class Sum(Quasisep):
     def _block_or_dense(self, m1: JAXArray, m2: JAXArray) -> JAXArray:
         if not self.use_block:
             return jsp_block_diag(m1, m2)
-        
+
         # Ensure we don't nest Block objects to fix Issue #265
         blocks1 = m1.blocks if isinstance(m1, Block) else (m1,)
         blocks2 = m2.blocks if isinstance(m2, Block) else (m2,)
         return Block(*blocks1, *blocks2)
-            
 
     def design_matrix(self) -> JAXArray:
         return self._block_or_dense(
