@@ -57,7 +57,7 @@ class Block(eqx.Module):
 
     def __rmul__(self, other: Any) -> "Block":
         return self.__mul__(other)
-    
+
     @jax.jit
     def __add__(self, other: Any) -> Any:
         if isinstance(other, Block):
