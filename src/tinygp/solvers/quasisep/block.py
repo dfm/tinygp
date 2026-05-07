@@ -47,9 +47,16 @@ class Block(eqx.Module):
     def T(self) -> "Block":
         return self.transpose()
 
+    @property
+    def mT(self) -> "Block":
+        return Block(*(jnp.swapaxes(b, -1, -2) for b in self.blocks))
+
     def to_dense(self) -> JAXArray:
-        assert all(np.ndim(b) == 2 for b in self.blocks)
-        return block_diag(*self.blocks)
+        ndim = self.ndim
+        assert ndim >= 2
+        if ndim == 2:
+            return block_diag(*self.blocks)
+        return jax.vmap(lambda *bs: Block(*bs).to_dense())(*self.blocks)
 
     @jax.jit
     def __mul__(self, other: Any) -> "Block":
@@ -98,16 +105,17 @@ class Block(eqx.Module):
             assert len(self.blocks) == len(other.blocks)
             assert all(
                 np.shape(b1) == np.shape(b2)
-                for b1, b2 in zip(self.blocks, other.blocks)
+                for b1, b2 in zip(self.blocks, other.blocks, strict=True)
             )
-            return Block(*(b1 @ b2 for b1, b2 in zip(self.blocks, other.blocks)))
-        assert all(np.ndim(b) == 2 for b in self.blocks)
+            return Block(
+                *(b1 @ b2 for b1, b2 in zip(self.blocks, other.blocks, strict=True))
+            )
         ndim = np.ndim(other)
         assert ndim >= 1
         idx = 0
         ys = []
         for b in self.blocks:
-            size = len(b)
+            size = np.shape(b)[-1]
             x = (
                 other[idx : idx + size]
                 if ndim == 1
@@ -119,11 +127,10 @@ class Block(eqx.Module):
 
     @jax.jit
     def __rmatmul__(self, other: Any) -> Any:
-        assert all(np.ndim(b) == 2 for b in self.blocks)
         idx = 0
         ys = []
         for b in self.blocks:
-            size = len(b)
+            size = np.shape(b)[-2]
             x = other[..., idx : idx + size]
             ys.append(x @ b)
             idx += size

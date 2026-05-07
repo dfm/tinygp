@@ -46,17 +46,25 @@ def data(random):
             quasisep.Cosine(sigma=1.8, scale=1.5),
             1.8**2 * kernels.Cosine(1.5),
         ),
+        (
+            quasisep.Matern32(sigma=1.8, scale=1.5)
+            + quasisep.Matern52(sigma=0.9, scale=0.7),
+            1.8**2 * kernels.Matern32(1.5) + 0.9**2 * kernels.Matern52(0.7),
+        ),
     ]
 )
 def kernel_pair(request):
     return request.param
 
 
-def test_consistent_with_direct(kernel_pair, data):
+@pytest.mark.parametrize("parallel", [False, True], ids=["sequential", "parallel"])
+def test_consistent_with_direct(kernel_pair, data, parallel):
     kernel0 = quasisep.Matern32(sigma=3.8, scale=4.5)
     kernel1, kernel2 = kernel_pair
     x, y, t = data
-    gp1 = GaussianProcess(kernel1, x, diag=0.1, solver=QuasisepSolver)
+    gp1 = GaussianProcess(
+        kernel1, x, diag=0.1, solver=QuasisepSolver, parallel=parallel
+    )
     gp2 = GaussianProcess(kernel2, x, diag=0.1, solver=DirectSolver)
 
     assert_allclose(gp1.covariance, gp2.covariance)

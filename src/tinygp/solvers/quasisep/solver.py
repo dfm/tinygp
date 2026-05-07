@@ -4,6 +4,7 @@ __all__ = ["QuasisepSolver"]
 
 from typing import TYPE_CHECKING, Any
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -29,6 +30,7 @@ class QuasisepSolver(Solver):
     X: JAXArray
     matrix: SymmQSM
     factor: LowerTriQSM
+    parallel: bool = eqx.field(static=True)
 
     def __init__(
         self,
@@ -38,6 +40,7 @@ class QuasisepSolver(Solver):
         *,
         covariance: Any | None = None,
         assume_sorted: bool = False,
+        parallel: bool = False,
     ):
         """Build a :class:`QuasisepSolver` for a given kernel and coordinates
 
@@ -54,6 +57,11 @@ class QuasisepSolver(Solver):
                 error if they are not. This can introduce a runtime overhead,
                 and you can pass ``assume_sorted=True`` to get the best
                 performance.
+            parallel: If ``True``, use parallel associative-scan algorithms for
+                the Cholesky factorization, triangular solves, and matrix
+                products. This trades increased FLOPs for reduced sequential
+                depth and can be substantially faster on GPUs/TPUs for large
+                ``N``.
         """
         from tinygp.kernels.quasisep import Quasisep
 
@@ -70,7 +78,8 @@ class QuasisepSolver(Solver):
             matrix = covariance
         self.X = X
         self.matrix = matrix
-        self.factor = matrix.cholesky()
+        self.parallel = parallel
+        self.factor = matrix.cholesky(parallel=parallel)
 
     def variance(self) -> JAXArray:
         return self.matrix.diag.d
@@ -85,12 +94,12 @@ class QuasisepSolver(Solver):
 
     def solve_triangular(self, y: JAXArray, *, transpose: bool = False) -> JAXArray:
         if transpose:
-            return self.factor.transpose().solve(y)
+            return self.factor.transpose().solve(y, parallel=self.parallel)
         else:
-            return self.factor.solve(y)
+            return self.factor.solve(y, parallel=self.parallel)
 
     def dot_triangular(self, y: JAXArray) -> JAXArray:
-        return self.factor @ y
+        return self.factor.matmul(y, parallel=self.parallel)
 
     def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
         """Compute the covariance matrix for a conditional GP
