@@ -291,3 +291,222 @@ def none_safe_add(a: JAXArray | None, b: JAXArray | None) -> JAXArray | None:
     if a is not None and b is not None:
         return a + b
     return a if a is not None else b
+
+
+# Ops with parallel implementations
+
+
+def _shift_fwd(x):
+    # associative_scan is inclusive; the strict-lower recurrences are exclusive.
+    return jnp.concatenate((jnp.zeros_like(x[:1]), x[:-1]), axis=0)
+
+
+def _shift_bwd(x):
+    return jnp.concatenate((x[1:], jnp.zeros_like(x[-1:])), axis=0)
+
+
+@jax.jit
+def lower_matmul(p, q, a, x):
+    def impl(f, data):
+        q, a, x = data
+        return a @ f + jnp.outer(q, x), f
+
+    init = jnp.zeros_like(jnp.outer(q[0], x[0]))
+    _, f = jax.lax.scan(impl, init, (q, a, x))
+    return jnp.einsum("nj,njk->nk", p, f)
+
+
+@jax.jit
+def lower_matmul_parallel(p, q, a, x):
+    def combine(left, right):
+        (Al, Bl), (Ar, Br) = left, right
+        return Ar @ Al, Ar @ Bl + Br
+
+    b = jnp.einsum("nj,nk->njk", q, x)
+    _, f = jax.lax.associative_scan(combine, (a, b))
+    return jnp.einsum("nj,njk->nk", p, _shift_fwd(f))
+
+
+@jax.jit
+def upper_matmul(p, q, a, x):
+    def impl(f, data):
+        p, a, x = data
+        return a.T @ f + jnp.outer(p, x), f
+
+    init = jnp.zeros_like(jnp.outer(p[-1], x[-1]))
+    _, f = jax.lax.scan(impl, init, (p, a, x), reverse=True)
+    return jnp.einsum("nj,njk->nk", q, f)
+
+
+@jax.jit
+def upper_matmul_parallel(p, q, a, x):
+    def combine(left, right):
+        (Al, Bl), (Ar, Br) = left, right
+        return Ar @ Al, Ar @ Bl + Br
+
+    b = jnp.einsum("nj,nk->njk", p, x)
+    _, f = jax.lax.associative_scan(combine, (a.mT, b), reverse=True)
+    return jnp.einsum("nj,njk->nk", q, _shift_bwd(f))
+
+
+@jax.jit
+def cholesky(d, p, q, a):
+    def impl(carry, data):
+        fp = carry
+        dk, pk, qk, ak = data
+        ck = jnp.sqrt(dk - pk @ fp @ pk)
+        tmp = fp @ ak.T
+        wk = (qk - pk @ tmp) / ck
+        fk = ak @ tmp + jnp.outer(wk, wk)
+        return fk, (ck, wk)
+
+    init = jnp.zeros_like(jnp.outer(q[0], q[0]))
+    _, (c, w) = jax.lax.scan(impl, init, (d, p, q, a))
+    return c, w
+
+
+def _riccati_scan(d, p, q, a):
+    J = p.shape[1]
+    I = jnp.eye(J)
+    inv_d = 1.0 / d
+    A = a - jnp.einsum("n,nj,nk->njk", inv_d, q, p)
+    F = jnp.einsum("n,nj,nk->njk", inv_d, q, q)
+    G = -jnp.einsum("n,nj,nk->njk", inv_d, p, p)
+
+    def combine(left, right):
+        (Al, Fl, Gl), (Ar, Fr, Gr) = left, right
+        M = I + Fl @ Gr
+        return (
+            Ar @ jnp.linalg.solve(M, Al),
+            Fr + Ar @ jnp.linalg.solve(M, Fl) @ Ar.mT,
+            Gl + Al.mT @ jnp.linalg.solve(M.mT, Gr) @ Al,
+        )
+
+    _, f, _ = jax.lax.associative_scan(combine, (A, F, G))
+    return _shift_fwd(f)
+
+
+@jax.jit
+def cholesky_parallel(d, p, q, a):
+    f = _riccati_scan(d, p, q, a)
+
+    def emit(f, dk, pk, qk, ak):
+        ck = jnp.sqrt(dk - pk @ f @ pk)
+        wk = (qk - pk @ f @ ak.T) / ck
+        return ck, wk
+
+    c, w = jax.vmap(emit)(f, d, p, q, a)
+    return c, w
+
+
+@jax.jit
+def symm_inv(d, p, q, a):
+    def forward(f, data):
+        dk, pk, qk, ak = data
+        fpk = f @ pk
+        left = qk - ak @ fpk
+        igk = 1 / (dk - pk @ fpk)
+        sk = igk * left
+        ellk = ak - jnp.outer(sk, pk)
+        fk = ak @ f @ ak.T + igk * jnp.outer(left, left)
+        return fk, (igk, sk, ellk)
+
+    init = jnp.zeros_like(jnp.outer(q[0], q[0]))
+    _, (ig, s, ell) = jax.lax.scan(forward, init, (d, p, q, a))
+
+    def backward(z, data):
+        igk, pk, ak, sk = data
+        zak = z @ ak
+        skzak = sk @ zak
+        lk = igk + sk @ z @ sk
+        tk = skzak - lk * pk
+        zk = ak.T @ zak - jnp.outer(skzak, pk) - jnp.outer(pk, tk)
+        return zk, (lk, tk)
+
+    init = jnp.zeros_like(jnp.outer(p[-1], p[-1]))
+    _, (lam, t) = jax.lax.scan(backward, init, (ig, p, a, s), reverse=True)
+    return lam, t, s, ell
+
+
+@jax.jit
+def symm_inv_parallel(d, p, q, a):
+    f = _riccati_scan(d, p, q, a)
+
+    def fwd_emit(f, dk, pk, qk, ak):
+        fpk = f @ pk
+        left = qk - ak @ fpk
+        igk = 1 / (dk - pk @ fpk)
+        sk = igk * left
+        ellk = ak - jnp.outer(sk, pk)
+        return igk, sk, ellk
+
+    ig, s, ell = jax.vmap(fwd_emit)(f, d, p, q, a)
+
+    def bwd_combine(left, right):
+        (Al, Bl), (Ar, Br) = left, right
+        return Ar @ Al, Ar @ Bl @ Ar.mT + Br
+
+    B = jnp.einsum("n,nj,nk->njk", ig, p, p)
+    _, z = jax.lax.associative_scan(bwd_combine, (ell.mT, B), reverse=True)
+    z = _shift_bwd(z)
+
+    def bwd_emit(z, igk, pk, ak, sk):
+        skz = sk @ z
+        lk = igk + skz @ sk
+        tk = skz @ ak - lk * pk
+        return lk, tk
+
+    lam, t = jax.vmap(bwd_emit)(z, ig, p, a, s)
+    return lam, t, s, ell
+
+
+@jax.jit
+def lower_solve(d, p, q, a, x):
+    def impl(f, data):
+        d, p, q, a, x = data
+        y = (x - p @ f) / d
+        return a @ f + jnp.outer(q, y), y
+
+    init = jnp.zeros_like(jnp.outer(q[0], x[0]))
+    _, x = jax.lax.scan(impl, init, (d, p, q, a, x))
+    return x
+
+
+@jax.jit
+def lower_solve_parallel(d, p, q, a, x):
+    def combine(left, right):
+        (Al, Bl), (Ar, Br) = left, right
+        return Ar @ Al, Ar @ Bl + Br
+
+    inv_d = 1.0 / d[:, None]
+    q_ = q * inv_d
+    A = a - jnp.einsum("nj,nk->njk", q_, p)
+    b = jnp.einsum("nj,nk->njk", q_, x)
+    _, f = jax.lax.associative_scan(combine, (A, b))
+    return (x - jnp.einsum("nj,njk->nk", p, _shift_fwd(f))) * inv_d
+
+
+@jax.jit
+def upper_solve(d, p, q, a, x):
+    def impl(f, data):
+        d, p, q, a, x = data
+        y = (x - q @ f) / d
+        return a.T @ f + jnp.outer(p, y), y
+
+    init = jnp.zeros_like(jnp.outer(p[-1], x[-1]))
+    _, x = jax.lax.scan(impl, init, (d, p, q, a, x), reverse=True)
+    return x
+
+
+@jax.jit
+def upper_solve_parallel(d, p, q, a, x):
+    def combine(left, right):
+        (Al, Bl), (Ar, Br) = left, right
+        return Ar @ Al, Ar @ Bl + Br
+
+    inv_d = 1.0 / d[:, None]
+    p_ = p * inv_d
+    A = a.mT - jnp.einsum("nj,nk->njk", p_, q)
+    b = jnp.einsum("nj,nk->njk", p_, x)
+    _, f = jax.lax.associative_scan(combine, (A, b), reverse=True)
+    return (x - jnp.einsum("nj,njk->nk", q, _shift_bwd(f))) * inv_d

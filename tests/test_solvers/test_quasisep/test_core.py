@@ -22,6 +22,11 @@ def name(request):
     return request.param
 
 
+@pytest.fixture(params=[False, True], ids=["sequential", "parallel"])
+def parallel(request):
+    return request.param
+
+
 @pytest.fixture
 def matrices(name):
     return get_matrices(name)
@@ -149,7 +154,7 @@ def test_quasisep_def():
             assert_allclose(get_value(i, j), m[i, j])
 
 
-def test_strict_tri_matmul(matrices):
+def test_strict_tri_matmul(matrices, parallel):
     _, p, q, a, v, m, l, u = matrices
     mat = StrictLowerTriQSM(p=p, q=q, a=a)
 
@@ -158,15 +163,15 @@ def test_strict_tri_matmul(matrices):
     assert_allclose(mat.T.to_dense(), u)
 
     # Check matvec
-    assert_allclose(mat @ v, l @ v)
-    assert_allclose(mat.T @ v, u @ v)
+    assert_allclose(mat.matmul(v, parallel=parallel), l @ v)
+    assert_allclose(mat.T.matmul(v, parallel=parallel), u @ v)
 
     # Check matmat
-    assert_allclose(mat @ m, l @ m)
-    assert_allclose(mat.T @ m, u @ m)
+    assert_allclose(mat.matmul(m, parallel=parallel), l @ m)
+    assert_allclose(mat.T.matmul(m, parallel=parallel), u @ m)
 
 
-def test_tri_matmul(matrices):
+def test_tri_matmul(matrices, parallel):
     diag, p, q, a, v, m, l, _ = matrices
     mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = l + jnp.diag(diag)
@@ -176,16 +181,16 @@ def test_tri_matmul(matrices):
     assert_allclose(mat.T.to_dense(), dense.T)
 
     # Check matvec
-    assert_allclose(mat @ v, dense @ v)
-    assert_allclose(mat.T @ v, dense.T @ v)
+    assert_allclose(mat.matmul(v, parallel=parallel), dense @ v)
+    assert_allclose(mat.T.matmul(v, parallel=parallel), dense.T @ v)
 
     # Check matmat
-    assert_allclose(mat @ m, dense @ m)
-    assert_allclose(mat.T @ m, dense.T @ m)
+    assert_allclose(mat.matmul(m, parallel=parallel), dense @ m)
+    assert_allclose(mat.T.matmul(m, parallel=parallel), dense.T @ m)
 
 
 @pytest.mark.parametrize("symm", [True, False])
-def test_square_matmul(symm, matrices):
+def test_square_matmul(symm, matrices, parallel):
     diag, p, q, a, v, m, l, u = matrices
     if symm:
         mat = SymmQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
@@ -203,8 +208,8 @@ def test_square_matmul(symm, matrices):
     assert_allclose(jnp.diag(dense), diag)
 
     # Test matmuls
-    assert_allclose(mat @ v, dense @ v)
-    assert_allclose(mat @ m, dense @ m)
+    assert_allclose(mat.matmul(v, parallel=parallel), dense @ v)
+    assert_allclose(mat.matmul(m, parallel=parallel), dense @ m)
     assert_allclose(v.T @ mat, v.T @ dense)
     assert_allclose(m.T @ mat, m.T @ dense)
 
@@ -220,20 +225,20 @@ def test_tri_inv(matrices):
 
 
 @pytest.mark.parametrize("name", ["celerite"])
-def test_tri_solve(matrices):
+def test_tri_solve(matrices, parallel):
     diag, p, q, a, v, m, _, _ = matrices
     mat = LowerTriQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = mat.to_dense()
-    assert_allclose(mat.solve(v), jnp.linalg.solve(dense, v))
-    assert_allclose(mat.solve(m), jnp.linalg.solve(dense, m))
+    assert_allclose(mat.solve(v, parallel=parallel), jnp.linalg.solve(dense, v))
+    assert_allclose(mat.solve(m, parallel=parallel), jnp.linalg.solve(dense, m))
 
-    assert_allclose(mat.T.solve(v), jnp.linalg.solve(dense.T, v))
-    assert_allclose(mat.T.solve(m), jnp.linalg.solve(dense.T, m))
+    assert_allclose(mat.T.solve(v, parallel=parallel), jnp.linalg.solve(dense.T, v))
+    assert_allclose(mat.T.solve(m, parallel=parallel), jnp.linalg.solve(dense.T, m))
 
-    assert_allclose(mat.inv().solve(v), dense @ v)
-    assert_allclose(mat.inv().solve(m), dense @ m)
-    assert_allclose(mat.T.inv().solve(v), dense.T @ v)
-    assert_allclose(mat.T.inv().solve(m), dense.T @ m)
+    assert_allclose(mat.inv().solve(v, parallel=parallel), dense @ v)
+    assert_allclose(mat.inv().solve(m, parallel=parallel), dense @ m)
+    assert_allclose(mat.T.inv().solve(v, parallel=parallel), dense.T @ v)
+    assert_allclose(mat.T.inv().solve(m, parallel=parallel), dense.T @ m)
 
 
 @pytest.mark.parametrize("symm", [True, False])
@@ -301,20 +306,21 @@ def test_gram(matrices):
 
 
 @pytest.mark.parametrize("name", ["celerite"])
-def test_cholesky(matrices):
+def test_cholesky(matrices, parallel):
     diag, p, q, a, v, m, _, _ = matrices
     mat = SymmQSM(diag=DiagQSM(diag), lower=StrictLowerTriQSM(p=p, q=q, a=a))
     dense = mat.to_dense()
-    chol = mat.cholesky()
+    chol = mat.cholesky(parallel=parallel)
     assert_allclose(chol.to_dense(), jnp.linalg.cholesky(dense))
 
     mat = mat.inv()
     dense = mat.to_dense()
-    chol = mat.cholesky()
+    chol = mat.cholesky(parallel=parallel)
     assert_allclose(chol.to_dense(), jnp.linalg.cholesky(dense))
 
-    assert_allclose(chol.solve(v), jnp.linalg.solve(chol.to_dense(), v))
-    assert_allclose(chol.solve(m), jnp.linalg.solve(chol.to_dense(), m))
+    dense = chol.to_dense()
+    assert_allclose(chol.solve(v, parallel=parallel), jnp.linalg.solve(dense, v))
+    assert_allclose(chol.solve(m, parallel=parallel), jnp.linalg.solve(dense, m))
 
 
 def test_tri_qsmul(some_nice_matrices):
