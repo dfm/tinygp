@@ -30,7 +30,29 @@ The details for the included solvers are given below, but this is a pretty
 low-level feature and the details are definitely subject to change!
 """
 
-__all__ = ["DirectSolver", "QuasisepSolver"]
+from __future__ import annotations
 
+__all__ = ["DirectSolver", "QuasisepSolver", "select_solver"]
+
+from typing import Any
+
+from tinygp.kernels.base import Kernel
 from tinygp.solvers.direct import DirectSolver
 from tinygp.solvers.quasisep import QuasisepSolver
+from tinygp.solvers.quasisep.core import SymmQSM
+from tinygp.solvers.quasisep.predict import ConditionedCovariance, ConditionedSolver
+from tinygp.solvers.solver import Solver
+
+
+def select_solver(kernel: Kernel, covariance_value: Any | None) -> type[Solver]:
+    """Choose a default solver class for the given kernel/covariance value."""
+    # Inline: ``tinygp.kernels.quasisep`` imports the quasiseparable core, whose
+    # package import pulls in this module, so a top-level import would be
+    # circular. Needed at runtime for the ``isinstance(kernel, Quasisep)`` check.
+    from tinygp.kernels.quasisep import Quasisep
+
+    if isinstance(covariance_value, ConditionedCovariance):
+        return ConditionedSolver
+    if isinstance(covariance_value, SymmQSM) or isinstance(kernel, Quasisep):
+        return QuasisepSolver
+    return DirectSolver

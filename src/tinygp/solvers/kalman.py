@@ -79,8 +79,18 @@ class KalmanSolver(Solver):
         del y
         raise NotImplementedError
 
-    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
-        del kernel, X_test, noise
+    def condition(
+        self,
+        kernel: Kernel | None,
+        X_train: JAXArray,
+        X_test: JAXArray | None,
+        noise: Noise,
+        alpha: JAXArray,
+        *,
+        include_mean: bool,
+        mean_function: Any,
+    ) -> Any:
+        del kernel, X_train, X_test, noise, alpha, include_mean, mean_function
         raise NotImplementedError
 
 

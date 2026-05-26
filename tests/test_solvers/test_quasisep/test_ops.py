@@ -48,21 +48,22 @@ def test_upper_matmul_parallel(data):
 
 def test_cholesky_parallel(data):
     d, p, q, a, _ = data
-    c_seq, w_seq = cholesky(d, p, q, a)
-    c_par, w_par = cholesky_parallel(d, p, q, a)
+    c_seq, w_seq, f_seq = cholesky(d, p, q, a)
+    c_par, w_par, f_par = cholesky_parallel(d, p, q, a)
     assert_allclose(c_par, c_seq)
     assert_allclose(w_par, w_seq)
+    assert_allclose(f_par, f_seq)
 
 
 def test_lower_solve_parallel(data):
     d, p, q, a, x = data
-    c, w = cholesky(d, p, q, a)
+    c, w, _ = cholesky(d, p, q, a)
     assert_allclose(lower_solve_parallel(c, p, w, a, x), lower_solve(c, p, w, a, x))
 
 
 def test_upper_solve_parallel(data):
     d, p, q, a, x = data
-    c, w = cholesky(d, p, q, a)
+    c, w, _ = cholesky(d, p, q, a)
     assert_allclose(upper_solve_parallel(c, p, w, a, x), upper_solve(c, p, w, a, x))
 
 

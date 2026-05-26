@@ -17,10 +17,8 @@ import numpy as np
 
 from tinygp import kernels, means
 from tinygp.helpers import JAXArray
-from tinygp.kernels.quasisep import Quasisep
 from tinygp.noise import Diagonal, Noise
-from tinygp.solvers import DirectSolver, QuasisepSolver
-from tinygp.solvers.quasisep.core import SymmQSM
+from tinygp.solvers import select_solver
 from tinygp.solvers.solver import Solver
 
 if TYPE_CHECKING:
@@ -60,6 +58,7 @@ class GaussianProcess(eqx.Module):
     mean: JAXArray
     noise: Noise
     solver: Solver
+    _variance: JAXArray | None
 
     def __init__(
         self,
@@ -71,6 +70,7 @@ class GaussianProcess(eqx.Module):
         mean: means.MeanBase | Callable[[JAXArray], JAXArray] | JAXArray | None = None,
         solver: Any | None = None,
         mean_value: JAXArray | None = None,
+        variance_value: JAXArray | None = None,
         covariance_value: Any | None = None,
         **solver_kwargs: Any,
     ):
@@ -97,12 +97,10 @@ class GaussianProcess(eqx.Module):
             diag = _default_diag(self.mean) if diag is None else diag
             noise = Diagonal(diag=jnp.broadcast_to(diag, self.mean.shape))
         self.noise = noise
+        self._variance = variance_value
 
         if solver is None:
-            if isinstance(covariance_value, SymmQSM) or isinstance(kernel, Quasisep):
-                solver = QuasisepSolver
-            else:
-                solver = DirectSolver
+            solver = select_solver(kernel, covariance_value)
         self.solver = solver(
             kernel,
             self.X,
@@ -117,6 +115,8 @@ class GaussianProcess(eqx.Module):
 
     @property
     def variance(self) -> JAXArray:
+        if self._variance is not None:
+            return self._variance
         return self.solver.variance()
 
     @property
@@ -148,6 +148,17 @@ class GaussianProcess(eqx.Module):
         kernel: kernels.Kernel | None = None,
     ) -> ConditionResult:
         """Condition the model on observed data and
+
+        .. note::
+            With a :class:`tinygp.solvers.quasisep.QuasisepSolver` and the
+            kernel used for fitting (no cross ``kernel``), conditioning stays
+            scalable. At test points ``X_test`` the predictive mean and
+            (diagonal) variance are evaluated in ``O(J^2)`` per point by reusing
+            the Cholesky factorization. At the training inputs (``X_test=None``)
+            the conditional covariance is represented as a quasiseparable matrix,
+            so the conditioned process is itself a scalable
+            :class:`tinygp.solvers.quasisep.QuasisepSolver` GP. Only supplying a
+            cross ``kernel`` falls back to a dense conditional covariance.
 
         Args:
             y (JAXArray): The observed data. This should have the shape
@@ -190,34 +201,41 @@ class GaussianProcess(eqx.Module):
                     "and all but the leading dimension must have matching sizes"
                 )
 
-        alpha, log_prob, mean_value = self._condition(y, X_test, include_mean, kernel)
-        if kernel is None:
-            kernel = self.kernel
+        alpha = self._get_alpha(y)
+        log_prob = self._compute_log_prob(alpha)
+        alpha = self.solver.solve_triangular(alpha, transpose=True)
 
-        if noise is None:
-            diag = _default_diag(mean_value) if diag is None else diag
-            noise = Diagonal(diag=jnp.broadcast_to(diag, mean_value.shape))
-
-        covariance_value = self.solver.condition(kernel, X_test, noise)
+        # Pass ``kernel`` through unresolved: ``None`` (the user did not override
+        # the kernel) is the signal solvers use to enable their same-kernel fast
+        # path. It survives ``jax.jit`` -- object identity does not, but
+        # ``kernel is None`` does.
+        X_test_arg = X_test
         if X_test is None:
             X_test = self.X
 
-        # The conditional GP will also be a GP with the mean an covariance
-        # specified by a :class:`tinygp.means.Conditioned` and
-        # :class:`tinygp.kernels.Conditioned` respectively.
+        if noise is None:
+            n_test = jax.tree_util.tree_leaves(X_test)[0].shape[0]
+            diag = _default_diag(self.mean) if diag is None else diag
+            noise = Diagonal(diag=jnp.broadcast_to(jnp.asarray(diag), (n_test,)))
+
+        comps = self.solver.condition(
+            kernel,
+            self.X,
+            X_test_arg,
+            noise,
+            alpha,
+            include_mean=include_mean,
+            mean_function=self.mean_function,
+        )
+
         gp = GaussianProcess(
-            kernels.Conditioned(self.X, self.solver, kernel),
+            comps.kernel,
             X_test,
             noise=noise,
-            mean=means.Conditioned(
-                self.X,
-                alpha,
-                kernel,
-                include_mean=include_mean,
-                mean_function=self.mean_function,
-            ),
-            mean_value=mean_value,
-            covariance_value=covariance_value,
+            mean=comps.mean,
+            mean_value=comps.mean_value,
+            variance_value=comps.variance_value,
+            covariance_value=comps.covariance_value,
         )
 
         return ConditionResult(log_prob, gp)
@@ -237,6 +255,10 @@ class GaussianProcess(eqx.Module):
         return_cov: bool = False,
     ) -> JAXArray | tuple[JAXArray, JAXArray]:
         """Predict the GP model at new test points conditioned on observed data
+
+        With a :class:`tinygp.solvers.quasisep.QuasisepSolver` this uses the fast
+        ``O(J^2)``-per-point path for the mean and (with ``return_var=True``) the
+        variance; see :meth:`condition` for when it applies.
 
         Args:
             y (JAXArray): The observed data. This should have the shape
@@ -319,48 +341,6 @@ class GaussianProcess(eqx.Module):
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return self.solver.solve_triangular(y - self.loc)
 
-    @partial(jax.jit, static_argnums=(3,))
-    def _condition(
-        self,
-        y: JAXArray,
-        X_test: JAXArray | None,
-        include_mean: bool,
-        kernel: kernels.Kernel | None = None,
-    ) -> tuple[JAXArray, JAXArray, JAXArray]:
-        alpha = self._get_alpha(y)
-        log_prob = self._compute_log_prob(alpha)
-
-        # Below, we actually want alpha = K^-1 y instead of alpha = L^-1 y
-        alpha = self.solver.solve_triangular(alpha, transpose=True)
-
-        if X_test is None:
-            X_test = self.X
-
-            # In this common case (where we're predicting the GP at the data
-            # points, using the original kernel), the mean is especially fast to
-            # compute; so let's use that calculation here.
-            if kernel is None:
-                delta = self.noise @ alpha
-                mean_value = y - delta
-                if not include_mean:
-                    mean_value -= self.loc
-
-            else:
-                mean_value = kernel.matmul(self.X, y=alpha)
-                if include_mean:
-                    mean_value += self.loc
-
-        else:
-            if kernel is None:
-                kernel = self.kernel
-
-            mean_value = kernel.matmul(X_test, self.X, alpha)
-            if include_mean:
-                mean_value += jax.vmap(self.mean_function)(X_test)
-
-        return alpha, log_prob, mean_value
-
-
 class ConditionResult(NamedTuple):
     """The result of conditioning a :class:`GaussianProcess` on data
 
@@ -390,4 +370,4 @@ def _default_diag(reference: JAXArray) -> JAXArray:
     we use sqrt(eps) for the dtype of the mean function because that seems to
     give sensible results in general.
     """
-    return jnp.sqrt(jnp.finfo(reference).eps)
+    return jnp.sqrt(jnp.finfo(jnp.result_type(reference)).eps)

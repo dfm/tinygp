@@ -358,11 +358,11 @@ def cholesky(d, p, q, a):
         tmp = fp @ ak.T
         wk = (qk - pk @ tmp) / ck
         fk = ak @ tmp + jnp.outer(wk, wk)
-        return fk, (ck, wk)
+        return fk, (ck, wk, fp)
 
     init = jnp.zeros_like(jnp.outer(q[0], q[0]))
-    _, (c, w) = jax.lax.scan(impl, init, (d, p, q, a))
-    return c, w
+    _, (c, w, f) = jax.lax.scan(impl, init, (d, p, q, a))
+    return c, w, f
 
 
 def _riccati_scan(d, p, q, a):
@@ -396,7 +396,7 @@ def cholesky_parallel(d, p, q, a):
         return ck, wk
 
     c, w = jax.vmap(emit)(f, d, p, q, a)
-    return c, w
+    return c, w, f
 
 
 @jax.jit

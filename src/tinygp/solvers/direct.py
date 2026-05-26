@@ -8,10 +8,14 @@ import jax.numpy as jnp
 import numpy as np
 from jax.scipy import linalg
 
-from tinygp import kernels
+from tinygp import kernels, means
 from tinygp.helpers import JAXArray
 from tinygp.noise import Noise
-from tinygp.solvers.solver import Solver
+from tinygp.solvers.solver import (
+    ConditionedComponents,
+    Solver,
+    conditioned_mean_parts,
+)
 
 
 class DirectSolver(Solver):
@@ -23,6 +27,7 @@ class DirectSolver(Solver):
     """
 
     X: JAXArray
+    kernel: kernels.Kernel
     variance_value: JAXArray
     covariance_value: JAXArray
     scale_tril: JAXArray
@@ -46,6 +51,7 @@ class DirectSolver(Solver):
                 and adding ``diag``, but that is not checked.
         """
         self.X = X
+        self.kernel = kernel
         self.variance_value = kernel(X) + noise.diagonal()
         if covariance is None:
             covariance = kernel(X, X) + noise
@@ -73,23 +79,40 @@ class DirectSolver(Solver):
         return jnp.einsum("ij,j...->i...", self.scale_tril, y)
 
     def condition(
-        self, kernel: kernels.Kernel, X_test: JAXArray | None, noise: Noise
-    ) -> Any:
-        """Compute the covariance matrix for a conditional GP
+        self,
+        kernel: kernels.Kernel | None,
+        X_train: JAXArray,
+        X_test: JAXArray | None,
+        noise: Noise,
+        alpha: JAXArray,
+        *,
+        include_mean: bool,
+        mean_function: means.MeanBase,
+    ) -> ConditionedComponents:
+        """Build the components of a conditioned GP using dense linear algebra."""
+        kernel = self.kernel if kernel is None else kernel
+        cond_mean, cond_kernel, mean_value = conditioned_mean_parts(
+            self,
+            kernel,
+            X_train,
+            X_test,
+            alpha,
+            include_mean=include_mean,
+            mean_function=mean_function,
+        )
 
-        Args:
-            kernel: The kernel for the covariance between the observed and
-                predicted data.
-            X_test: The coordinates of the predicted points. Defaults to the
-                input coordinates.
-            noise: The noise model for the predicted process.
-        """
         if X_test is None:
-            Ks = kernel(self.X, self.X)
+            Ks = kernel(X_train, X_train)
             Kss = Ks + noise
         else:
-            Ks = kernel(self.X, X_test)
+            Ks = kernel(X_train, X_test)
             Kss = kernel(X_test, X_test) + noise
 
         A = self.solve_triangular(Ks)
-        return Kss - A.transpose() @ A
+        return ConditionedComponents(
+            mean=cond_mean,
+            kernel=cond_kernel,
+            mean_value=mean_value,
+            variance_value=None,
+            covariance_value=Kss - A.transpose() @ A,
+        )

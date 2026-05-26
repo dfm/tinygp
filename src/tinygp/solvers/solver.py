@@ -1,15 +1,75 @@
 from __future__ import annotations
 
-__all__ = ["Solver"]
+__all__ = ["Solver", "ConditionedComponents", "conditioned_mean_parts"]
 
 from abc import abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import equinox as eqx
+import jax
 
 from tinygp.helpers import JAXArray
-from tinygp.kernels.base import Kernel
+from tinygp.kernels.base import Conditioned as ConditionedKernel, Kernel
+from tinygp.means import Conditioned as ConditionedMean
 from tinygp.noise import Noise
+
+if TYPE_CHECKING:
+    from tinygp.means import MeanBase
+
+
+class ConditionedComponents(NamedTuple):
+    """Everything ``GaussianProcess.condition`` needs to build the conditioned GP.
+
+    Returned by :meth:`Solver.condition`. ``mean_value`` should already include
+    the prior mean function when ``include_mean`` was requested;
+    ``variance_value`` (if not ``None``) should include the test-side noise.
+
+    ``covariance_value`` is consumed by
+    :func:`tinygp.solvers.select_solver` to choose the conditioned GP's solver.
+    It may be a dense array (-> :class:`~tinygp.solvers.DirectSolver`), a
+    :class:`~tinygp.solvers.quasisep.core.SymmQSM` (-> ``QuasisepSolver``), or a
+    solver-specific marker such as ``ConditionedCovariance`` whose presence
+    selects a custom solver. Returning an unrecognized type falls back to the
+    dense solver, so a custom solver must register its marker in
+    ``select_solver``.
+    """
+
+    mean: MeanBase
+    kernel: Kernel
+    mean_value: JAXArray
+    variance_value: JAXArray | None
+    covariance_value: Any
+
+
+def conditioned_mean_parts(
+    solver: Solver,
+    kernel: Kernel,
+    X_train: JAXArray,
+    X_test: JAXArray | None,
+    alpha: JAXArray,
+    *,
+    include_mean: bool,
+    mean_function: MeanBase,
+) -> tuple[MeanBase, Kernel, JAXArray]:
+    """Build the generic conditioned mean, kernel, and evaluated mean vector.
+
+    Shared by the solvers' fall-back (non-fast) conditioning paths so the
+    ``means.Conditioned`` / ``kernels.Conditioned`` construction lives in one
+    place. ``kernel`` must already be resolved (not ``None``).
+    """
+    cond_mean = ConditionedMean(
+        X_train,
+        alpha,
+        kernel,
+        include_mean=include_mean,
+        mean_function=mean_function,
+    )
+    cond_kernel = ConditionedKernel(X_train, solver, kernel)
+    Xt = X_train if X_test is None else X_test
+    mean_value = kernel.matmul(Xt, X_train, alpha)
+    if include_mean:
+        mean_value = mean_value + jax.vmap(mean_function)(Xt)
+    return cond_mean, cond_kernel, mean_value
 
 
 class Solver(eqx.Module):
@@ -78,5 +138,38 @@ class Solver(eqx.Module):
         raise NotImplementedError
 
     @abstractmethod
-    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
+    def condition(
+        self,
+        kernel: Kernel | None,
+        X_train: JAXArray,
+        X_test: JAXArray | None,
+        noise: Noise,
+        alpha: JAXArray,
+        *,
+        include_mean: bool,
+        mean_function: MeanBase,
+    ) -> ConditionedComponents:
+        """Build the components of a conditioned GP.
+
+        Args:
+            kernel: The kernel for the cross-covariance between observed and
+                predicted data (and the predicted prior covariance), or ``None``
+                when the user did not override the kernel. ``None`` means
+                "predict with the training kernel"; solvers should resolve it to
+                their own training kernel, and may use it as a static signal to
+                enable a same-kernel fast path (this is robust under ``jax.jit``,
+                where object identity is not preserved across the trace
+                boundary).
+            X_train: The training input coordinates.
+            X_test: The coordinates of the predicted points, or ``None`` to
+                predict at the training inputs.
+            noise: The noise model for the predicted process.
+            alpha: The precomputed :math:`K^{-1} y` for the training data.
+            include_mean: If ``True``, ``mean_value`` and the returned mean
+                object should include the prior ``mean_function``.
+            mean_function: The prior mean function of the training GP.
+
+        Returns:
+            A :class:`ConditionedComponents` bundle.
+        """
         raise NotImplementedError
