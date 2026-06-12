@@ -341,6 +341,7 @@ class GaussianProcess(eqx.Module):
     def _get_alpha(self, y: JAXArray) -> JAXArray:
         return self.solver.solve_triangular(y - self.loc)
 
+
 class ConditionResult(NamedTuple):
     """The result of conditioning a :class:`GaussianProcess` on data
 

@@ -126,8 +126,8 @@ def test_fast_path_survives_jit(data):
 
     # And the jitted entry point agrees with the eager fast path to precision.
     mu_eager, var_eager = gp.predict(y, X_test, return_var=True)
-    mu_jit, var_jit = jax.jit(
-        lambda g, yy, xx: g.predict(yy, xx, return_var=True)
-    )(gp, y, X_test)
+    mu_jit, var_jit = jax.jit(lambda g, yy, xx: g.predict(yy, xx, return_var=True))(
+        gp, y, X_test
+    )
     assert_allclose(mu_jit, mu_eager)
     assert_allclose(var_jit, var_eager)
