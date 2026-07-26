@@ -8,6 +8,8 @@ from tinygp.kernels.quasisep import Matern32, Matern52
 from tinygp.solvers.quasisep.core import DiagQSM
 from tinygp.solvers.quasisep.ops import (
     cholesky,
+    cholesky_carry,
+    cholesky_carry_parallel,
     cholesky_parallel,
     lower_matmul,
     lower_matmul_parallel,
@@ -52,6 +54,11 @@ def test_cholesky_parallel(data):
     c_par, w_par = cholesky_parallel(d, p, q, a)
     assert_allclose(c_par, c_seq)
     assert_allclose(w_par, w_seq)
+
+
+def test_cholesky_carry_parallel(data):
+    d, p, q, a, _ = data
+    assert_allclose(cholesky_carry_parallel(d, p, q, a), cholesky_carry(d, p, q, a))
 
 
 def test_lower_solve_parallel(data):
