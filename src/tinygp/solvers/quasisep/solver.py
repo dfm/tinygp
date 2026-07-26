@@ -45,7 +45,6 @@ class QuasisepSolver(Solver):
     kernel: Kernel
     matrix: SymmQSM
     factor: LowerTriQSM
-    cholesky_carry: JAXArray
     parallel: bool = eqx.field(static=True)
 
     def __init__(
@@ -98,11 +97,10 @@ class QuasisepSolver(Solver):
         (d,) = matrix.diag
         p, q, a = matrix.lower
         impl = ops.cholesky_parallel if parallel else ops.cholesky
-        c, w, f = impl(d, p, q, a)
+        c, w = impl(d, p, q, a)
         self.factor = LowerTriQSM(
             diag=DiagQSM(c), lower=StrictLowerTriQSM(p=p, q=w, a=a)
         )
-        self.cholesky_carry = f
 
     def variance(self) -> JAXArray:
         return self.matrix.diag.d

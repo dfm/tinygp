@@ -21,6 +21,7 @@ from tinygp.kernels.base import Conditioned, Kernel
 from tinygp.means import MeanBase
 from tinygp.noise import Noise
 from tinygp.solvers.direct import DirectSolver
+from tinygp.solvers.quasisep import ops
 from tinygp.solvers.quasisep.block import ensure_dense
 from tinygp.solvers.solver import ConditionedComponents, Solver
 
@@ -34,7 +35,6 @@ class PredictState(eqx.Module):
 
     X_train: JAXArray  # the training inputs (any pytree)
     t_train: JAXArray  # (N,) sortable coordinates, for the per-test binary search
-    a_inv: JAXArray  # (N, J, J), inverse training transitions (right-anchor pull-back)
     h_fwd: JAXArray  # (N+1, J), forward mean accumulator (depends on y)
     h_bwd: JAXArray  # (N+1, J), backward mean accumulator (depends on y)
     f: JAXArray  # (N+1, J, J), the (inclusive) Cholesky carry
@@ -46,27 +46,20 @@ def precompute(
 ) -> PredictState:
     """Run the four train-only scans and bundle them into a :class:`PredictState`."""
     a = jax.vmap(ensure_dense)(solver.matrix.lower.a)
-    # The right-anchor pull-back needs a[iR]^{-1} per test point. Precompute the
-    # inverse training transitions once here, so the per-test step is a matmul
-    # rather than a batched J x J linalg.solve -- the latter lowers to a general
-    # per-matrix LU that is far slower and erratic (non-monotonic in J) for tiny
-    # matrices, which otherwise dominates the per-test cost at large M. The
-    # inverse is analytic: a[k] = transition(t_{k-1}, t_k), so
-    # a[k]^{-1} = transition(t_k, t_{k-1}), avoiding an LU entirely.
     kernel = solver.kernel
-    X_prev = jax.tree_util.tree_map(
-        lambda v: jnp.concatenate([v[:1], v[:-1]], axis=0), solver.X
-    )
-    a_inv = jax.vmap(lambda xc, xp: ensure_dense(kernel.transition_matrix(xc, xp)))(
-        solver.X, X_prev
-    )
     t_train = jax.vmap(kernel.coord_to_sortable)(solver.X)
     h_fwd, h_bwd = _precompute_mean(solver, a, beta, parallel=parallel)
-    f, P = _precompute_variance(solver, a, parallel=parallel)
+    # The exclusive Cholesky carry is recomputed here (one extra scan) rather
+    # than stored on the solver, so likelihood-only workflows never carry the
+    # N x J^2 array through their jit/grad/vmap transforms.
+    (d,) = solver.matrix.diag
+    p, q, a_raw = solver.matrix.lower
+    carry_impl = ops.cholesky_carry_parallel if parallel else ops.cholesky_carry
+    f_excl = carry_impl(d, p, q, a_raw)
+    f, P = _precompute_variance(solver, a, f_excl, parallel=parallel)
     return PredictState(
         X_train=solver.X,
         t_train=t_train,
-        a_inv=a_inv,
         h_fwd=h_fwd,
         h_bwd=h_bwd,
         f=f,
@@ -93,7 +86,12 @@ def _precompute_mean(
 
 
 def _scan_h(a: JAXArray, b: JAXArray, *, reverse: bool, parallel: bool) -> JAXArray:
-    """Inclusive prefix of ``h_k = A_k h_{k-1} + b_k`` (``A_k = a_k^T`` if reverse)."""
+    """Inclusive prefix of ``h_k = A_k h_{k-1} + b_k`` (``A_k = a_k^T`` if reverse).
+
+    The parallel combine multiplies J x J matrices where the sequential step is
+    matrix-vector, so it costs O(N J^3 log N) FLOPs vs O(N J^2): the reduced
+    sequential depth only pays off on accelerators at large N.
+    """
     A = jnp.swapaxes(a, -1, -2) if reverse else a
     if parallel:
 
@@ -114,11 +112,11 @@ def _scan_h(a: JAXArray, b: JAXArray, *, reverse: bool, parallel: bool) -> JAXAr
 
 
 def _precompute_variance(
-    solver: QuasisepSolver, a: JAXArray, *, parallel: bool
+    solver: QuasisepSolver, a: JAXArray, f_excl: JAXArray, *, parallel: bool
 ) -> tuple[JAXArray, JAXArray]:
     """Forward variance term reuses the carry; one backward congruence scan.
 
-    ``cholesky_carry`` is the *exclusive* carry (the value entering each step,
+    ``f_excl`` is the *exclusive* Cholesky carry (the value entering each step,
     ``f_excl[k] = f_{k-1}``), so the *inclusive* carry ``f_incl[k] = f_k`` is the
     same array shifted by one, ``f_incl[k] = f_excl[k+1]``, with a single
     boundary element ``f_{N-1} = a_{N-1} f_excl[N-1] a_{N-1}^T + w_{N-1}
@@ -129,7 +127,6 @@ def _precompute_variance(
     """
     c = solver.factor.diag.d
     p, w, _ = solver.factor.lower
-    f_excl = solver.cholesky_carry
     last = a[-1] @ f_excl[-1] @ a[-1].T + jnp.outer(w[-1], w[-1])
     f = jnp.concatenate([f_excl, last[None]], axis=0)
     inv_c = 1.0 / c
@@ -180,19 +177,31 @@ def _anchor(
     xL = jax.tree_util.tree_map(lambda v: v[iL], state.X_train)
     xR = jax.tree_util.tree_map(lambda v: v[iR], state.X_train)
 
+    # Both anchors use the double-where idiom: when a test point extrapolates
+    # past the data, the transition over the (then-negative) gap can overflow to
+    # inf. The outer where masks the primal, but a cotangent would still route
+    # through the inf and poison the gradient, so the transition is evaluated at
+    # a clamped zero-gap coordinate whenever the mask is off.
+
     # Left anchor: propagate from t_iL to t_*.
-    phi_L = kernel.transition_matrix(xL, x_star)
+    valid_L = idx > 0
+    x_star_L = jax.tree_util.tree_map(lambda s, v: jnp.where(valid_L, s, v), x_star, xL)
+    phi_L = kernel.transition_matrix(xL, x_star_L)
     xi = phi_L.T @ (Pinf @ h_star)
-    xi = jnp.where(idx > 0, xi, jnp.zeros_like(xi))
+    xi = jnp.where(valid_L, xi, jnp.zeros_like(xi))
 
     # Right anchor: propagate from t_* to t_iR, then pull back across the
     # training gap a[iR] = transition(t_iL, t_iR) so the contraction lines up
     # with h_bwd's accumulation in p (which already absorbs one a and Pinf). The
-    # pull-back a[iR]^{-1} uses the precomputed inverse (see precompute) so this
-    # is a matmul rather than a per-test linalg.solve.
-    phi_R = kernel.transition_matrix(x_star, xR)
-    zeta = state.a_inv[iR] @ (phi_R @ h_star)
-    zeta = jnp.where(idx < N, zeta, jnp.zeros_like(zeta))
+    # pull-back is analytic, a[iR]^{-1} = transition(t_iR, t_iL), so rebuilding
+    # it here is a single O(J^2) call -- no per-test linalg.solve, and no stored
+    # (N, J, J) array of inverse transitions.
+    valid_R = idx < N
+    x_star_R = jax.tree_util.tree_map(lambda s, v: jnp.where(valid_R, s, v), x_star, xR)
+    phi_R = kernel.transition_matrix(x_star_R, xR)
+    a_inv = kernel.transition_matrix(xR, xL)
+    zeta = a_inv @ (phi_R @ h_star)
+    zeta = jnp.where(valid_R, zeta, jnp.zeros_like(zeta))
 
     return idx, xi, zeta
 
@@ -298,7 +307,7 @@ class ConditionedSolver(Solver):
         Ks = self.train_kernel(self.train_solver.X, self.X)
         A = self.train_solver.solve_triangular(Ks)
         Kss = self.train_kernel(self.X, self.X)
-        return Kss - A.T @ A + jnp.diag(self.noise.diagonal())
+        return Kss - A.T @ A + self.noise
 
     def variance(self) -> JAXArray:
         return jnp.diagonal(self.covariance())

@@ -535,7 +535,7 @@ class SymmQSM(QSM):
         (d,) = self.diag
         p, q, a = self.lower
         impl = cholesky_parallel if parallel else cholesky
-        c, w, _ = impl(d, p, q, a)
+        c, w = impl(d, p, q, a)
         return LowerTriQSM(diag=DiagQSM(c), lower=StrictLowerTriQSM(p=p, q=w, a=a))
 
     def __neg__(self) -> SymmQSM:

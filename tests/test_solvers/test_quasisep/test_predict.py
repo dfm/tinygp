@@ -7,6 +7,7 @@ from numpy import random as np_random
 
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep as qk
+from tinygp.noise import Dense
 from tinygp.solvers.quasisep import predict
 from tinygp.solvers.quasisep.solver import QuasisepSolver
 from tinygp.test_utils import assert_allclose
@@ -106,6 +107,105 @@ def test_condition_end_to_end(data, kernel, parallel):
 
     assert_allclose(jax.vmap(cond.mean_function)(X_new), mu_new)
     assert_allclose(jax.vmap(cond.kernel.evaluate_diag)(X_new), var_new)
+
+
+def _dense_reference(kernel, X_train, y, X_test, diag):
+    N = X_train.shape[0]
+    K = kernel(X_train, X_train) + diag * jnp.eye(N)
+    Ks = kernel(X_train, X_test)
+    Kss = jax.vmap(kernel.evaluate_diag)(X_test)
+    mu = Ks.T @ jnp.linalg.solve(K, y)
+    L = jnp.linalg.cholesky(K)
+    A = jax.scipy.linalg.solve_triangular(L, Ks, lower=True)
+    var = Kss - jnp.sum(A**2, axis=0)
+    return mu, var
+
+
+# Geometries where an anchoring off-by-one would bite: test points coincident
+# with training points, duplicated training times, tiny datasets, and
+# extrapolation past both ends of the data.
+GEOMETRIES = {
+    "coincident": (
+        jnp.array([0.0, 1.0, 2.5, 4.0]),
+        jnp.array([-1.0, 1.0, 2.5, 4.0, 7.0]),
+    ),
+    "duplicates": (
+        jnp.array([0.0, 1.0, 1.0, 1.0, 3.0]),
+        jnp.array([0.5, 1.0, 2.0]),
+    ),
+    "single": (jnp.array([1.0]), jnp.array([0.0, 1.0, 2.0])),
+    "pair": (jnp.array([1.0, 2.0]), jnp.array([0.0, 1.5, 3.0])),
+    "extrapolation": (
+        jnp.array([0.0, 1.0, 2.0]),
+        jnp.array([-10.0, -0.5, 2.5, 10.0]),
+    ),
+}
+
+
+@pytest.mark.parametrize("geometry", sorted(GEOMETRIES))
+def test_edge_case_geometries(kernel, parallel, geometry):
+    X_train, X_test = GEOMETRIES[geometry]
+    rng = np_random.default_rng(99)
+    y = jnp.asarray(rng.normal(size=X_train.shape[0]))
+    diag = 0.1
+
+    gp = GaussianProcess(
+        kernel, X_train, diag=diag, solver=QuasisepSolver, parallel=parallel
+    )
+    cond = gp.condition(y, X_test).gp
+    mu_ref, var_ref = _dense_reference(kernel, X_train, y, X_test, diag)
+    assert_allclose(cond.mean, mu_ref)
+    assert_allclose(cond.variance, var_ref)
+
+
+def test_far_extrapolation_gradient_finite(parallel):
+    # Regression test: the anchors were computed unconditionally and only masked
+    # with a single jnp.where, so for a test point far past the data the
+    # transition over the (negative) extrapolation gap overflowed to inf in
+    # Matern-type kernels and the VJP turned the masked inf into a NaN gradient.
+    rng = np_random.default_rng(0)
+    X_train = jnp.sort(jnp.asarray(rng.uniform(0, 10, 20)))
+    y = jnp.asarray(rng.normal(size=20))
+    X_test = jnp.array([-5e4, 5.0, 5e4])
+
+    @jax.grad
+    def objective(scale):
+        gp = GaussianProcess(
+            qk.Matern32(scale=scale),
+            X_train,
+            diag=0.1,
+            solver=QuasisepSolver,
+            parallel=parallel,
+        )
+        cond = gp.condition(y, X_test).gp
+        return jnp.sum(cond.mean) + jnp.sum(cond.variance)
+
+    assert jnp.isfinite(objective(1.5))
+
+
+def test_conditioned_covariance_includes_full_noise(parallel):
+    # Regression test: ConditionedSolver.covariance() previously added
+    # jnp.diag(noise.diagonal()), silently dropping the off-diagonal part of a
+    # Dense test-noise model that the other conditioning paths keep.
+    rng = np_random.default_rng(5)
+    N, M = 8, 5
+    X_train = jnp.sort(jnp.asarray(rng.uniform(0, 10, N)))
+    y = jnp.asarray(rng.normal(size=N))
+    X_test = jnp.sort(jnp.asarray(rng.uniform(0, 10, M)))
+    R = rng.normal(size=(M, M))
+    R = jnp.asarray(R @ R.T + M * jnp.eye(M))
+
+    kernel = qk.Matern32(scale=1.5)
+    diag = 0.1
+    gp = GaussianProcess(
+        kernel, X_train, diag=diag, solver=QuasisepSolver, parallel=parallel
+    )
+    cond = gp.condition(y, X_test, noise=Dense(value=R)).gp
+
+    K = kernel(X_train, X_train) + diag * jnp.eye(N)
+    Ks = kernel(X_train, X_test)
+    cov_ref = kernel(X_test, X_test) - Ks.T @ jnp.linalg.solve(K, Ks) + R
+    assert_allclose(cond.covariance, cov_ref)
 
 
 def test_fast_path_survives_jit(data):

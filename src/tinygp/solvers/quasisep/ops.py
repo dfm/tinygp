@@ -358,11 +358,33 @@ def cholesky(d, p, q, a):
         tmp = fp @ ak.T
         wk = (qk - pk @ tmp) / ck
         fk = ak @ tmp + jnp.outer(wk, wk)
-        return fk, (ck, wk, fp)
+        return fk, (ck, wk)
 
     init = jnp.zeros_like(jnp.outer(q[0], q[0]))
-    _, (c, w, f) = jax.lax.scan(impl, init, (d, p, q, a))
-    return c, w, f
+    _, (c, w) = jax.lax.scan(impl, init, (d, p, q, a))
+    return c, w
+
+
+@jax.jit
+def cholesky_carry(d, p, q, a):
+    """The exclusive carry of the Cholesky recursion, ``f_excl[k] = f_{k-1}``.
+
+    Only the fast prediction path needs this (N, J, J) array, so it is
+    recomputed there (one extra scan) rather than stored on the solver.
+    """
+
+    def impl(carry, data):
+        fp = carry
+        dk, pk, qk, ak = data
+        ck = jnp.sqrt(dk - pk @ fp @ pk)
+        tmp = fp @ ak.T
+        wk = (qk - pk @ tmp) / ck
+        fk = ak @ tmp + jnp.outer(wk, wk)
+        return fk, fp
+
+    init = jnp.zeros_like(jnp.outer(q[0], q[0]))
+    _, f = jax.lax.scan(impl, init, (d, p, q, a))
+    return f
 
 
 def _riccati_scan(d, p, q, a):
@@ -396,7 +418,14 @@ def cholesky_parallel(d, p, q, a):
         return ck, wk
 
     c, w = jax.vmap(emit)(f, d, p, q, a)
-    return c, w, f
+    return c, w
+
+
+@jax.jit
+def cholesky_carry_parallel(d, p, q, a):
+    """Parallel evaluation of the exclusive Cholesky carry (see
+    :func:`cholesky_carry`)."""
+    return _riccati_scan(d, p, q, a)
 
 
 @jax.jit

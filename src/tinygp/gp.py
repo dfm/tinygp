@@ -157,8 +157,18 @@ class GaussianProcess(eqx.Module):
             the Cholesky factorization. At the training inputs (``X_test=None``)
             the conditional covariance is represented as a quasiseparable matrix,
             so the conditioned process is itself a scalable
-            :class:`tinygp.solvers.quasisep.QuasisepSolver` GP. Only supplying a
-            cross ``kernel`` falls back to a dense conditional covariance.
+            :class:`tinygp.solvers.quasisep.QuasisepSolver` GP.
+
+            The fast path at test points is enabled only when the ``kernel``
+            argument is omitted: supplying *any* kernel here -- even the same
+            kernel used for fitting -- falls back to a dense conditional
+            covariance with ``O(M^2 N)`` cost. The results are the same; only
+            the scaling differs. Also note that on the conditioned GP returned
+            by the fast path, operations that need the full ``M x M``
+            conditional covariance (``covariance``, ``sample``,
+            ``log_probability``) build -- and, for the latter two, factor --
+            a dense matrix on every call, which is ``O(M^3)`` each time;
+            ``mean`` and ``variance`` remain fast.
 
         Args:
             y (JAXArray): The observed data. This should have the shape
@@ -176,7 +186,10 @@ class GaussianProcess(eqx.Module):
                 values will include the mean function evaluated at ``X_test``.
             kernel (Kernel, optional): A kernel to optionally specify the
                 covariance between the observed data and predicted data. See
-                :ref:`mixture` for an example.
+                :ref:`mixture` for an example. With a
+                :class:`tinygp.solvers.quasisep.QuasisepSolver`, supplying any
+                kernel here (even the training kernel) disables the fast
+                prediction path; leave it unset to keep conditioning scalable.
 
         Returns:
             A named tuple where the first element ``log_probability`` is the log
@@ -269,6 +282,11 @@ class GaussianProcess(eqx.Module):
                 with the ``X`` data provided when instantiating this object. If
                 it is not provided, ``X`` will be used by default, so the
                 predictions will be made.
+            kernel (Kernel, optional): A kernel to optionally specify the
+                covariance between the observed data and predicted data. With a
+                :class:`tinygp.solvers.quasisep.QuasisepSolver`, supplying any
+                kernel here (even the training kernel) disables the fast
+                prediction path; leave it unset to keep predictions scalable.
             include_mean (bool, optional): If ``True`` (default), the predicted
                 values will include the mean function evaluated at ``X_test``.
             return_var (bool, optional): If ``True``, the variance of the
