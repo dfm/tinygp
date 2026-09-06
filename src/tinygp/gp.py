@@ -264,27 +264,32 @@ class GaussianProcess(eqx.Module):
             _, _, mean_value = self._condition(y, X_test, include_mean, kernel)
             return mean_value
 
-        # return_var=True: build the training/test cross-covariance block
-        # once (`Ks`) and reuse it for both the mean and the variance, rather
-        # than evaluating the kernel a second time via `_condition` -- this
-        # matters for kernels that are expensive to evaluate (e.g. ones that
-        # differentiate through another kernel).
+        pred_kernel = self.kernel if kernel is None else kernel
+
+        if X_test is None:
+            # Predicting at the training points: reuse `_condition`'s O(N)
+            # mean shortcut, and let the solver pick how to compute the
+            # variance -- e.g. QuasisepSolver avoids a dense matrix here.
+            _, _, mean_value = self._condition(y, None, include_mean, kernel)
+            diag = _default_diag(mean_value)
+            noise = Diagonal(diag=jnp.broadcast_to(diag, mean_value.shape))
+            var_value = self.solver.condition_diag(pred_kernel, None, noise)
+            return mean_value, var_value
+
+        # Predicting at new test points: build `Ks` once and reuse it for
+        # both the mean and the variance, instead of evaluating the kernel
+        # twice via `_condition` -- matters for expensive kernels (e.g. ones
+        # that differentiate through another kernel).
         alpha = self._get_alpha(y)
         alpha = self.solver.solve_triangular(alpha, transpose=True)
 
-        pred_kernel = self.kernel if kernel is None else kernel
-        if X_test is None:
-            Ks = pred_kernel(self.X, self.X)
-            Kss_diag = pred_kernel(self.X)
-            mean_offset = self.loc if include_mean else jnp.zeros_like(self.loc)
-        else:
-            Ks = pred_kernel(self.X, X_test)
-            Kss_diag = pred_kernel(X_test)
-            mean_offset = (
-                jax.vmap(self.mean_function)(X_test)
-                if include_mean
-                else jnp.zeros_like(Kss_diag)
-            )
+        Ks = pred_kernel(self.X, X_test)
+        Kss_diag = pred_kernel(X_test)
+        mean_offset = (
+            jax.vmap(self.mean_function)(X_test)
+            if include_mean
+            else jnp.zeros_like(Kss_diag)
+        )
 
         mean_value = jnp.dot(alpha, Ks) + mean_offset
         A = self.solver.solve_triangular(Ks)

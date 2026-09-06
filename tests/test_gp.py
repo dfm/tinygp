@@ -191,9 +191,8 @@ def test_predict_edge_cases(random):
 
 
 def test_predict_return_var_takes_priority_over_return_cov(random):
-    # Regression test: per the `predict` docstring, if `return_var` is True,
-    # `return_cov` must be ignored -- the second return value must be the
-    # 1-D variance, not the 2-D covariance, even when both flags are set.
+    # The second return value must be the 1-D variance, not the 2-D
+    # covariance, even when both flags are set.
     with jax.enable_x64(True):
         X = jnp.sort(random.uniform(0, 10, 20))
         y = jnp.sin(X)
@@ -205,3 +204,18 @@ def test_predict_return_var_takes_priority_over_return_cov(random):
         assert out.shape == (6,)
         assert_allclose(mu, cond.loc)
         assert_allclose(out, cond.variance)
+
+
+def test_predict_quasisep_at_training_points(random):
+    # Must go through QuasisepSolver.condition_diag's quasiseparable
+    # shortcut, not fall back to a dense N x N cross-covariance matrix.
+    with jax.enable_x64(True):
+        X = jnp.sort(random.uniform(0, 10, 50))
+        y = jnp.sin(X) + 0.1 * random.normal(size=len(X))
+        kernel = kernels.quasisep.SHO(omega=1.2, quality=2.5)
+        gp = GaussianProcess(kernel, X, diag=0.05)
+
+        _, cond = gp.condition(y)
+        mu, var = gp.predict(y, return_var=True)
+        assert_allclose(mu, cond.loc)
+        assert_allclose(var, cond.variance)
