@@ -138,6 +138,28 @@ class QuasisepSolver(Solver):
         A = self.solve_triangular(Ks)
         return Kss - A.transpose() @ A
 
+    def condition_diag(
+        self, kernel: Kernel, X_test: JAXArray | None, noise: Noise
+    ) -> JAXArray:
+        """The diagonal of the covariance matrix for a conditional GP
+
+        This reuses the same quasiseparable special case as :func:`condition`:
+        when predicting at the input coordinates with a
+        :class:`tinygp.kernels.quasisep.Quasisep` kernel, the diagonal can be
+        computed in ``O(N)`` (or ``O(N log N)`` with the parallel algorithms)
+        without ever materializing a dense matrix. Otherwise, this falls back on
+        :func:`tinygp.solvers.solver.Solver.condition_diag`.
+        """
+        from tinygp.kernels.quasisep import Quasisep
+
+        if X_test is None and isinstance(kernel, Quasisep):
+            M = kernel.to_symm_qsm(self.X)
+            delta = (self.factor.inv() @ M).gram()
+            M += noise.to_qsm()
+            return M.diag.d - delta.diag.d
+
+        return super().condition_diag(kernel, X_test, noise)
+
 
 def _check_sorted(X: JAXArray) -> None:
     if np.any(np.diff(X) < 0.0):

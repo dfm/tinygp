@@ -6,6 +6,7 @@ from abc import abstractmethod
 from typing import Any
 
 import equinox as eqx
+import jax.numpy as jnp
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
@@ -80,3 +81,33 @@ class Solver(eqx.Module):
     @abstractmethod
     def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
         raise NotImplementedError
+
+    def condition_diag(
+        self, kernel: Kernel, X_test: JAXArray | None, noise: Noise
+    ) -> JAXArray:
+        """The diagonal of the covariance matrix for a conditional GP
+
+        Unlike :func:`condition`, which returns the full ``N_test x N_test``
+        conditional covariance matrix, this only computes its diagonal,
+        reusing this solver's existing factorization. The default
+        implementation below does this in ``O(N_train * N_test)`` time and
+        memory, without ever materializing a dense ``N_test x N_test``
+        matrix. Subclasses can override this to use a more efficient,
+        solver-specific algorithm where one is available (see e.g.
+        :class:`tinygp.solvers.QuasisepSolver`).
+
+        Args:
+            kernel: The kernel for the covariance between the observed and
+                predicted data.
+            X_test: The coordinates of the predicted points. Defaults to the
+                input coordinates.
+            noise: The noise model for the predicted process.
+        """
+        if X_test is None:
+            Ks = kernel(self.X, self.X)  # type: ignore
+            Kss_diag = kernel(self.X)  # type: ignore
+        else:
+            Ks = kernel(self.X, X_test)  # type: ignore
+            Kss_diag = kernel(X_test)
+        A = self.solve_triangular(Ks)
+        return Kss_diag - jnp.sum(jnp.square(A), axis=0) + noise.diagonal()

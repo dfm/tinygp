@@ -173,22 +173,7 @@ class GaussianProcess(eqx.Module):
             the :class:`GaussianProcess` object describing the conditional
             distribution evaluated at ``X_test``.
         """
-        # If X_test is provided, we need to check that the tree structure
-        # matches that of the input data, and that the shapes are all compatible
-        # (i.e. the dimension of the inputs must match). This is slightly
-        # convoluted since we need to support arbitrary pytrees.
-        if X_test is not None:
-            matches = jax.tree_util.tree_map(
-                lambda a, b: jnp.ndim(a) == jnp.ndim(b)
-                and jnp.shape(a)[1:] == jnp.shape(b)[1:],
-                self.X,
-                X_test,
-            )
-            if not jax.tree_util.tree_reduce(lambda a, b: a and b, matches):
-                raise ValueError(
-                    "`X_test` must have the same tree structure as the input `X`, "
-                    "and all but the leading dimension must have matching sizes"
-                )
+        _check_test_shapes(self.X, X_test)
 
         alpha, log_prob, mean_value = self._condition(y, X_test, include_mean, kernel)
         if kernel is None:
@@ -263,12 +248,55 @@ class GaussianProcess(eqx.Module):
             returned with shape ``(N_test,)`` or ``(N_test, N_test)``
             respectively.
         """
-        _, cond = self.condition(y, X_test, kernel=kernel, include_mean=include_mean)
-        if return_var:
-            return cond.loc, cond.variance
-        if return_cov:
+        _check_test_shapes(self.X, X_test)
+
+        # `return_var` takes priority over `return_cov` (see docstring above),
+        # so only take the dense `condition()` path — which materializes the
+        # full N_test x N_test covariance — when the covariance itself was
+        # requested.
+        if return_cov and not return_var:
+            _, cond = self.condition(
+                y, X_test, kernel=kernel, include_mean=include_mean
+            )
             return cond.loc, cond.covariance
-        return cond.loc
+
+        if not return_var:
+            _, _, mean_value = self._condition(y, X_test, include_mean, kernel)
+            return mean_value
+
+        pred_kernel = self.kernel if kernel is None else kernel
+
+        if X_test is None:
+            # Predicting at the training points: reuse `_condition`'s O(N)
+            # mean shortcut, and let the solver pick how to compute the
+            # variance -- e.g. QuasisepSolver avoids a dense matrix here.
+            _, _, mean_value = self._condition(y, None, include_mean, kernel)
+            diag = _default_diag(mean_value)
+            noise = Diagonal(diag=jnp.broadcast_to(diag, mean_value.shape))
+            var_value = self.solver.condition_diag(pred_kernel, None, noise)
+            return mean_value, var_value
+
+        # Predicting at new test points: build `Ks` once and reuse it for
+        # both the mean and the variance, instead of evaluating the kernel
+        # twice via `_condition` -- matters for expensive kernels (e.g. ones
+        # that differentiate through another kernel).
+        alpha = self._get_alpha(y)
+        alpha = self.solver.solve_triangular(alpha, transpose=True)
+
+        Ks = pred_kernel(self.X, X_test)
+        Kss_diag = pred_kernel(X_test)
+        mean_offset = (
+            jax.vmap(self.mean_function)(X_test)
+            if include_mean
+            else jnp.zeros_like(Kss_diag)
+        )
+
+        mean_value = jnp.dot(alpha, Ks) + mean_offset
+        A = self.solver.solve_triangular(Ks)
+        var_value = (
+            Kss_diag - jnp.sum(jnp.square(A), axis=0) + _default_diag(mean_value)
+        )
+        return mean_value, var_value
 
     def sample(
         self,
@@ -391,3 +419,26 @@ def _default_diag(reference: JAXArray) -> JAXArray:
     give sensible results in general.
     """
     return jnp.sqrt(jnp.finfo(reference).eps)
+
+
+def _check_test_shapes(X: JAXArray, X_test: JAXArray | None) -> None:
+    """Check that ``X_test`` is compatible with the training inputs ``X``
+
+    If ``X_test`` is provided, we need to check that the tree structure
+    matches that of the input data, and that the shapes are all compatible
+    (i.e. the dimension of the inputs must match). This is slightly
+    convoluted since we need to support arbitrary pytrees.
+    """
+    if X_test is None:
+        return
+    matches = jax.tree_util.tree_map(
+        lambda a, b: jnp.ndim(a) == jnp.ndim(b)
+        and jnp.shape(a)[1:] == jnp.shape(b)[1:],
+        X,
+        X_test,
+    )
+    if not jax.tree_util.tree_reduce(lambda a, b: a and b, matches):
+        raise ValueError(
+            "`X_test` must have the same tree structure as the input `X`, "
+            "and all but the leading dimension must have matching sizes"
+        )
