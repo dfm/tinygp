@@ -79,11 +79,25 @@ class Solver(eqx.Module):
         raise NotImplementedError
 
     @abstractmethod
-    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
+    def condition(
+        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
+    ) -> Any:
+        """Compute the covariance matrix for a conditional GP
+
+        Args:
+            kernel: The kernel for the covariance between the observed and
+                predicted data. If ``None``, the kernel used to construct this
+                solver is used, and solvers can use this as a signal to enable
+                specialized algorithms. Solver implementations must store this
+                kernel as ``self.kernel``.
+            X_test: The coordinates of the predicted points. Defaults to the
+                input coordinates.
+            noise: The noise model for the predicted process.
+        """
         raise NotImplementedError
 
     def condition_diag(
-        self, kernel: Kernel, X_test: JAXArray | None, noise: Noise
+        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
     ) -> JAXArray:
         """The diagonal of the covariance matrix for a conditional GP
 
@@ -98,11 +112,14 @@ class Solver(eqx.Module):
 
         Args:
             kernel: The kernel for the covariance between the observed and
-                predicted data.
+                predicted data. If ``None``, the kernel used to construct this
+                solver is used.
             X_test: The coordinates of the predicted points. Defaults to the
                 input coordinates.
             noise: The noise model for the predicted process.
         """
+        if kernel is None:
+            kernel = self.kernel  # type: ignore
         if X_test is None:
             Ks = kernel(self.X, self.X)  # type: ignore
             Kss_diag = kernel(self.X)  # type: ignore

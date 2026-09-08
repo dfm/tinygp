@@ -12,7 +12,12 @@ import numpy as np
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 from tinygp.noise import Noise
-from tinygp.solvers.quasisep.core import LowerTriQSM, SymmQSM
+from tinygp.solvers.quasisep.core import (
+    DiagQSM,
+    LowerTriQSM,
+    StrictLowerTriQSM,
+    SymmQSM,
+)
 from tinygp.solvers.solver import Solver
 
 
@@ -27,7 +32,9 @@ class QuasisepSolver(Solver):
     usual constructor.
     """
 
+    kernel: Kernel
     X: JAXArray
+    noise: Noise
     matrix: SymmQSM
     factor: LowerTriQSM
     parallel: bool = eqx.field(static=True)
@@ -76,7 +83,9 @@ class QuasisepSolver(Solver):
             if TYPE_CHECKING:
                 assert isinstance(covariance, SymmQSM)
             matrix = covariance
+        self.kernel = kernel
         self.X = X
+        self.noise = noise
         self.matrix = matrix
         self.parallel = parallel
         self.factor = matrix.cholesky(parallel=parallel)
@@ -85,7 +94,8 @@ class QuasisepSolver(Solver):
         return self.matrix.diag.d
 
     def covariance(self) -> JAXArray:
-        return self.matrix.to_dense()
+        N = self.matrix.shape[0]
+        return self.matrix.matmul(jnp.eye(N), parallel=self.parallel)
 
     def normalization(self) -> JAXArray:
         return jnp.sum(jnp.log(self.factor.diag.d)) + 0.5 * self.factor.shape[
@@ -101,15 +111,46 @@ class QuasisepSolver(Solver):
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return self.factor.matmul(y, parallel=self.parallel)
 
+    def _conditional_at_data(self) -> SymmQSM:
+        """The conditional covariance at the input coordinates, as a QSM
+
+        When conditioning on the observed data using the same kernel that
+        this solver was built with, and with ``K = M + N`` the full covariance
+        matrix, the conditional covariance ``M - M @ K^{-1} @ M`` simplifies
+        to ``N - N @ K^{-1} @ N``. This form only requires the inverse of
+        ``K``, and it has the same quasiseparable rank as the original
+        kernel. It is also much better conditioned than computing
+        ``M - M @ K^{-1} @ M`` directly, where the difference of two nearly
+        equal matrices is encoded in the generators.
+        """
+        from tinygp.solvers.quasisep.ops import qsm_mul
+
+        Kinv = self.matrix.inv(parallel=self.parallel)
+        N = self.noise.to_qsm()
+        if isinstance(N, DiagQSM):
+            n = N.d
+            lam = Kinv.diag.d
+            t, s, ell = Kinv.lower
+            return SymmQSM(
+                diag=DiagQSM(d=n - jnp.square(n) * lam),
+                lower=StrictLowerTriQSM(p=-n[:, None] * t, q=n[:, None] * s, a=ell),
+            )
+
+        P = qsm_mul(N, qsm_mul(Kinv, N, parallel=self.parallel), parallel=self.parallel)
+        return N - SymmQSM(diag=P.diag, lower=P.lower)
+
     def _conditional_delta(self, M: SymmQSM) -> SymmQSM:
         # The (QSM) term M @ K^{-1} @ M = (L^{-1} @ M)^T @ (L^{-1} @ M) that
         # gets subtracted from M when conditioning at the input coordinates
+        # with a general (cross-)kernel M
         from tinygp.solvers.quasisep.ops import qsm_mul
 
         A = qsm_mul(self.factor.inv(), M, parallel=self.parallel)
         return A.gram(parallel=self.parallel)
 
-    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
+    def condition(
+        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
+    ) -> Any:
         """Compute the covariance matrix for a conditional GP
 
         In the case where the prediction is made at the input coordinates with a
@@ -121,14 +162,24 @@ class QuasisepSolver(Solver):
 
         Args:
             kernel: The kernel for the covariance between the observed and
-                predicted data.
+                predicted data. If ``None``, the kernel used to construct this
+                solver is used, which enables a more efficient and numerically
+                stable algorithm when ``X_test`` is also ``None``.
             X_test: The coordinates of the predicted points. Defaults to the
                 input coordinates.
             noise: The noise model for the predicted process.
         """
         from tinygp.kernels.quasisep import Quasisep
 
-        # We can easily compute the conditional as a QSM in the special case
+        # The most common case: predicting at the input coordinates with the
+        # kernel that this solver was built with
+        if X_test is None and kernel is None:
+            return self._conditional_at_data() + noise.to_qsm()
+
+        if kernel is None:
+            kernel = self.kernel
+
+        # We can also compute the conditional as a QSM in the special case
         # where we are predicting at the input coordinates and a Quasisep kernel
         if X_test is None and isinstance(kernel, Quasisep):
             M = kernel.to_symm_qsm(self.X)
@@ -147,11 +198,11 @@ class QuasisepSolver(Solver):
         return Kss - A.transpose() @ A
 
     def condition_diag(
-        self, kernel: Kernel, X_test: JAXArray | None, noise: Noise
+        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
     ) -> JAXArray:
         """The diagonal of the covariance matrix for a conditional GP
 
-        This reuses the same quasiseparable special case as :func:`condition`:
+        This reuses the same quasiseparable special cases as :func:`condition`:
         when predicting at the input coordinates with a
         :class:`tinygp.kernels.quasisep.Quasisep` kernel, the diagonal can be
         computed in ``O(N)`` (or ``O(N log N)`` with the parallel algorithms)
@@ -159,6 +210,12 @@ class QuasisepSolver(Solver):
         :func:`tinygp.solvers.solver.Solver.condition_diag`.
         """
         from tinygp.kernels.quasisep import Quasisep
+
+        if X_test is None and kernel is None:
+            return self._conditional_at_data().diag.d + noise.diagonal()
+
+        if kernel is None:
+            kernel = self.kernel
 
         if X_test is None and isinstance(kernel, Quasisep):
             M = kernel.to_symm_qsm(self.X)

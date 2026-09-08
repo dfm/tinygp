@@ -176,14 +176,17 @@ class GaussianProcess(eqx.Module):
         _check_test_shapes(self.X, X_test)
 
         alpha, log_prob, mean_value = self._condition(y, X_test, include_mean, kernel)
-        if kernel is None:
-            kernel = self.kernel
 
         if noise is None:
             diag = _default_diag(mean_value) if diag is None else diag
             noise = Diagonal(diag=jnp.broadcast_to(diag, mean_value.shape))
 
+        # Note: ``kernel`` is passed through unresolved here, since ``None``
+        # signals to the solver that we're conditioning using the same kernel
+        # that it was built with, and it can use a more efficient algorithm
         covariance_value = self.solver.condition(kernel, X_test, noise)
+        if kernel is None:
+            kernel = self.kernel
         if X_test is None:
             X_test = self.X
 
@@ -283,7 +286,7 @@ class GaussianProcess(eqx.Module):
             _, _, mean_value = self._condition(y, None, include_mean, kernel)
             diag = _default_diag(mean_value)
             noise = Diagonal(diag=jnp.broadcast_to(diag, mean_value.shape))
-            var_value = self.solver.condition_diag(pred_kernel, None, noise)
+            var_value = self.solver.condition_diag(kernel, None, noise)
             return mean_value, var_value
 
         # Predicting at new test points: build `Ks` once and reuse it for

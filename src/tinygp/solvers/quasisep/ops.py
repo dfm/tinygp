@@ -204,9 +204,11 @@ def qsm_mul(a: QSM, b: QSM, *, parallel: bool = False) -> QSM | None:
     diag, lower, upper = impl(
         diag_a, lower_a, upper_a, diag_b, lower_b, upper_b, phi, psi
     )
-    is_symm_a = isinstance(a, (DiagQSM, SymmQSM))
-    is_symm_b = isinstance(b, (DiagQSM, SymmQSM))
-    return construct(diag, lower, upper, is_symm_a and is_symm_b)
+    # Note: the product of two symmetric matrices is not, in general,
+    # symmetric, so we always return the full (square) result here. Callers
+    # that know the result must be symmetric (e.g. ``SquareQSM.gram``) can
+    # re-wrap it.
+    return construct(diag, lower, upper, False)
 
 
 def deconstruct(
