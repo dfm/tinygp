@@ -101,6 +101,14 @@ class QuasisepSolver(Solver):
     def dot_triangular(self, y: JAXArray) -> JAXArray:
         return self.factor.matmul(y, parallel=self.parallel)
 
+    def _conditional_delta(self, M: SymmQSM) -> SymmQSM:
+        # The (QSM) term M @ K^{-1} @ M = (L^{-1} @ M)^T @ (L^{-1} @ M) that
+        # gets subtracted from M when conditioning at the input coordinates
+        from tinygp.solvers.quasisep.ops import qsm_mul
+
+        A = qsm_mul(self.factor.inv(), M, parallel=self.parallel)
+        return A.gram(parallel=self.parallel)
+
     def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
         """Compute the covariance matrix for a conditional GP
 
@@ -124,7 +132,7 @@ class QuasisepSolver(Solver):
         # where we are predicting at the input coordinates and a Quasisep kernel
         if X_test is None and isinstance(kernel, Quasisep):
             M = kernel.to_symm_qsm(self.X)
-            delta = (self.factor.inv() @ M).gram()
+            delta = self._conditional_delta(M)
             M += noise.to_qsm()
             return M - delta
 
@@ -154,7 +162,7 @@ class QuasisepSolver(Solver):
 
         if X_test is None and isinstance(kernel, Quasisep):
             M = kernel.to_symm_qsm(self.X)
-            delta = (self.factor.inv() @ M).gram()
+            delta = self._conditional_delta(M)
             M += noise.to_qsm()
             return M.diag.d - delta.diag.d
 

@@ -187,6 +187,15 @@ class GaussianProcess(eqx.Module):
         if X_test is None:
             X_test = self.X
 
+        # When the conditional covariance is quasiseparable, the new GP will
+        # use a QuasisepSolver, and it should inherit the parallel flag from
+        # this GP's solver
+        solver_kwargs: dict[str, Any] = {}
+        if isinstance(self.solver, QuasisepSolver) and isinstance(
+            covariance_value, SymmQSM
+        ):
+            solver_kwargs["parallel"] = self.solver.parallel
+
         # The conditional GP will also be a GP with the mean an covariance
         # specified by a :class:`tinygp.means.Conditioned` and
         # :class:`tinygp.kernels.Conditioned` respectively.
@@ -203,6 +212,7 @@ class GaussianProcess(eqx.Module):
             ),
             mean_value=mean_value,
             covariance_value=covariance_value,
+            **solver_kwargs,
         )
 
         return ConditionResult(log_prob, gp)

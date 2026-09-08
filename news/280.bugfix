@@ -1,0 +1,6 @@
+Fixed ``parallel=True`` not reaching the ``QuasisepSolver.condition`` path when
+conditioning at the training coordinates: the quasiseparable matrix products
+used to build the conditional covariance now use parallel associative scans, and
+the conditioned ``GaussianProcess`` inherits the ``parallel`` flag from its
+parent so that its Cholesky factorization and all subsequent operations are
+parallel as well.

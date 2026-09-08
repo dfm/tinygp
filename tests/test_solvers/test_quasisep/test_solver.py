@@ -81,6 +81,7 @@ def test_consistent_with_direct(kernel_pair, data, parallel):
     gp1p = gp1.condition(y)
     gp2p = gp2.condition(y)
     assert isinstance(gp1p.gp.solver, QuasisepSolver)
+    assert gp1p.gp.solver.parallel == parallel
     assert_allclose(gp1p.log_probability, gp2p.log_probability)
     assert_allclose(gp1p.gp.loc, gp2p.gp.loc)
     assert_allclose(gp1p.gp.variance, gp2p.gp.variance)

@@ -5,7 +5,12 @@ import pytest
 from numpy import random as np_random
 
 from tinygp.kernels.quasisep import Matern32, Matern52
-from tinygp.solvers.quasisep.core import DiagQSM
+from tinygp.solvers.quasisep.core import (
+    DiagQSM,
+    LowerTriQSM,
+    StrictLowerTriQSM,
+    SymmQSM,
+)
 from tinygp.solvers.quasisep.ops import (
     cholesky,
     cholesky_parallel,
@@ -13,6 +18,7 @@ from tinygp.solvers.quasisep.ops import (
     lower_matmul_parallel,
     lower_solve,
     lower_solve_parallel,
+    qsm_mul,
     symm_inv,
     symm_inv_parallel,
     upper_matmul,
@@ -74,3 +80,19 @@ def test_symm_inv_parallel(data):
     assert_allclose(t_p, t_s)
     assert_allclose(s_p, s_s)
     assert_allclose(ell_p, ell_s)
+
+
+def test_qsm_mul_parallel(data):
+    d, p, q, a, x = data
+    del x
+    symm = SymmQSM(diag=DiagQSM(d=d), lower=StrictLowerTriQSM(p=p, q=q, a=a))
+    lower = LowerTriQSM(diag=symm.diag, lower=symm.lower)
+    upper = lower.transpose()
+    square = lower @ symm
+
+    # Exercise: only the phi scan, only the psi scan, and both scans
+    for left, right in [(lower, symm), (upper, symm), (square.T, square)]:
+        seq = qsm_mul(left, right)
+        par = qsm_mul(left, right, parallel=True)
+        assert_allclose(par.to_dense(), seq.to_dense())
+        assert type(par) is type(seq)
