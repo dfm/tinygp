@@ -59,6 +59,7 @@ ignore = [
     "PLR0911", # Allow many return statements
     "PLR0913", # Allow many arguments to functions
     "PLR0915", # Allow many statements
+    "PLR0917", # Allow many positional arguments to functions
     "PLR2004", # Allow magic numbers in comparisons
     "B905",    # Allow zip() without explicit `strict=` parameter
     "UP047",   # PEP 695 type params require Python 3.12+; project supports 3.11+
