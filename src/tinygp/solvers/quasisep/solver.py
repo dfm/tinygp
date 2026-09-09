@@ -12,13 +12,15 @@ import numpy as np
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Conditioned, Kernel
 from tinygp.noise import Noise
-from tinygp.solvers.direct import dense_condition
+from tinygp.solvers.direct import LazyDirectSolver, dense_condition
+from tinygp.solvers.quasisep import predict as qsp
 from tinygp.solvers.quasisep.core import (
     DiagQSM,
     LowerTriQSM,
     StrictLowerTriQSM,
     SymmQSM,
 )
+from tinygp.solvers.quasisep.ops import qsm_mul
 from tinygp.solvers.solver import ConditionedComponents, Solver
 
 
@@ -124,8 +126,6 @@ class QuasisepSolver(Solver):
         ``M - M @ K^{-1} @ M`` directly, where the difference of two nearly
         equal matrices is encoded in the generators.
         """
-        from tinygp.solvers.quasisep.ops import qsm_mul
-
         Kinv = self.matrix.inv(parallel=self.parallel)
         N = self.noise.to_qsm()
         if isinstance(N, DiagQSM):
@@ -144,8 +144,6 @@ class QuasisepSolver(Solver):
         # The (QSM) term M @ K^{-1} @ M = (L^{-1} @ M)^T @ (L^{-1} @ M) that
         # gets subtracted from M when conditioning at the input coordinates
         # with a general (cross-)kernel M
-        from tinygp.solvers.quasisep.ops import qsm_mul
-
         A = qsm_mul(self.factor.inv(), M, parallel=self.parallel)
         return A.gram(parallel=self.parallel)
 
@@ -165,41 +163,67 @@ class QuasisepSolver(Solver):
         kernel is the one that this solver was built with (``kernel=None``), a
         rank-``J`` representation is used that only requires the inverse of the
         training covariance and is numerically much better behaved (see
-        :func:`_conditional_at_data`). That applies to any ``QuasisepSolver``,
+        ``_conditional_at_data``). That applies to any ``QuasisepSolver``,
         including one that is itself the result of conditioning.
+
+        When predicting at new test points with the kernel that this solver was
+        built with (``kernel=None``), the conditional mean and variance are
+        computed in ``O(J^2)`` per test point by reusing this solver's Cholesky
+        factorization (see :mod:`tinygp.solvers.quasisep.predict`), and the
+        conditioned process gets a :class:`tinygp.solvers.direct.LazyDirectSolver`
+        that only builds the dense conditional covariance on demand.
 
         Otherwise, this falls back on
         :func:`tinygp.solvers.direct.dense_condition`, which materializes a
         dense conditional covariance, so be careful when predicting at a large
         number of test points!
         """
+        # Imported here because ``tinygp.kernels.quasisep`` imports this package
         from tinygp.kernels.quasisep import Quasisep
 
         pred_kernel = self.kernel if kernel is None else kernel
 
-        if X_test is not None:
-            comps = dense_condition(self, kernel, X_test, noise, alpha)
-            if isinstance(pred_kernel, Quasisep):
-                # The cross-covariance matmul is O((N + M) J^2) for a Quasisep
-                # kernel, so prefer it to the dense product from ``Ks``
-                mean_value = pred_kernel.matmul(X_test, self.X, alpha)
-                comps = comps._replace(mean_value=mean_value)
-            return comps
-
-        if kernel is None:
+        if X_test is None and kernel is None:
+            # Conditioning at the data with this solver's kernel: the rank-J
+            # representation only needs this solver's matrix and noise, so it
+            # applies to any kernel, including the ``Conditioned`` kernel of an
+            # already conditioned process. The same goes for the conditional
+            # mean, M @ alpha = (K - N) @ alpha with K = M + N.
             covariance = self._conditional_at_data() + noise.to_qsm()
-            # The conditional mean at the data is M @ alpha = (K - N) @ alpha
-            # with K = M + N the full training covariance; unlike the kernel's
-            # matmul, this is cheap for any kernel, including the
-            # ``Conditioned`` kernel of an already conditioned process
             mean_value = self.matrix.matmul(alpha, parallel=self.parallel)
             mean_value -= self.noise @ alpha
-        elif isinstance(pred_kernel, Quasisep):
+
+        elif not isinstance(pred_kernel, Quasisep):
+            return dense_condition(self, kernel, X_test, noise, alpha)
+
+        elif X_test is None:
             M = pred_kernel.to_symm_qsm(self.X)
             covariance = M + noise.to_qsm() - self._conditional_delta(M)
             mean_value = pred_kernel.matmul(self.X, y=alpha)
+
         else:
-            return dense_condition(self, kernel, X_test, noise, alpha)
+            # The cross-covariance matmul is O((N + M) J^2) for a Quasisep
+            # kernel, so we always prefer it to a dense product
+            mean_value = pred_kernel.matmul(X_test, self.X, alpha)
+
+            # When predicting with the kernel that this solver was built with,
+            # the variance can also be computed in O(J^2) per test point by
+            # reusing this solver's Cholesky factorization, and the conditioned
+            # process only needs the dense covariance if explicitly asked for
+            # it. This requires the factorized matrix to have exactly the
+            # kernel's quasiseparable generators, which is not the case for a
+            # noise model with its own states (e.g. ``Banded``).
+            if kernel is None and isinstance(self.noise.to_qsm(), DiagQSM):
+                state = qsp.precompute(self)
+                cond_kernel = qsp.ConditionedKernel(self.X, self, pred_kernel, state)
+                return ConditionedComponents(
+                    kernel=cond_kernel,
+                    mean_value=mean_value,
+                    solver=LazyDirectSolver(cond_kernel, X_test, noise),
+                )
+
+            comps = dense_condition(self, kernel, X_test, noise, alpha)
+            return comps._replace(mean_value=mean_value)
 
         cond_kernel = Conditioned(self.X, self, pred_kernel)
         return ConditionedComponents(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["DirectSolver", "dense_condition"]
+__all__ = ["DirectSolver", "LazyDirectSolver", "dense_condition"]
 
 from typing import Any
 
@@ -123,3 +123,67 @@ def dense_condition(
         mean_value=jnp.dot(alpha, Ks),
         solver=DirectSolver(cond_kernel, Xt, noise, covariance=Kss, variance=var),
     )
+
+
+class LazyDirectSolver(Solver):
+    """A dense solver whose covariance is built (and factorized) only on demand
+
+    This is meant for conditioned processes whose kernel is cheap to evaluate on
+    the diagonal but expensive as a full matrix, such as the quasiseparable fast
+    prediction path: ``variance`` only touches ``kernel(X)``, ``covariance``
+    builds the dense ``N x N`` matrix, and ``log_probability``, ``sample``, and
+    the triangular solves additionally Cholesky factorize it via a
+    :class:`DirectSolver`. That factorization is rebuilt on each call and not
+    cached, so those operations cost ``O(N^3)`` every time. (Under ``jax.jit``,
+    repeated factorizations within one call are de-duplicated by common
+    subexpression elimination.)
+    """
+
+    kernel: kernels.Kernel
+    X: JAXArray
+    noise: Noise
+
+    def __init__(
+        self,
+        kernel: kernels.Kernel,
+        X: JAXArray,
+        noise: Noise,
+        *,
+        covariance: Any | None = None,
+    ):
+        if covariance is not None:
+            raise ValueError(
+                "LazyDirectSolver does not accept a pre-computed covariance"
+            )
+        self.kernel = kernel
+        self.X = X
+        self.noise = noise
+
+    def variance(self) -> JAXArray:
+        return self.kernel(self.X) + self.noise.diagonal()
+
+    def covariance(self) -> JAXArray:
+        return self.kernel(self.X, self.X) + self.noise
+
+    def _dense(self) -> DirectSolver:
+        return DirectSolver(
+            self.kernel, self.X, self.noise, covariance=self.covariance()
+        )
+
+    def normalization(self) -> JAXArray:
+        return self._dense().normalization()
+
+    def solve_triangular(self, y: JAXArray, *, transpose: bool = False) -> JAXArray:
+        return self._dense().solve_triangular(y, transpose=transpose)
+
+    def dot_triangular(self, y: JAXArray) -> JAXArray:
+        return self._dense().dot_triangular(y)
+
+    def condition(
+        self,
+        kernel: kernels.Kernel | None,
+        X_test: JAXArray | None,
+        noise: Noise,
+        alpha: JAXArray,
+    ) -> ConditionedComponents:
+        return dense_condition(self._dense(), kernel, X_test, noise, alpha)

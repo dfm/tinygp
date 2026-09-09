@@ -12,6 +12,30 @@ solvers package
    QuasisepSolver
 
 
+The solver interface
+--------------------
+
+.. currentmodule:: tinygp.solvers.solver
+
+.. autosummary::
+   :toctree: summary
+
+   Solver
+   ConditionedComponents
+
+
+Dense conditioning
+------------------
+
+.. currentmodule:: tinygp.solvers.direct
+
+.. autosummary::
+   :toctree: summary
+
+   dense_condition
+   LazyDirectSolver
+
+
 Subpackages
 -----------
 

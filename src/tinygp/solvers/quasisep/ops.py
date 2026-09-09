@@ -392,8 +392,36 @@ def upper_matmul_parallel(p, q, a, x):
     return jnp.einsum("nj,njk->nk", q, _shift_bwd(f))
 
 
+def congruence_scan(A, B, *, reverse=False, parallel=False):
+    """The inclusive congruence recursion ``Z_k = A_k @ Z_{k-1} @ A_k^T + B_k``
+
+    (with ``Z_{k+1}`` in place of ``Z_{k-1}`` when ``reverse``), starting from
+    zero.
+    """
+    if parallel:
+
+        def combine(left, right):
+            (Al, Bl), (Ar, Br) = left, right
+            return Ar @ Al, Ar @ Bl @ Ar.mT + Br
+
+        return jax.lax.associative_scan(combine, (A, B), reverse=reverse)[1]
+
+    def impl(z, data):
+        Ak, Bk = data
+        zk = Ak @ z @ Ak.T + Bk
+        return zk, zk
+
+    return jax.lax.scan(impl, jnp.zeros_like(B[0]), (A, B), reverse=reverse)[1]
+
+
 @jax.jit
 def cholesky(d, p, q, a):
+    """The Cholesky factor's generators ``(c, w)`` and the inclusive carry ``f``
+
+    The carry ``f_k = a_k @ f_{k-1} @ a_k^T + w_k @ w_k^T`` is only needed by
+    the fast prediction path (:mod:`tinygp.solvers.quasisep.predict`).
+    """
+
     def impl(carry, data):
         fp = carry
         dk, pk, qk, ak = data
@@ -401,14 +429,15 @@ def cholesky(d, p, q, a):
         tmp = fp @ ak.T
         wk = (qk - pk @ tmp) / ck
         fk = ak @ tmp + jnp.outer(wk, wk)
-        return fk, (ck, wk)
+        return fk, (ck, wk, fk)
 
     init = jnp.zeros_like(jnp.outer(q[0], q[0]))
-    _, (c, w) = jax.lax.scan(impl, init, (d, p, q, a))
-    return c, w
+    _, (c, w, f) = jax.lax.scan(impl, init, (d, p, q, a))
+    return c, w, f
 
 
 def _riccati_scan(d, p, q, a):
+    """The inclusive Cholesky carry ``f_k`` via a parallel Riccati scan"""
     J = p.shape[1]
     I = jnp.eye(J)
     inv_d = 1.0 / d
@@ -426,7 +455,7 @@ def _riccati_scan(d, p, q, a):
         )
 
     _, f, _ = jax.lax.associative_scan(combine, (A, F, G))
-    return _shift_fwd(f)
+    return f
 
 
 @jax.jit
@@ -438,8 +467,8 @@ def cholesky_parallel(d, p, q, a):
         wk = (qk - pk @ f @ ak.T) / ck
         return ck, wk
 
-    c, w = jax.vmap(emit)(f, d, p, q, a)
-    return c, w
+    c, w = jax.vmap(emit)(_shift_fwd(f), d, p, q, a)
+    return c, w, f
 
 
 @jax.jit
@@ -473,7 +502,7 @@ def symm_inv(d, p, q, a):
 
 @jax.jit
 def symm_inv_parallel(d, p, q, a):
-    f = _riccati_scan(d, p, q, a)
+    f = _shift_fwd(_riccati_scan(d, p, q, a))
 
     def fwd_emit(f, dk, pk, qk, ak):
         fpk = f @ pk
@@ -485,13 +514,8 @@ def symm_inv_parallel(d, p, q, a):
 
     ig, s, ell = jax.vmap(fwd_emit)(f, d, p, q, a)
 
-    def bwd_combine(left, right):
-        (Al, Bl), (Ar, Br) = left, right
-        return Ar @ Al, Ar @ Bl @ Ar.mT + Br
-
     B = jnp.einsum("n,nj,nk->njk", ig, p, p)
-    _, z = jax.lax.associative_scan(bwd_combine, (ell.mT, B), reverse=True)
-    z = _shift_bwd(z)
+    z = _shift_bwd(congruence_scan(ell.mT, B, reverse=True, parallel=True))
 
     def bwd_emit(z, igk, pk, ak, sk):
         skz = sk @ z

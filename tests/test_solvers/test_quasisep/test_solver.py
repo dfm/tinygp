@@ -195,6 +195,7 @@ def test_conditioned_gp_operations(kernel, random, parallel):
         # Chained conditioning should also be well-behaved
         cond1b = cond1.gp.condition(y2)
         cond2b = cond2.gp.condition(y2)
+        assert isinstance(cond1b.gp.solver, QuasisepSolver)
         assert_allclose(cond1b.log_probability, cond2b.log_probability)
         assert_allclose(cond1b.gp.loc, cond2b.gp.loc)
         assert_allclose(cond1b.gp.variance, cond2b.gp.variance)

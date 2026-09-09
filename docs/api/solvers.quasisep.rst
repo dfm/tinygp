@@ -39,3 +39,19 @@ Rectangular Quasiseparable Matrices
    :toctree: summary
 
    GeneralQSM
+
+
+Fast Prediction
+---------------
+
+.. currentmodule:: tinygp.solvers.quasisep.predict
+
+.. automodule:: tinygp.solvers.quasisep.predict
+
+.. autosummary::
+   :toctree: summary
+
+   PredictState
+   precompute
+   predict_var
+   ConditionedKernel

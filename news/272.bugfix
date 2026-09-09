@@ -1,0 +1,4 @@
+Fixed the conditional covariance returned by a ``QuasisepSolver`` when
+conditioning at new test points or with a non-quasiseparable kernel: the
+test-point noise was omitted, inconsistently with the ``DirectSolver`` and with
+the conditioned process's own ``variance``.
