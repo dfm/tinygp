@@ -186,7 +186,7 @@ def test_conditioned_gp_operations(kernel, random, parallel):
         assert_allclose(cond1.gp.log_probability(y2), cond2.gp.log_probability(y2))
         assert jnp.isfinite(cond1.gp.sample(jax.random.PRNGKey(0))).all()
 
-        # predict(return_var=True) at the training points uses condition_diag
+        # predict(return_var=True) at the training points uses the QSM conditional
         mu1, var1 = gp1.predict(y1, return_var=True)
         mu2, var2 = gp2.predict(y1, return_var=True)
         assert_allclose(mu1, mu2)

@@ -152,6 +152,15 @@ class Conditioned(Kernel):
         K = self.solver.solve_triangular(kernel_vec(self.X, X))
         return self.kernel.evaluate_diag(X) - K.transpose() @ K
 
+    def __call__(self, X1: JAXArray, X2: JAXArray | None = None) -> JAXArray:
+        if X2 is None:
+            return super().__call__(X1)
+        # Evaluating the full matrix pairwise would require one triangular
+        # solve per pair; instead, do one batched solve per side
+        K1 = self.solver.solve_triangular(self.kernel(self.X, X1))
+        K2 = K1 if X2 is X1 else self.solver.solve_triangular(self.kernel(self.X, X2))
+        return self.kernel(X1, X2) - K1.transpose() @ K2
+
 
 class Custom(Kernel):
     """A custom kernel class implemented as a callable

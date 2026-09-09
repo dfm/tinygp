@@ -54,6 +54,7 @@ class KalmanSolver(Solver):
         assert isinstance(noise, Diagonal)
         assert covariance is None
 
+        self.kernel = kernel
         self.X = X
         Pinf = kernel.stationary_covariance()
         self.A = jax.vmap(kernel.transition_matrix)(
@@ -80,9 +81,13 @@ class KalmanSolver(Solver):
         raise NotImplementedError
 
     def condition(
-        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
+        self,
+        kernel: Kernel | None,
+        X_test: JAXArray | None,
+        noise: Noise,
+        alpha: JAXArray,
     ) -> Any:
-        del kernel, X_test, noise
+        del kernel, X_test, noise, alpha
         raise NotImplementedError
 
 

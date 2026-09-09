@@ -1,19 +1,52 @@
 from __future__ import annotations
 
-__all__ = ["Solver"]
+__all__ = ["Solver", "ConditionedComponents"]
 
 from abc import abstractmethod
-from typing import Any
+from typing import Any, NamedTuple
 
 import equinox as eqx
-import jax.numpy as jnp
 
 from tinygp.helpers import JAXArray
 from tinygp.kernels.base import Kernel
 from tinygp.noise import Noise
 
 
+class ConditionedComponents(NamedTuple):
+    """The pieces of a conditioned process, as returned by :func:`Solver.condition`
+
+    Everything here describes the conditional process *without* the prior mean
+    function of the parent process; :class:`tinygp.GaussianProcess` adds that
+    back itself.
+    """
+
+    kernel: Kernel
+    """The conditional kernel; its diagonal is the conditional variance."""
+
+    mean_value: JAXArray
+    """The conditional mean evaluated at the test points."""
+
+    solver: Solver
+    """The solver for the conditioned process
+
+    This is built by the solver that produced it, so that solver-specific
+    settings (and representations) carry over. A solver that can avoid
+    materializing the full ``N_test x N_test`` conditional covariance should
+    return a lazy solver here (see, for example,
+    :class:`tinygp.solvers.direct.LazyDirectSolver`).
+    """
+
+
 class Solver(eqx.Module):
+    """The interface for the linear algebra backends used by a GaussianProcess
+
+    Implementations must store the kernel and input coordinates that they were
+    built with as ``kernel`` and ``X``.
+    """
+
+    kernel: Kernel
+    X: JAXArray
+
     def __init__(
         self,
         kernel: Kernel,
@@ -80,51 +113,28 @@ class Solver(eqx.Module):
 
     @abstractmethod
     def condition(
-        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
-    ) -> Any:
-        """Compute the covariance matrix for a conditional GP
+        self,
+        kernel: Kernel | None,
+        X_test: JAXArray | None,
+        noise: Noise,
+        alpha: JAXArray,
+    ) -> ConditionedComponents:
+        """Build the components of the process conditioned on observed data
 
         Args:
             kernel: The kernel for the covariance between the observed and
                 predicted data. If ``None``, the kernel used to construct this
                 solver is used, and solvers can use this as a signal to enable
-                specialized algorithms. Solver implementations must store this
-                kernel as ``self.kernel``.
+                specialized algorithms. (This signal is used rather than
+                checking object identity because identity is not preserved
+                under ``jax.jit``.)
             X_test: The coordinates of the predicted points. Defaults to the
                 input coordinates.
             noise: The noise model for the predicted process.
+            alpha: The vector ``K^{-1} @ (y - mean)`` for the observed data.
+
+        Returns:
+            A :class:`ConditionedComponents` describing the conditional
+            process, excluding the prior mean function.
         """
         raise NotImplementedError
-
-    def condition_diag(
-        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
-    ) -> JAXArray:
-        """The diagonal of the covariance matrix for a conditional GP
-
-        Unlike :func:`condition`, which returns the full ``N_test x N_test``
-        conditional covariance matrix, this only computes its diagonal,
-        reusing this solver's existing factorization. The default
-        implementation below does this in ``O(N_train * N_test)`` time and
-        memory, without ever materializing a dense ``N_test x N_test``
-        matrix. Subclasses can override this to use a more efficient,
-        solver-specific algorithm where one is available (see e.g.
-        :class:`tinygp.solvers.QuasisepSolver`).
-
-        Args:
-            kernel: The kernel for the covariance between the observed and
-                predicted data. If ``None``, the kernel used to construct this
-                solver is used.
-            X_test: The coordinates of the predicted points. Defaults to the
-                input coordinates.
-            noise: The noise model for the predicted process.
-        """
-        if kernel is None:
-            kernel = self.kernel  # type: ignore
-        if X_test is None:
-            Ks = kernel(self.X, self.X)  # type: ignore
-            Kss_diag = kernel(self.X)  # type: ignore
-        else:
-            Ks = kernel(self.X, X_test)  # type: ignore
-            Kss_diag = kernel(X_test)
-        A = self.solve_triangular(Ks)
-        return Kss_diag - jnp.sum(jnp.square(A), axis=0) + noise.diagonal()
