@@ -421,16 +421,22 @@ class SquareQSM(QSM):
             upper=self.upper.scale(other),
         )
 
-    def gram(self) -> SymmQSM:
+    def gram(self, *, parallel: bool = False) -> SymmQSM:
         """The inner product of this matrix with itself
 
         If this matrix is called ``A``, the Gram matrix is ``A.T @ A``, and
         that's what this method computes. The result is a :class:`SymmQSM`.
+
+        Args:
+            parallel: If ``True``, use parallel associative-scan algorithms
+                for the matrix product.
         """
+        from tinygp.solvers.quasisep.ops import qsm_mul
+
         # We know that this must result in symmetric matrix, but that won't be
         # enforced; we make it so! It might be possible to make this more
         # efficient, but perhaps jax is clever enough?
-        M = self.transpose() @ self
+        M = qsm_mul(self.transpose(), self, parallel=parallel)
         return SymmQSM(diag=M.diag, lower=M.lower)
 
     @jax.jit

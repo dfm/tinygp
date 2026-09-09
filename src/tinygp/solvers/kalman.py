@@ -79,7 +79,9 @@ class KalmanSolver(Solver):
         del y
         raise NotImplementedError
 
-    def condition(self, kernel: Kernel, X_test: JAXArray | None, noise: Noise) -> Any:
+    def condition(
+        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
+    ) -> Any:
         del kernel, X_test, noise
         raise NotImplementedError
 

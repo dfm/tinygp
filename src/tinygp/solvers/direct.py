@@ -22,6 +22,7 @@ class DirectSolver(Solver):
     usual constructor.
     """
 
+    kernel: kernels.Kernel
     X: JAXArray
     variance_value: JAXArray
     covariance_value: JAXArray
@@ -45,6 +46,7 @@ class DirectSolver(Solver):
                 matrix. This should be equal to the result of calling ``kernel``
                 and adding ``diag``, but that is not checked.
         """
+        self.kernel = kernel
         self.X = X
         self.variance_value = kernel(X) + noise.diagonal()
         if covariance is None:
@@ -73,17 +75,20 @@ class DirectSolver(Solver):
         return jnp.einsum("ij,j...->i...", self.scale_tril, y)
 
     def condition(
-        self, kernel: kernels.Kernel, X_test: JAXArray | None, noise: Noise
+        self, kernel: kernels.Kernel | None, X_test: JAXArray | None, noise: Noise
     ) -> Any:
         """Compute the covariance matrix for a conditional GP
 
         Args:
             kernel: The kernel for the covariance between the observed and
-                predicted data.
+                predicted data. If ``None``, the kernel used to construct this
+                solver is used.
             X_test: The coordinates of the predicted points. Defaults to the
                 input coordinates.
             noise: The noise model for the predicted process.
         """
+        if kernel is None:
+            kernel = self.kernel
         if X_test is None:
             Ks = kernel(self.X, self.X)
             Kss = Ks + noise
