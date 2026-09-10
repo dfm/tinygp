@@ -207,8 +207,8 @@ def test_predict_return_var_takes_priority_over_return_cov(random):
 
 
 def test_predict_quasisep_at_training_points(random):
-    # Must go through QuasisepSolver.condition_diag's quasiseparable
-    # shortcut, not fall back to a dense N x N cross-covariance matrix.
+    # Must go through QuasisepSolver.condition's quasiseparable
+    # representation, not fall back to a dense N x N cross-covariance matrix.
     with jax.enable_x64(True):
         X = jnp.sort(random.uniform(0, 10, 50))
         y = jnp.sin(X) + 0.1 * random.normal(size=len(X))
@@ -219,3 +219,10 @@ def test_predict_quasisep_at_training_points(random):
         mu, var = gp.predict(y, return_var=True)
         assert_allclose(mu, cond.loc)
         assert_allclose(var, cond.variance)
+
+
+def test_solver_instance_size_mismatch(random):
+    X = jnp.sort(random.uniform(0, 10, 20))
+    solver = GaussianProcess(kernels.Matern32(1.0), X, diag=0.1).solver
+    with pytest.raises(ValueError, match="built for 20 data points"):
+        GaussianProcess(kernels.Matern32(1.0), X[:10], diag=0.1, solver=solver)

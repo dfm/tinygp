@@ -115,34 +115,48 @@ class Quasisep(Kernel):
         q = hP
         return SymmQSM(diag=DiagQSM(d=d), lower=StrictLowerTriQSM(p=p, q=q, a=a))
 
+    def anchor(self, x: JAXArray, X: JAXArray) -> tuple[JAXArray, JAXArray, JAXArray]:
+        """The cross-covariance row generators of one point ``x`` against ``X``
+
+        Returns ``(idx, pl, qu)`` where ``idx`` is the index of the last
+        coordinate in (sorted) ``X`` not after ``x``, ``pl`` propagates the
+        observation model of ``x`` from ``X[idx]`` and ``qu`` propagates it to
+        ``X[idx + 1]``, so that ``k(x, X[n]) = pl @ a_idx ... a_{n+1} @ q_n`` for
+        ``n <= idx`` and ``k(x, X[n]) = h_n @ a_n ... a_{idx+2} @ qu`` for
+        ``n > idx``, with ``(q, a)`` the generators of :func:`to_symm_qsm`. Rows
+        that extrapolate past the data (``idx < 0`` for ``pl``, ``idx >= N - 1``
+        for ``qu``) are zero. The transitions never run backwards in time, so
+        nothing here amplifies like ``exp(+gap / scale)``.
+        """
+        t = jax.vmap(self.coord_to_sortable)(X)
+        N = t.shape[0]
+        idx = jnp.searchsorted(t, self.coord_to_sortable(x), side="right") - 1
+        iL = jnp.clip(idx, 0, N - 1)
+        iR = jnp.clip(idx + 1, 0, N - 1)
+        xL = jax.tree_util.tree_map(lambda v: jnp.asarray(v)[iL], X)
+        xR = jax.tree_util.tree_map(lambda v: jnp.asarray(v)[iR], X)
+        h = self.observation_model(x)
+        Pinf = self.stationary_covariance()
+
+        # Masked rows still evaluate the transition -- over a negative,
+        # unbounded gap, which can overflow -- and a masked ``inf`` poisons
+        # gradients, so the transition is evaluated at a clamped zero-gap
+        # coordinate whenever the mask is off (the double-where idiom).
+        okL = idx >= 0
+        xc = jax.tree_util.tree_map(lambda s, v: jnp.where(okL, s, v), x, xL)
+        pl = jnp.where(okL, self.transition_matrix(xL, xc) @ h, 0.0)
+
+        okR = idx < N - 1
+        xc = jax.tree_util.tree_map(lambda s, v: jnp.where(okR, s, v), x, xR)
+        qu = jnp.where(okR, self.transition_matrix(xc, xR).T @ (Pinf @ h), 0.0)
+        return idx, pl, qu
+
     def to_general_qsm(self, X1: JAXArray, X2: JAXArray) -> GeneralQSM:
         """The generalized quasiseparable representation of this kernel"""
-        sortable = jax.vmap(self.coord_to_sortable)
-        idx = jnp.searchsorted(sortable(X2), sortable(X1), side="right") - 1
-
-        Xs = jax.tree_util.tree_map(lambda x: jnp.append(x[0], x[:-1]), X2)
-        Pinf = self.stationary_covariance()
-        a_adjoint = jax.vmap(self.transition_matrix)(Xs, X2)
-        a = _matrix_transpose(a_adjoint)
-        h1 = jax.vmap(self.observation_model)(X1)
+        idx, pl, qu = jax.vmap(self.anchor, in_axes=(0, None))(X1, X2)
+        _, q, a = self.to_symm_qsm(X2).lower
         h2 = jax.vmap(self.observation_model)(X2)
-
-        ql = h2 @ Pinf.T
-        pl = h1
-        qu = h1 @ Pinf
-        pu = h2
-
-        i = jnp.clip(idx, 0, ql.shape[0] - 1)
-        Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
-        transition = jax.vmap(self.transition_matrix)(Xi, X1)
-        pl = jax.vmap(lambda x, y: x @ y.T)(pl, transition)
-
-        i = jnp.clip(idx + 1, 0, pu.shape[0] - 1)
-        Xi = jax.tree_util.tree_map(lambda x: jnp.asarray(x)[i], X2)
-        transition = jax.vmap(self.transition_matrix)(X1, Xi)
-        qu = jax.vmap(lambda x, y: x @ y)(qu, transition)
-
-        return GeneralQSM(pl=pl, ql=ql, pu=pu, qu=qu, a=a, idx=idx)
+        return GeneralQSM(pl=pl, ql=q, pu=h2, qu=qu, a=a, idx=idx)
 
     def matmul(
         self,

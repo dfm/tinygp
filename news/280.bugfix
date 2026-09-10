@@ -8,8 +8,6 @@ that the GP was built with now uses the identity ``N - N @ K^{-1} @ N`` for the
 conditional covariance, which has the same quasiseparable rank as the prior
 kernel (instead of four times that rank) and is much better conditioned
 numerically. To support this, ``kernel=None`` is now passed through to
-``Solver.condition`` and ``Solver.condition_diag`` to signal that the solver's
-own kernel should be used, and solvers are expected to store that kernel as
-``self.kernel``; third-party ``Solver`` implementations will need to handle
-this. Also fixed a bug where the product of two different ``SymmQSM`` matrices
+``Solver.condition`` to signal that the solver's own kernel should be used.
+Also fixed a bug where the product of two different ``SymmQSM`` matrices
 was incorrectly returned as a ``SymmQSM``, dropping its upper triangle.

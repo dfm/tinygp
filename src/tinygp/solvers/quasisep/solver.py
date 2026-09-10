@@ -10,15 +10,18 @@ import jax.numpy as jnp
 import numpy as np
 
 from tinygp.helpers import JAXArray
-from tinygp.kernels.base import Kernel
+from tinygp.kernels.base import Conditioned, Kernel
 from tinygp.noise import Noise
+from tinygp.solvers.direct import LazyDirectSolver, dense_condition
+from tinygp.solvers.quasisep import predict as qsp
 from tinygp.solvers.quasisep.core import (
     DiagQSM,
     LowerTriQSM,
     StrictLowerTriQSM,
     SymmQSM,
 )
-from tinygp.solvers.solver import Solver
+from tinygp.solvers.quasisep.ops import qsm_mul
+from tinygp.solvers.solver import ConditionedComponents, Solver
 
 
 class QuasisepSolver(Solver):
@@ -123,8 +126,6 @@ class QuasisepSolver(Solver):
         ``M - M @ K^{-1} @ M`` directly, where the difference of two nearly
         equal matrices is encoded in the generators.
         """
-        from tinygp.solvers.quasisep.ops import qsm_mul
-
         Kinv = self.matrix.inv(parallel=self.parallel)
         N = self.noise.to_qsm()
         if isinstance(N, DiagQSM):
@@ -143,87 +144,99 @@ class QuasisepSolver(Solver):
         # The (QSM) term M @ K^{-1} @ M = (L^{-1} @ M)^T @ (L^{-1} @ M) that
         # gets subtracted from M when conditioning at the input coordinates
         # with a general (cross-)kernel M
-        from tinygp.solvers.quasisep.ops import qsm_mul
-
         A = qsm_mul(self.factor.inv(), M, parallel=self.parallel)
         return A.gram(parallel=self.parallel)
 
     def condition(
-        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
-    ) -> Any:
-        """Compute the covariance matrix for a conditional GP
+        self,
+        kernel: Kernel | None,
+        X_test: JAXArray | None,
+        noise: Noise,
+        alpha: JAXArray,
+    ) -> ConditionedComponents:
+        """Build the components of the conditioned process
 
-        In the case where the prediction is made at the input coordinates with a
-        :class:`tinygp.kernels.quasisep.Quasisep` kernel, this will return the
-        quasiseparable representation of the conditional matrix. Otherwise, it
-        will use scalable methods where possible, but return a dense
-        representation of the covariance, so be careful when predicting at a
-        large number of test points!
+        When predicting at the input coordinates (``X_test=None``) with a
+        :class:`tinygp.kernels.quasisep.Quasisep` kernel, the conditional
+        covariance is computed as a quasiseparable matrix, so the conditioned
+        process is itself a ``QuasisepSolver`` process. When, in addition, the
+        kernel is the one that this solver was built with (``kernel=None``), a
+        rank-``J`` representation is used that only requires the inverse of the
+        training covariance and is numerically much better behaved (see
+        ``_conditional_at_data``). That applies to any ``QuasisepSolver``,
+        including one that is itself the result of conditioning.
 
-        Args:
-            kernel: The kernel for the covariance between the observed and
-                predicted data. If ``None``, the kernel used to construct this
-                solver is used, which enables a more efficient and numerically
-                stable algorithm when ``X_test`` is also ``None``.
-            X_test: The coordinates of the predicted points. Defaults to the
-                input coordinates.
-            noise: The noise model for the predicted process.
+        When predicting at new test points with the kernel that this solver was
+        built with (``kernel=None``), the conditional mean and variance are
+        computed in ``O(J^2)`` per test point by reusing this solver's Cholesky
+        factorization (see :mod:`tinygp.solvers.quasisep.predict`), and the
+        conditioned process gets a :class:`tinygp.solvers.direct.LazyDirectSolver`
+        that only builds the dense conditional covariance on demand.
+
+        Otherwise, this falls back on
+        :func:`tinygp.solvers.direct.dense_condition`, which materializes a
+        dense conditional covariance, so be careful when predicting at a large
+        number of test points!
         """
+        # Imported here because ``tinygp.kernels.quasisep`` imports this package
         from tinygp.kernels.quasisep import Quasisep
 
-        # The most common case: predicting at the input coordinates with the
-        # kernel that this solver was built with
+        pred_kernel = self.kernel if kernel is None else kernel
+
         if X_test is None and kernel is None:
-            return self._conditional_at_data() + noise.to_qsm()
+            # Conditioning at the data with this solver's kernel: the rank-J
+            # representation only needs this solver's matrix and noise, so it
+            # applies to any kernel, including the ``Conditioned`` kernel of an
+            # already conditioned process. The same goes for the conditional
+            # mean, M @ alpha = (K - N) @ alpha with K = M + N.
+            covariance = self._conditional_at_data() + noise.to_qsm()
+            mean_value = self.matrix.matmul(alpha, parallel=self.parallel)
+            mean_value -= self.noise @ alpha
 
-        if kernel is None:
-            kernel = self.kernel
+        elif not isinstance(pred_kernel, Quasisep):
+            return dense_condition(self, kernel, X_test, noise, alpha)
 
-        # We can also compute the conditional as a QSM in the special case
-        # where we are predicting at the input coordinates and a Quasisep kernel
-        if X_test is None and isinstance(kernel, Quasisep):
-            M = kernel.to_symm_qsm(self.X)
-            delta = self._conditional_delta(M)
-            M += noise.to_qsm()
-            return M - delta
+        elif X_test is None:
+            M = pred_kernel.to_symm_qsm(self.X)
+            covariance = M + noise.to_qsm() - self._conditional_delta(M)
+            mean_value = pred_kernel.matmul(self.X, y=alpha)
 
-        # Otherwise fall back on the slow method for now :(
-        if X_test is None:
-            Kss = Ks = kernel(self.X, self.X)
         else:
-            Kss = kernel(X_test, X_test)
-            Ks = kernel(self.X, X_test)
+            # The cross-covariance matmul is O((N + M) J^2) for a Quasisep
+            # kernel, so we always prefer it to a dense product
+            mean_value = pred_kernel.matmul(X_test, self.X, alpha)
 
-        A = self.solve_triangular(Ks)
-        return Kss - A.transpose() @ A
+            # When predicting with the kernel that this solver was built with,
+            # the variance can also be computed in O(J^2) per test point by
+            # reusing this solver's Cholesky factorization, and the conditioned
+            # process only needs the dense covariance if explicitly asked for
+            # it. This requires the factorized matrix to have exactly the
+            # kernel's quasiseparable generators, which is not the case for a
+            # noise model with its own states (e.g. ``Banded``).
+            if kernel is None and isinstance(self.noise.to_qsm(), DiagQSM):
+                state = qsp.precompute(self)
+                cond_kernel = qsp.ConditionedKernel(self.X, self, pred_kernel, state)
+                return ConditionedComponents(
+                    kernel=cond_kernel,
+                    mean_value=mean_value,
+                    solver=LazyDirectSolver(cond_kernel, X_test, noise),
+                )
 
-    def condition_diag(
-        self, kernel: Kernel | None, X_test: JAXArray | None, noise: Noise
-    ) -> JAXArray:
-        """The diagonal of the covariance matrix for a conditional GP
+            comps = dense_condition(self, kernel, X_test, noise, alpha)
+            return comps._replace(mean_value=mean_value)
 
-        This reuses the same quasiseparable special cases as :func:`condition`:
-        when predicting at the input coordinates with a
-        :class:`tinygp.kernels.quasisep.Quasisep` kernel, the diagonal can be
-        computed in ``O(N)`` (or ``O(N log N)`` with the parallel algorithms)
-        without ever materializing a dense matrix. Otherwise, this falls back on
-        :func:`tinygp.solvers.solver.Solver.condition_diag`.
-        """
-        from tinygp.kernels.quasisep import Quasisep
-
-        if X_test is None and kernel is None:
-            return self._conditional_at_data().diag.d + noise.diagonal()
-
-        if kernel is None:
-            kernel = self.kernel
-
-        if X_test is None and isinstance(kernel, Quasisep):
-            M = kernel.to_symm_qsm(self.X)
-            delta = self._conditional_delta(M)
-            M += noise.to_qsm()
-            return M.diag.d - delta.diag.d
-
-        return super().condition_diag(kernel, X_test, noise)
+        cond_kernel = Conditioned(self.X, self, pred_kernel)
+        return ConditionedComponents(
+            kernel=cond_kernel,
+            mean_value=mean_value,
+            solver=QuasisepSolver(
+                cond_kernel,
+                self.X,
+                noise,
+                covariance=covariance,
+                parallel=self.parallel,
+            ),
+        )
 
 
 def _check_sorted(X: JAXArray) -> None:

@@ -1,0 +1,10 @@
+The low-level ``Solver.condition`` interface changed: it now receives the
+unresolved ``kernel`` (``None`` meaning the kernel the solver was built with)
+and the vector ``alpha = K^{-1} (y - mean)``, and returns a
+``ConditionedComponents`` bundle holding the conditional kernel, the
+conditional mean at the test points, and the conditioned process's solver.
+``Solver.condition_diag`` was removed: ``GaussianProcess.predict`` is now a
+thin ``jax.jit``-compiled wrapper around ``condition``, which never
+materializes the full test covariance unless ``return_cov`` is requested.
+Third-party solvers must be updated, and must expose the ``kernel`` and ``X``
+that they were built with as attributes.
