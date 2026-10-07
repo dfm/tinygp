@@ -773,7 +773,9 @@ class CARMA(Quasisep):
         _complex_select = _complex_mask * complex_idx % 2
 
         # Construct the obsservation model => real + complex
-        om_real = jnp.sqrt(jnp.abs(acf.real))
+        # (_safe_sqrt keeps the gradient finite for terms that are exactly zero,
+        # including the ones discarded by jnp.where below)
+        om_real = _safe_sqrt(jnp.where(_real_mask, jnp.abs(acf.real), 0.0))
 
         a, b, c, d = (
             2 * acf.real,
@@ -785,10 +787,11 @@ class CARMA(Quasisep):
         d2 = jnp.square(d)
         s2 = c2 + d2
         denom = jnp.where(_real_mask, 1.0, 2 * c * s2)
-        h2_2 = d2 * (a * c - b * d) / denom
-        h2 = jnp.sqrt(h2_2)
+        h2_2 = jnp.where(_real_mask, 0.0, d2 * (a * c - b * d) / denom)
+        h2 = _safe_sqrt(h2_2)
         denom = jnp.where(_real_mask, 1.0, d)
-        h1 = (c * h2 - jnp.sqrt(a * d2 - s2 * h2_2)) / denom
+        rad = jnp.where(_real_mask, 0.0, a * d2 - s2 * h2_2)
+        h1 = (c * h2 - _safe_sqrt(rad)) / denom
         om_complex = jnp.array([h1, h2])
 
         # for complex roots, every conjugate pair match one full celerite term,
@@ -898,6 +901,16 @@ class CARMA(Quasisep):
         )
 
         return tm_real + tm_complex_diag + -tm_complex_u.T + tm_complex_u
+
+
+def _safe_sqrt(x: JAXArray) -> JAXArray:
+    """Square root that is 0, with a zero derivative, for non-positive input
+
+    The derivative of ``jnp.sqrt`` at 0 is infinite, which turns gradients into
+    NaN when a term is exactly zero or is discarded by ``jnp.where``.
+    """
+    positive = x > 0
+    return jnp.where(positive, jnp.sqrt(jnp.where(positive, x, 1.0)), 0.0)
 
 
 @jax.jit
