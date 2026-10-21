@@ -75,7 +75,7 @@ class Conditioned(MeanBase):
     X: JAXArray
     alpha: JAXArray
     kernel: Kernel
-    include_mean: bool
+    include_mean: bool = eqx.field(static=True)
     mean_function: MeanBase | None = None
 
     def __call__(self, X: JAXArray) -> JAXArray:
