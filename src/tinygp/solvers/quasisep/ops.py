@@ -2,6 +2,7 @@ from __future__ import annotations
 
 __all__ = ["elementwise_add", "elementwise_mul", "qsm_mul"]
 
+from functools import partial
 from typing import TypeVar
 
 import jax
@@ -49,8 +50,16 @@ def elementwise_mul(a: QSM, b: QSM) -> QSM | None:
     return construct(diag, lower, upper, is_symm_a and is_symm_b)
 
 
-@jax.jit
-def qsm_mul(a: QSM, b: QSM) -> QSM | None:
+@partial(jax.jit, static_argnames=("parallel",))
+def qsm_mul(a: QSM, b: QSM, *, parallel: bool = False) -> QSM | None:
+    """The product of two quasiseparable matrices
+
+    Args:
+        a: The left matrix.
+        b: The right matrix.
+        parallel: If ``True``, use parallel associative-scan algorithms for the
+            two recurrences, instead of sequential scans.
+    """
     diag_a, lower_a, upper_a = deconstruct(a)
     diag_b, lower_b, upper_b = deconstruct(b)
 
@@ -60,28 +69,14 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
         return DiagQSM(d=diag_a * diag_b)
 
     if lower_a is not None and upper_b is not None:
-
-        def calc_phi(phi, data):  # type: ignore
-            a, b, q, g = data
-            return a @ phi @ b.T + jnp.outer(q, g), phi
-
-        init = jnp.zeros_like(jnp.outer(lower_a.q[0], upper_b.q[0]))
-        args = (lower_a.a, upper_b.a, lower_a.q, upper_b.q)
-        _, phi = jax.lax.scan(calc_phi, init, args)
-
+        impl = qsm_mul_phi_parallel if parallel else qsm_mul_phi
+        phi = impl(lower_a.a, upper_b.a, lower_a.q, upper_b.q)
     else:
         phi = None
 
     if upper_a is not None and lower_b is not None:
-
-        def calc_psi(psi, data):  # type: ignore
-            a, b, q, g = data
-            return a.T @ psi @ b + jnp.outer(q, g), psi
-
-        init = jnp.zeros_like(jnp.outer(upper_a.q[-1], lower_b.p[-1]))
-        args = (upper_a.a, lower_b.a, upper_a.p, lower_b.p)
-        _, psi = jax.lax.scan(calc_psi, init, args, reverse=True)
-
+        impl = qsm_mul_psi_parallel if parallel else qsm_mul_psi
+        psi = impl(upper_a.a, lower_b.a, upper_a.p, lower_b.p)
     else:
         psi = None
 
@@ -209,9 +204,11 @@ def qsm_mul(a: QSM, b: QSM) -> QSM | None:
     diag, lower, upper = impl(
         diag_a, lower_a, upper_a, diag_b, lower_b, upper_b, phi, psi
     )
-    is_symm_a = isinstance(a, (DiagQSM, SymmQSM))
-    is_symm_b = isinstance(b, (DiagQSM, SymmQSM))
-    return construct(diag, lower, upper, is_symm_a and is_symm_b)
+    # Note: the product of two symmetric matrices is not, in general,
+    # symmetric, so we always return the full (square) result here. Callers
+    # that know the result must be symmetric (e.g. ``SquareQSM.gram``) can
+    # re-wrap it.
+    return construct(diag, lower, upper, False)
 
 
 def deconstruct(
@@ -303,6 +300,52 @@ def _shift_fwd(x):
 
 def _shift_bwd(x):
     return jnp.concatenate((x[1:], jnp.zeros_like(x[-1:])), axis=0)
+
+
+@jax.jit
+def qsm_mul_phi(a, b, q, g):
+    def impl(phi, data):
+        a, b, q, g = data
+        return a @ phi @ b.T + jnp.outer(q, g), phi
+
+    init = jnp.zeros_like(jnp.outer(q[0], g[0]))
+    _, phi = jax.lax.scan(impl, init, (a, b, q, g))
+    return phi
+
+
+@jax.jit
+def qsm_mul_phi_parallel(a, b, q, g):
+    # The recurrence is affine in phi, with a two-sided linear part:
+    # phi -> a @ phi @ b.T + B. The composition of two such maps is again of
+    # this form, so we scan over the triples (a, b, B).
+    B = jnp.einsum("nj,nk->njk", q, g)
+    _, _, phi = jax.lax.associative_scan(_two_sided_affine_combine, (a, b, B))
+    return _shift_fwd(phi)
+
+
+@jax.jit
+def qsm_mul_psi(a, b, q, g):
+    def impl(psi, data):
+        a, b, q, g = data
+        return a.T @ psi @ b + jnp.outer(q, g), psi
+
+    init = jnp.zeros_like(jnp.outer(q[-1], g[-1]))
+    _, psi = jax.lax.scan(impl, init, (a, b, q, g), reverse=True)
+    return psi
+
+
+@jax.jit
+def qsm_mul_psi_parallel(a, b, q, g):
+    B = jnp.einsum("nj,nk->njk", q, g)
+    _, _, psi = jax.lax.associative_scan(
+        _two_sided_affine_combine, (a.mT, b.mT, B), reverse=True
+    )
+    return _shift_bwd(psi)
+
+
+def _two_sided_affine_combine(left, right):
+    (al, bl, Bl), (ar, br, Br) = left, right
+    return ar @ al, br @ bl, ar @ Bl @ br.mT + Br
 
 
 @jax.jit
