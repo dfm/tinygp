@@ -109,7 +109,7 @@ class Kernel(eqx.Module):
 
     def __radd__(self, other: Any) -> Kernel:
         # We'll hit this first branch when using the `sum` function
-        if other == 0:
+        if isinstance(other, (int, float)) and other == 0:
             return self
         if isinstance(other, Kernel):
             return Sum(other, self)
