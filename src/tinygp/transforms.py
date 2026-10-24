@@ -159,4 +159,5 @@ class Subspace(Kernel):
     kernel: Kernel
 
     def evaluate(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
-        return self.kernel.evaluate(X1[self.axis], X2[self.axis])
+        axis = self.axis if isinstance(self.axis, int) else jnp.asarray(self.axis)
+        return self.kernel.evaluate(X1[axis], X2[axis])
