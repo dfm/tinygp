@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import pytest
+from jax.test_util import check_grads
 from numpy import random as np_random
 
 from tinygp import GaussianProcess
@@ -136,6 +137,34 @@ def test_carma_jit(data):
 
     params = {"alpha": jnp.array([1.0, 1.2]), "beta": jnp.array([1.0, 3.0])}
     loss(params)
+
+
+@pytest.mark.parametrize(
+    "alpha, beta",
+    [
+        # real root
+        ([0.01], [0.1]),
+        # complex roots, the second entry of the observation model is exactly 0
+        ([0.5, 0.1], [0.1]),
+        # complex roots
+        ([0.1, 1.0], [0.1, 0.05]),
+        # real and complex roots
+        ([0.5, 1.5, 1.2], [0.3, 0.2]),
+    ],
+)
+def test_carma_grad(data, alpha, beta):
+    x, y, _ = data
+
+    def loss(alpha, beta):
+        kernel = quasisep.CARMA(alpha=alpha, beta=beta)
+        return -GaussianProcess(kernel, x, diag=0.01).log_probability(y)
+
+    with jax.enable_x64(True):  # type: ignore
+        alpha = jnp.array(alpha, dtype=jnp.float64)
+        beta = jnp.array(beta, dtype=jnp.float64)
+        grads = jax.grad(loss, argnums=(0, 1))(alpha, beta)
+        assert all(jnp.all(jnp.isfinite(g)) for g in grads)
+        check_grads(loss, (alpha, beta), order=1, modes=["rev"], rtol=1e-4)
 
 
 def test_carma_quads():

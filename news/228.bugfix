@@ -1,0 +1,1 @@
+Fixed NaN gradients of the `CARMA` kernel with respect to its parameters, caused by square roots of terms that are exactly zero.
