@@ -336,6 +336,15 @@ class Scale(Wrapper):
 
     scale: JAXArray | float
 
+    # Scaling doesn't change the coordinates, so pass them through unchanged
+    # instead of reducing them with ``coord_to_sortable`` as ``Wrapper`` does.
+    # The wrapped kernel may need the full input, e.g. a band index.
+    def observation_model(self, X: JAXArray) -> JAXArray:
+        return self.kernel.observation_model(X)
+
+    def transition_matrix(self, X1: JAXArray, X2: JAXArray) -> JAXArray:
+        return self.kernel.transition_matrix(X1, X2)
+
     def stationary_covariance(self) -> JAXArray:
         return self.scale * self.kernel.stationary_covariance()
 
