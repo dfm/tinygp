@@ -7,6 +7,7 @@ from numpy import random as np_random
 from tinygp import GaussianProcess
 from tinygp.kernels import quasisep
 from tinygp.noise import Banded
+from tinygp.solvers import DirectSolver
 from tinygp.test_utils import assert_allclose
 
 
@@ -196,3 +197,32 @@ def test_sum_kernel_use_block_false(data):
     gp_block = GaussianProcess(k_block, x, diag=0.1 * jnp.ones(N))
     gp_dense = GaussianProcess(k_dense, x, diag=0.1 * jnp.ones(N))
     assert_allclose(gp_block.log_probability(y), gp_dense.log_probability(y))
+
+
+class _Multiband(quasisep.Wrapper):
+    """A kernel on (time, band) inputs, as in the custom quasisep tutorial."""
+
+    amplitudes: jnp.ndarray
+
+    def coord_to_sortable(self, X):
+        return X[0]
+
+    def observation_model(self, X):
+        return self.amplitudes[X[1]] * self.kernel.observation_model(X[0])
+
+
+def test_scale_of_kernel_with_structured_inputs(random):
+    t = jnp.sort(random.uniform(0, 10, 12))
+    band = jnp.asarray(random.integers(0, 3, len(t)))
+    X = (t, band)
+    kernel = _Multiband(
+        kernel=quasisep.Matern52(scale=1.5), amplitudes=jnp.array([1.0, 0.5, 2.0])
+    )
+    K = kernel.to_symm_qsm(X).to_dense()
+    for scaled in (2.0 * kernel, kernel * 2.0):
+        assert_allclose(scaled.to_symm_qsm(X).to_dense(), 2.0 * K)
+        assert_allclose(scaled(X, X), 2.0 * K)
+    gp = GaussianProcess(kernel + 2.0 * kernel, X, diag=0.1)
+    gp_dense = GaussianProcess(kernel + 2.0 * kernel, X, diag=0.1, solver=DirectSolver)
+    y = random.normal(size=len(t))
+    assert_allclose(gp.log_probability(y), gp_dense.log_probability(y))
